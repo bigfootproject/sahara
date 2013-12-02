@@ -43,7 +43,7 @@ COMMON_CONFIG_OPTS = [
                default='admin',
                help='Username for OpenStack.'),
     cfg.StrOpt('OS_PASSWORD',
-               default='admin',
+               default='test',
                help='Password for OpenStack.'),
     cfg.StrOpt('OS_TENANT_NAME',
                default='admin',
@@ -118,17 +118,17 @@ VANILLA_CONFIG_GROUP = cfg.OptGroup(name='VANILLA')
 VANILLA_CONFIG_OPTS = [
 
     cfg.StrOpt('PLUGIN_NAME',
-               default='vanilla',
+               default='spark',
                help='Name of plugin.'),
 
     cfg.StrOpt('HADOOP_VERSION',
                default='1.2.1',
                help='Version of Hadoop.'),
     cfg.StrOpt('HADOOP_USER',
-               default='hadoop',
+               default='hdfs',
                help='Username which is used for access to Hadoop services.'),
     cfg.StrOpt('HADOOP_DIRECTORY',
-               default='/usr/share/hadoop',
+               default='/usr/lib/hadoop',
                help='Directory where are located Hadoop jar files.'),
     cfg.StrOpt('HADOOP_LOG_DIRECTORY',
                default='/mnt/log/hadoop/hadoop/userlogs',
@@ -165,6 +165,53 @@ VANILLA_CONFIG_OPTS = [
 
 ]
 
+SPARK_CONFIG_GROUP = cfg.OptGroup(name='SPARK')
+SPARK_CONFIG_OPTS = [
+
+    cfg.StrOpt('PLUGIN_NAME',
+               default='spark',
+               help='Name of plugin.'),
+
+    cfg.StrOpt('HADOOP_VERSION',
+               default='2.0.0-cdh4.4.0',
+               help='Version of Hadoop.'),
+    cfg.StrOpt('HADOOP_USER',
+               default='hdfs',
+               help='Username which is used for access to Hadoop services.'),
+    cfg.StrOpt('HADOOP_DIRECTORY',
+               default='/usr/lib/hadoop',
+               help='Directory where are located Hadoop jar files.'),
+    cfg.StrOpt('HADOOP_LOG_DIRECTORY',
+               default='/mnt/hadoop/mapred/userlogs',
+               help='Directory where is located log info about '
+                    'completed jobs.'),
+
+    cfg.DictOpt('HADOOP_PROCESSES_WITH_PORTS',
+                default={
+                         'namenode': 50070,
+                         'datanode': 50075,
+                         'secondarynamenode': 50090,
+                         },
+                help='Hadoop process map with ports for Spark plugin.'),
+
+    cfg.DictOpt('PROCESS_NAMES',
+                default={
+                    'nn': 'namenode',
+                    'dn': 'datanode'
+                },
+                help='Names for namenode, tasktracker and datanode '
+                     'processes.'),
+
+    cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',
+                default=False,
+                help='If this variable is True then tests for Spark plugin '
+                     'will be skipped.'),
+    cfg.BoolOpt('SKIP_CLUSTER_CONFIG_TEST', default=False),
+    cfg.BoolOpt('SPARK_DIRECTORY', default='/home/ubuntu/spark/'),
+    cfg.BoolOpt('SPARK_MASTER_PORT', default=8080),
+    cfg.BoolOpt('SKIP_SCALING_TEST', default=False),
+    
+]
 
 HDP_CONFIG_GROUP = cfg.OptGroup(name='HDP')
 HDP_CONFIG_OPTS = [
@@ -216,6 +263,57 @@ HDP_CONFIG_OPTS = [
     cfg.BoolOpt('SKIP_SCALING_TEST', default=False)
 ]
 
+SPARK_CONFIG_GROUP = cfg.OptGroup(name='SPARK')
+SPARK_CONFIG_OPTS = [
+
+    cfg.StrOpt('PLUGIN_NAME',
+               default='spark',
+               help='Name of plugin.'),
+
+    cfg.StrOpt('HADOOP_VERSION',
+               default='2.0.0-cdh4.4.0',
+               help='Version of Hadoop.'),
+    cfg.StrOpt('HADOOP_USER',
+               default='hadoop',
+               help='Username which is used for access to Hadoop services.'),
+    cfg.StrOpt('HADOOP_DIRECTORY',
+               default='/usr/lib/hadoop',
+               help='Directory where are located Hadoop jar files.'),
+    cfg.StrOpt('HADOOP_LOG_DIRECTORY',
+               default='/hadoop/mapred/userlogs',
+               help='Directory where is located log info about '
+                    'completed jobs.'),
+
+    cfg.DictOpt('HADOOP_PROCESSES_WITH_PORTS',
+                default={
+                         'namenode': 50070,
+                         'datanode': 50075,
+                         'secondarynamenode': 50090,
+                         },
+                help='Hadoop process map with ports for Spark plugin.'),
+
+    cfg.DictOpt('PROCESS_NAMES',
+                default={
+                    'nn': 'namenode',
+                    'dn': 'datanode'
+                },
+                help='Names for namenode, datanode '
+                     'processes.'),
+    cfg.DictOpt('SPARK_MASTER_PORT',
+                default=8080,
+                help='Spark master port'),
+    cfg.DictOpt('SPARK_DIRECTORY',
+                default='/home/ubuntu/spark/',
+                help='Directory contains Spark distribution'),                 
+    cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',
+                default=False,
+                help='If this variable is True then tests for Vanilla plugin '
+                     'will be skipped.'),
+    cfg.BoolOpt('SKIP_CLUSTER_CONFIG_TEST', default=False),
+    cfg.BoolOpt('SKIP_SCALING_TEST', default=False),
+    cfg.BoolOpt('SKIP_SPARK_TEST', default=False),
+]
+
 
 def register_config(config, config_group, config_opts):
 
@@ -250,6 +348,7 @@ class ITConfig:
 
         register_config(cfg.CONF, COMMON_CONFIG_GROUP, COMMON_CONFIG_OPTS)
         register_config(cfg.CONF, VANILLA_CONFIG_GROUP, VANILLA_CONFIG_OPTS)
+        register_config(cfg.CONF, SPARK_CONFIG_GROUP, SPARK_CONFIG_OPTS)
         register_config(cfg.CONF, HDP_CONFIG_GROUP, HDP_CONFIG_OPTS)
 
         cfg.CONF([], project='integration_tests',
@@ -258,3 +357,4 @@ class ITConfig:
         self.common_config = cfg.CONF.COMMON
         self.vanilla_config = cfg.CONF.VANILLA
         self.hdp_config = cfg.CONF.HDP
+        self.spark_config = cfg.CONF.SPARK
