@@ -23,6 +23,20 @@ class NotSingleNameNodeException(e.SavannaException):
         self.code = "NOT_SINGLE_NAME_NODE"
 
 
+class NotSingleMasterNodeException(e.SavannaException):
+    def __init__(self, nn_count):
+        self.message = ("Spark cluster should contain only 1 master node "
+                        "instance. Actual master node count is %s" % nn_count)
+        self.code = "NOT_SINGLE_MASTER_NODE"
+
+
+class NotSlaveNodeException(e.SavannaException):
+    def __init__(self, nn_count):
+        self.message = ("Spark cluster should contain at least 1 slave node "
+                        "instance. Actual slave node count is %s" % nn_count)
+        self.code = "NOT_SINGLE_SLAVE_NODE"
+
+
 class NotSingleJobTrackerException(e.SavannaException):
     def __init__(self, jt_count):
         self.message = ("Hadoop cluster should contain 0 or 1 JobTracker "
