@@ -66,6 +66,7 @@ class ITestCase(unittest2.TestCase):
         self.common_config = cfg.ITConfig().common_config
         self.vanilla_config = cfg.ITConfig().vanilla_config
         self.hdp_config = cfg.ITConfig().hdp_config
+        self.spark_config = cfg.ITConfig().spark_config
 
         telnetlib.Telnet(
             self.common_config.SAVANNA_HOST, self.common_config.SAVANNA_PORT
@@ -93,8 +94,8 @@ class ITestCase(unittest2.TestCase):
                 name='i-test-flavor-%s' % str(uuid.uuid4())[:30],
                 ram=1024,
                 vcpus=1,
-                disk=10,
-                ephemeral=10).id
+                disk=40,
+                ephemeral=0).id
 
         else:
             self.flavor_id = self.common_config.FLAVOR_ID
@@ -113,11 +114,11 @@ class ITestCase(unittest2.TestCase):
 
         self.vanilla_config.IMAGE_ID = None
         self.hdp_config.IMAGE_ID = None
-
+        self.spark_config.IMAGE_ID = None
         for image in images:
 
-            if image.metadata.get('_savanna_username') and \
-                    image.metadata.get('_savanna_tag_ci'):
+            if image.metadata.get('_savanna_username'):
+                    #image.metadata.get('_savanna_tag_ci'):
 
                 if not self.vanilla_config.SKIP_ALL_TESTS_FOR_PLUGIN:
 
@@ -125,6 +126,14 @@ class ITestCase(unittest2.TestCase):
 
                         self.vanilla_config.IMAGE_ID = image.id
                         self.vanilla_config.NODE_USERNAME = \
+                            image.metadata['_savanna_username']
+
+                if not self.spark_config.SKIP_ALL_TESTS_FOR_PLUGIN:
+
+                    if image.metadata.get('_savanna_tag_spark'):
+
+                        self.spark_config.IMAGE_ID = image.id
+                        self.spark_config.NODE_USERNAME = \
                             image.metadata['_savanna_username']
 
                 if not self.hdp_config.SKIP_ALL_TESTS_FOR_PLUGIN:
@@ -151,6 +160,16 @@ class ITestCase(unittest2.TestCase):
             self.fail("""
             ***********************************************
             Integration tests for Vanilla plugin is Enabled
+            but Image for this plugin not found.
+            Please check that the image is registered
+            and all necessary tags are added.
+            ***********************************************
+            """)
+        if not self.spark_config.SKIP_ALL_TESTS_FOR_PLUGIN and \
+                not self.spark_config.IMAGE_ID:
+            self.fail("""
+            ***********************************************
+            Integration tests for Spark plugin is Enabled
             but Image for this plugin not found.
             Please check that the image is registered
             and all necessary tags are added.
