@@ -37,11 +37,14 @@ XML_CONFS = {
 }
 
 SPARK_CONFS = {
-    "MASTER": {'SPARK_MASTER_IP', 'SPARK_MASTER_PORT',
-               'SPARK_MASTER_WEBUI_PORT', 'SPARK_WORKER_CORES',
-               'SPARK_WORKER_MEMORY', 'SPARK_WORKER_PORT',
-               'SPARK_WORKER_WEBUI_PORT', 'SPARK_WORKER_INSTANCES'
-               }
+    'SPARK': {
+             "BASE": ['SPARK_MASTER_IP', 'SLAVES'],
+             "OPTIONS": ['SPARK_MASTER_PORT',
+                    'SPARK_MASTER_WEBUI_PORT', 'SPARK_WORKER_CORES',
+                   'SPARK_WORKER_MEMORY', 'SPARK_WORKER_PORT',
+                   'SPARK_WORKER_WEBUI_PORT', 'SPARK_WORKER_INSTANCES'
+                   ]
+             }
 }
 
 # TODO(aignatov): Environmental configs could be more complex
@@ -119,9 +122,14 @@ def _initialise_configs():
                                     default_value=1024, priority=1,
                                     config_type="int"))
 
-    #for service, config_items in SPARK_CONFS.iteritems():
-    #    for name in config_items.iteritems():
-    #        configs.append(p.Config(name, service, "node"))
+    for service, config_items in SPARK_CONFS.iteritems():
+        for name in config_items['BASE']:
+            cfg = p.Config(name, service, "cluster", priority=1)
+            configs.append(cfg)
+        for name in config_items['OPTIONS']:
+            cfg = p.Config(name, service, "cluster",
+                        is_optional=True, priority=2)
+            configs.append(cfg)
 
     configs.append(ENABLE_SWIFT)
     if CONF.enable_data_locality:
