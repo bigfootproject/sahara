@@ -138,6 +138,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                     ng.configuration,
                     ng.storage_paths,
                     nn.hostname,
+		    None,
                     ),
                 'setup_script': c_helper.generate_setup_script(
                     ng.storage_paths,

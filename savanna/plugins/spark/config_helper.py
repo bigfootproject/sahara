@@ -122,9 +122,6 @@ def _initialise_configs():
                                     config_type="int"))
 
     for service, config_items in SPARK_CONFS.iteritems():
-        for name in config_items['BASE']:
-            cfg = p.Config(name, service, "cluster", priority=1)
-            configs.append(cfg)
         for name in config_items['OPTIONS']:
             cfg = p.Config(name, service, "cluster",
                         is_optional=True, priority=2)
@@ -258,10 +255,11 @@ def generate_spark_env_configs(mastername, masterport, masterwebport=None,
                                workerport=None, workerwebport=None,
                                workerinstances=None):
     # Load configs template file
-    f = open('savanna/plugins/spark/resources/spark-env.sh.template', 'r')
-    default_config = f.read()
+    #f = open('savanna/plugins/spark/resources/spark-env.sh.template', 'r')
+    #default_config = f.read()
     # Write new configs
-    configs = [default_config]
+    #configs = [default_config]
+    configs = []
     configs.append('SPARK_MASTER_IP=' + mastername)
     configs.append('SPARK_MASTER_PORT=' + str(masterport))
     if masterwebport != None:
