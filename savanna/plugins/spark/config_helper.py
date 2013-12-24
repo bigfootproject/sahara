@@ -38,7 +38,6 @@ XML_CONFS = {
 
 SPARK_CONFS = {
     'SPARK': {
-             "BASE": ['SPARK_MASTER_IP', 'SLAVES'],
              "OPTIONS": ['SPARK_MASTER_PORT',
                     'SPARK_MASTER_WEBUI_PORT', 'SPARK_WORKER_CORES',
                    'SPARK_WORKER_MEMORY', 'SPARK_WORKER_PORT',
@@ -252,6 +251,7 @@ def write_hadoop_configs_xml_file(xml_configs):
     f_core.close()
 
     return True
+
 
 def generate_spark_env_configs(mastername, masterport, masterwebport=None,
                                workercores=None, workermemory=None,
