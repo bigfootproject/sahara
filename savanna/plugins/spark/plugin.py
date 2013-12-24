@@ -132,19 +132,6 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         extra = dict()
 
-        for ng in cluster.node_groups:
-            extra[ng.id] = {
-                'xml': c_helper.generate_xml_configs(
-                    ng.configuration,
-                    ng.storage_paths,
-                    nn.hostname,
-		    None,
-                    ),
-                'setup_script': c_helper.generate_setup_script(
-                    ng.storage_paths,
-                    c_helper.extract_environment_confs(ng.configuration)
-                )
-            }
         # Generate and add Spark config
         master_port = cluster.cluster_configs.SPARK.SPARK_MASTER_PORT
         master_web_port = cluster.cluster_configs.SPARK.SPARK_MASTER_WEBUI_PORT
@@ -153,8 +140,10 @@ class SparkProvider(p.ProvisioningPluginBase):
         worker_port = cluster.cluster_configs.SPARK.SPARK_WORKER_PORT
         worker_web_port = cluster.cluster_configs.SPARK.SPARK_WORKER_WEBUI_PORT
         worker_instances = cluster.cluster_configs.SPARK.SPARK_WORKER_INSTANCES
+
+        config_master = config_slaves = ''
         if sp_master is not None:
-            extra['master'] = c_helper.generate_spark_env_configs(
+            config_master = c_helper.generate_spark_env_configs(
         sp_master.hostname, master_port,
         master_web_port,
         worker_cores,
@@ -169,10 +158,23 @@ class SparkProvider(p.ProvisioningPluginBase):
             for slave in sp_slaves:
                 slavenames.append(slave.hostname)
             if len(slavenames) > 0:
-                extra['slaves'] = c_helper.generate_spark_slaves_configs(
+                config_slaves = c_helper.generate_spark_slaves_configs(
                                                                 slavenames)
-            else:
-                extra['slaves'] = ""
+
+        for ng in cluster.node_groups:
+            extra[ng.id] = {
+                'xml': c_helper.generate_xml_configs(
+                    ng.configuration,
+                    ng.storage_paths,
+                    nn.hostname, None,
+                    ),
+                'setup_script': c_helper.generate_setup_script(
+                    ng.storage_paths,
+                    c_helper.extract_environment_confs(ng.configuration)
+                ),
+                'sp_master': config_master,
+                'sp_slaves': config_slaves
+            }
 
         if c_helper.is_data_locality_enabled(cluster):
             topology_data = th.generate_topology_map(
@@ -257,8 +259,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         files = {
             '/etc/hadoop/conf/core-site.xml': ng_extra['xml']['core-site'],
             '/etc/hadoop/conf/hdfs-site.xml': ng_extra['xml']['hdfs-site'],
-            '~/spark/conf/spark-env.sh': ng_extra['master'],
-            '~/spark/conf/slaves': ng_extra['slaves'],
+            '~/spark/conf/spark-env.sh': ng_extra['sp_master'],
+            '~/spark/conf/slaves': ng_extra['sp_slaves'],
             '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
             'id_rsa': cluster.management_private_key,
             'authorized_keys': cluster.management_public_key
