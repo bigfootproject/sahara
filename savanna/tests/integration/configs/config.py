@@ -154,7 +154,7 @@ VANILLA_CONFIG_OPTS = [
                      'processes.'),
 
     cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',
-                default=False,
+                default=True,
                 help='If this variable is True then tests for Vanilla plugin '
                      'will be skipped.'),
     cfg.BoolOpt('SKIP_CLUSTER_CONFIG_TEST', default=False),

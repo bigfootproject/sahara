@@ -25,9 +25,7 @@ from savanna.tests.integration.tests import scaling
 
 class SparkGatingTest(cluster_configs.ClusterConfigTest,
                         scaling.ScalingTest, edp.EDPTest):
-
-    SKIP_CLUSTER_CONFIG_TEST = \
-        cfg.ITConfig().spark_config.SKIP_CLUSTER_CONFIG_TEST
+    SKIP_CLUSTER_CONFIG_TEST = cfg.ITConfig().spark_config.SKIP_CLUSTER_CONFIG_TEST
     SKIP_EDP_TEST = cfg.ITConfig().spark_config.SKIP_EDP_TEST
     SKIP_SCALING_TEST = cfg.ITConfig().spark_config.SKIP_SCALING_TEST
 
@@ -134,7 +132,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 },
                 node_groups=[
                     dict(
-                        name='master-node-master-nn',
+                        name='master-nn',
                         flavor_id=self.flavor_id,
                         node_processes=['namenode', 'master'],
                         node_configs={
@@ -143,7 +141,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                         },
                         count=1),
                     dict(
-                        name='master-node-sec-nn',
+                        name='sec-nn',
                         flavor_id=self.flavor_id,
                         node_processes=['secondarynamenode'],
                         node_configs={
@@ -152,7 +150,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                     dict(
                         name='worker-node-slave-dn',
                         node_group_template_id=node_group_template_slave_dn_id,
-                        count=3),
+                        count=1),
                     dict(
                         name='worker-node-dn',
                         node_group_template_id=node_group_template_dn_id,
@@ -176,7 +174,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 self.print_error_log(message, e)
 
 #-------------------------------Cluster creation-------------------------------
-
+        print '================= Cluster creation test ==============='
         try:
 
             cluster_info = self.create_cluster_and_get_info(
@@ -199,21 +197,19 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 self.print_error_log(message, e)
 
 #----------------------------CLUSTER CONFIG TESTING----------------------------
+        #try:
+        #    self._cluster_config_testing(cluster_info)
+        #except Exception as e:
 
-        try:
-            self._cluster_config_testing(cluster_info)
+        #    with excutils.save_and_reraise_exception():
 
-        except Exception as e:
+        #        self.delete_objects(
+        #            cluster_info['cluster_id'], cluster_template_id,
+        #            node_group_template_id_list
+        #        )
 
-            with excutils.save_and_reraise_exception():
-
-                self.delete_objects(
-                    cluster_info['cluster_id'], cluster_template_id,
-                    node_group_template_id_list
-                )
-
-                message = 'Failure while cluster config testing: '
-                self.print_error_log(message, e)
+        #        message = 'Failure while cluster config testing: '
+        #        self.print_error_log(message, e)
 
 
 #----------------------------DELETE CREATED OBJECTS----------------------------

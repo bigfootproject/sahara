@@ -28,23 +28,28 @@ class SparkPluginTest(unittest2.TestCase):
     def test_validate(self):
         self.ng = []
         self.ng.append(tu._make_ng_dict("nn", "f1", ["namenode"], 0))
-
-        self._validate_case(1, 1, 10, 1)
+	self.ng.append(tu._make_ng_dict("master", "f1", ["master"], 0))
+        self.ng.append(tu._make_ng_dict("slave", "f1", ["slave"], 0))
+        self._validate_case(1, 1, 10)
 
         with self.assertRaises(ex.NotSingleNameNodeException):
-            self._validate_case(0, 1, 10, 1)
+            self._validate_case(0, 1, 10)
         with self.assertRaises(ex.NotSingleNameNodeException):
-            self._validate_case(2, 1, 10, 1)
+            self._validate_case(2, 1, 10)
 
-        with self.assertRaises(ex.TaskTrackersWithoutJobTracker):
-            self._validate_case(1, 0, 10, 1)
-        with self.assertRaises(ex.NotSingleJobTrackerException):
-            self._validate_case(1, 2, 10, 1)
+        with self.assertRaises(ex.NotSingleMasterNodeException):
+            self._validate_case(1, 0, 10)
+        with self.assertRaises(ex.NotSingleMasterNodeException):
+            self._validate_case(1, 2, 10)
+        with self.assertRaises(ex.NotSlaveNodeException):
+            self._validate_case(1, 1, 0) 
+        #with self.assertRaises(ex.NotSingleJobTrackerException):
+        #    self._validate_case(1, 2, 10)
 
-        with self.assertRaises(ex.NotSingleOozieException):
-            self._validate_case(1, 1, 0, 2)
-        with self.assertRaises(ex.OozieWithoutJobTracker):
-            self._validate_case(1, 0, 0, 1)
+        #with self.assertRaises(ex.NotSingleOozieException):
+        #    self._validate_case(1, 1, 0, 2)
+        #with self.assertRaises(ex.OozieWithoutJobTracker):
+        #    self._validate_case(1, 0, 0, 1)
 
     def _validate_case(self, *args):
         lst = []
@@ -70,13 +75,13 @@ class SparkPluginTest(unittest2.TestCase):
 
     def test_extract_environment_configs(self):
         env_configs = {
-            "JobFlow": {
-                'Oozie Heap Size': 4000
-            },
-            "MapReduce": {
-                'Job Tracker Heap Size': 1000,
-                'Task Tracker Heap Size': "2000"
-            },
+            #"JobFlow": {
+            #    'Oozie Heap Size': 4000
+            #},
+            #"MapReduce": {
+            #    'Job Tracker Heap Size': 1000,
+            #    'Task Tracker Heap Size': "2000"
+            #},
             "HDFS": {
                 'Name Node Heap Size': 3000,
                 'Data Node Heap Size': "4000"
@@ -86,29 +91,36 @@ class SparkPluginTest(unittest2.TestCase):
             }}
         self.assertListEqual(c_h.extract_environment_confs(env_configs),
                              ['HADOOP_NAMENODE_OPTS=\\"-Xmx3000m\\"',
-                              'HADOOP_DATANODE_OPTS=\\"-Xmx4000m\\"',
-                              'CATALINA_OPTS=\\"-Xmx4000m\\"',
-                              'HADOOP_JOBTRACKER_OPTS=\\"-Xmx1000m\\"',
-                              'HADOOP_TASKTRACKER_OPTS=\\"-Xmx2000m\\"'])
+                              'HADOOP_DATANODE_OPTS=\\"-Xmx4000m\\"'
+                              #'CATALINA_OPTS=\\"-Xmx4000m\\"',
+                              #'HADOOP_JOBTRACKER_OPTS=\\"-Xmx1000m\\"',
+                              #'HADOOP_TASKTRACKER_OPTS=\\"-Xmx2000m\\"'
+                             ])
 
     def test_extract_xml_configs(self):
         xml_configs = {
             "HDFS": {
                 'dfs.replication': 3,
-                'fs.default.name': 'hdfs://',
+                'fs.defaultFS': 'hdfs://',
                 'key': 'value'
             },
-            "MapReduce": {
-                'io.sort.factor': 10,
-                'mapred.reduce.tasks': 2
-            },
+            #"MASTER": {
+            #    'SPARK_MASTER_IP': 'masterhost'
+            #},
+            #"MapReduce": {
+            #    'io.sort.factor': 10,
+            #    'mapred.reduce.tasks': 2
+            #},
             "Wrong-applicable-target": {
                 'key': 'value'
             }
         }
 
         self.assertListEqual(c_h.extract_xml_confs(xml_configs),
-                             [('fs.default.name', 'hdfs://'),
-                              ('dfs.replication', 3),
-                              ('mapred.reduce.tasks', 2),
-                              ('io.sort.factor', 10)])
+                             [
+                              ('fs.defaultFS', 'hdfs://'),
+                              ('dfs.replication', 3)
+                              #('SPARK_MASTER_IP', 'masterhost')
+                              #('mapred.reduce.tasks', 2),
+                              #('io.sort.factor', 10)
+                             ])
