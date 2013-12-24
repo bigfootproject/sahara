@@ -138,23 +138,29 @@ class SparkProvider(p.ProvisioningPluginBase):
                     ng.configuration,
                     ng.storage_paths,
                     nn.hostname,
-                    nn.port if nn.port else '8020',
                     ),
                 'setup_script': c_helper.generate_setup_script(
                     ng.storage_paths,
                     c_helper.extract_environment_confs(ng.configuration)
                 )
             }
-        # TODO: Generate and add Spark config
+        # Generate and add Spark config
+        master_port = cluster.cluster_configs.SPARK.SPARK_MASTER_PORT
+        master_web_port = cluster.cluster_configs.SPARK.SPARK_MASTER_WEBUI_PORT
+        worker_cores = cluster.cluster_configs.SPARK.SPARK_WORKER_CORES
+        worker_memory = cluster.cluster_configs.SPARK.SPARK_WORKER_MEMORY
+        worker_port = cluster.cluster_configs.SPARK.SPARK_WORKER_PORT
+        worker_web_port = cluster.cluster_configs.SPARK.SPARK_WORKER_WEBUI_PORT
+        worker_instances = cluster.cluster_configs.SPARK.SPARK_WORKER_INSTANCES
         if sp_master is not None:
             extra['master'] = c_helper.generate_spark_env_configs(
-        sp_master.hostname, sp_master.port,
-        sp_master.master_web_port if sp_master.master_web_port else None,
-        sp_master.worker_cores if sp_master.worker_cores else None,
-        sp_master.worker_memory if sp_master.worker_memory else None,
-        sp_master.worker_port if sp_master.worker_port else None,
-        sp_master.worker_web_port if sp_master.worker_web_port else None,
-        sp_master.worker_instances if sp_master.worker_instances else None
+        sp_master.hostname, master_port,
+        master_web_port,
+        worker_cores,
+        worker_memory,
+        worker_port,
+        worker_web_port,
+        worker_instances
         )
 
         if sp_slaves is not None:
