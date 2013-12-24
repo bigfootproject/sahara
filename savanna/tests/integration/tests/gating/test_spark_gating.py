@@ -199,7 +199,6 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
 #----------------------------CLUSTER CONFIG TESTING----------------------------
         #try:
         #    self._cluster_config_testing(cluster_info)
-
         #except Exception as e:
 
         #    with excutils.save_and_reraise_exception():
