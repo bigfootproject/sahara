@@ -207,7 +207,7 @@ SPARK_CONFIG_OPTS = [
                 help='If this variable is True then tests for Spark plugin '
                      'will be skipped.'),
     cfg.BoolOpt('SKIP_CLUSTER_CONFIG_TEST', default=False),
-    cfg.BoolOpt('SPARK_DIRECTORY', default='/home/ubuntu/spark/'),
+    cfg.BoolOpt('SPARK_DIRECTORY', default='/home/ubuntu/spark-0.8.0/'),
     cfg.BoolOpt('SPARK_MASTER_PORT', default=8080),
     cfg.BoolOpt('SKIP_SCALING_TEST', default=True),
     cfg.BoolOpt('SKIP_EDP_TEST', default=True)

@@ -259,8 +259,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         files = {
             '/etc/hadoop/conf/core-site.xml': ng_extra['xml']['core-site'],
             '/etc/hadoop/conf/hdfs-site.xml': ng_extra['xml']['hdfs-site'],
-            '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
-            '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
+            '/home/ubuntu/spark-0.8.0/conf/spark-env.sh': ng_extra['sp_master'],
+            '/home/ubuntu/spark-0.8.0/conf/slaves': ng_extra['sp_slaves'],
             '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
             'id_rsa': cluster.management_private_key,
             'authorized_keys': cluster.management_public_key
