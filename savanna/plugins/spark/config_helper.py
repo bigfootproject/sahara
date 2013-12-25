@@ -346,8 +346,8 @@ def generate_setup_script(storage_paths, env_configs):
                         '/etc/hadoop/hadoop-env.sh' % hadoop_log)
 
     for path in storage_paths:
-        script_lines.append("chown -R hadoop:hadoop %s" % path)
-        script_lines.append("chmod -R 755 %s" % path)
+        script_lines.append("chown -R hdfs:hdfs %s" % path)
+        script_lines.append("chmod -R 700 %s" % path)
     return "\n".join(script_lines)
 
 

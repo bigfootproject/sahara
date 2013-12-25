@@ -284,13 +284,13 @@ class SparkProvider(p.ProvisioningPluginBase):
                 'sudo /tmp/savanna-hadoop-init.sh '
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
-            r.execute_command(key_cmd)
+            #r.execute_command(key_cmd)
 
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
                     '/etc/hadoop/topology.sh',
                     f.get_file_text(
-                        'plugins/vanilla/resources/topology.sh'))
+                        'plugins/spark/resources/topology.sh'))
                 r.execute_command(
                     'sudo chmod +x /etc/hadoop/topology.sh'
                 )
