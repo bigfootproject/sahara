@@ -259,17 +259,17 @@ class SparkProvider(p.ProvisioningPluginBase):
         files = {
             '/etc/hadoop/conf/core-site.xml': ng_extra['xml']['core-site'],
             '/etc/hadoop/conf/hdfs-site.xml': ng_extra['xml']['hdfs-site'],
-            '~/spark/conf/spark-env.sh': ng_extra['sp_master'],
-            '~/spark/conf/slaves': ng_extra['sp_slaves'],
+            '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
+            '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
             '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
             'id_rsa': cluster.management_private_key,
             'authorized_keys': cluster.management_public_key
         }
 
-        key_cmd = 'sudo mkdir -p /home/hadoop/.ssh/; ' \
-                  'sudo mv id_rsa authorized_keys /home/hadoop/.ssh ; ' \
-                  'sudo chown -R hadoop:hadoop /home/hadoop/.ssh; ' \
-                  'sudo chmod 600 /home/hadoop/.ssh/{id_rsa,authorized_keys}'
+        key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
+                  'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
+                  'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
+                  'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         with remote.get_remote(instance) as r:
             # TODO(aignatov): sudo chown is wrong solution. But it works.
@@ -284,7 +284,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 'sudo /tmp/savanna-hadoop-init.sh '
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
-            #r.execute_command(key_cmd)
+            r.execute_command(key_cmd)
 
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
