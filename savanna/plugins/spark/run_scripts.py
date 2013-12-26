@@ -26,12 +26,12 @@ def start_processes(remote, *processes):
 
 
 def refresh_nodes(remote, service):
-    remote.execute_command("sudo su -c 'hadoop %s -refreshNodes' hadoop"
+    remote.execute_command("sudo su -c 'hadoop %s -refreshNodes' hdfs"
                            % service)
 
 
 def format_namenode(nn_remote):
-    nn_remote.execute_command("sudo su -c 'hadoop namenode -format' hadoop")
+    nn_remote.execute_command("sudo su -c 'hadoop namenode -format' hdfs")
 
 
 def start_spark(nn_remote):
