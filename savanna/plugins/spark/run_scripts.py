@@ -22,7 +22,7 @@ LOG = logging.getLogger(__name__)
 def start_processes(remote, *processes):
     for proc in processes:
         remote.execute_command('sudo su -c "/usr/sbin/hadoop-daemon.sh '
-                               'start %s" hadoop' % proc)
+                               'start %s" hdfs' % proc)
 
 
 def refresh_nodes(remote, service):
