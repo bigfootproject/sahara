@@ -348,6 +348,8 @@ class InstanceInteropHelper(object):
         """Copy file->data dictionary in a single ssh connection.
         """
         self._log_command('Writing files "%s"' % files.keys())
+        for fl, data in files.iteritems():
+            self._log_command('Writing file key "%s data: %s"' % (fl, data))        
         self._run_s(_write_files_to, timeout, files)
 
     def read_file_from(self, remote_file, timeout=120):
