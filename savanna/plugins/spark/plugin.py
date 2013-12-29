@@ -270,6 +270,13 @@ class SparkProvider(p.ProvisioningPluginBase):
                   'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
                   'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
                   'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
+        for ng in cluster.node_groups:
+            hdfs_dir_cmd = 'sudo mkdir -p %s/dfs/nn %s/dfs/dn;'\
+                            'sudo chown -R hdfs:hdfs %s/dfs/nn %s/dfs/dn;'\
+                            'sudo chmod go-rx %s/dfs/nn %s/dfs/dn;'\
+                            % (ng.storage_path, ng.storage_path,
+                               ng.storage_path, ng.storage_path,
+                               ng.storage_path, ng.storage_path)
 
         with remote.get_remote(instance) as r:
             # TODO(aignatov): sudo chown is wrong solution. But it works.
@@ -284,6 +291,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 'sudo /tmp/savanna-hadoop-init.sh '
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
+            r.execute_command(hdfs_dir_cmd)
             r.execute_command(key_cmd)
 
             if c_helper.is_data_locality_enabled(cluster):
