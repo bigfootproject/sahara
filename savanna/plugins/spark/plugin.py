@@ -270,6 +270,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                   'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
                   'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
                   'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
+
         for ng in cluster.node_groups:
             dn_path = c_helper.extract_hadoop_path(ng.storage_path, '/dfs/dn')
             nn_path = c_helper.extract_hadoop_path(ng.storage_path, '/dfs/nn')
