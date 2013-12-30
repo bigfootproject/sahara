@@ -353,14 +353,16 @@ class SparkProvider(p.ProvisioningPluginBase):
             info['HDFS'] = {
                 'Web UI': 'http://%s:%s' % (nn.management_ip, port)
             }
+            info['HDFS']['NameNode'] = 'hdfs://%s:8020' % nn.hostname
 
         if sp_master:
-            address = c_helper.get_config_value(
-                'spark', 'master', cluster)
-            port = address[address.rfind(':') + 1:]
-            info['spark'] = {
-                'Web UI': 'http://%s:%s' % (sp_master.management_ip, port)
-            }
+            port = c_helper.get_config_value(
+                'SPARK', 'SPARK_MASTER_WEBUI_PORT', cluster)
+            #port = address[address.rfind(':') + 1:]
+            if (port is not None):
+                info['SPARK'] = {
+                    'Web UI': 'http://%s:%s' % (sp_master.management_ip, port)
+                }
         ctx = context.ctx()
         conductor.cluster_update(ctx, cluster, {'info': info})
 
