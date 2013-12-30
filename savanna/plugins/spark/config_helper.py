@@ -261,13 +261,15 @@ def generate_spark_env_configs(mastername, masterport, masterwebport=None,
     #configs = [default_config]
     configs = []
     configs.append('SPARK_MASTER_IP=' + mastername)
+    if masterport is None or masterport == '':
+        masterport = 7077
     configs.append('SPARK_MASTER_PORT=' + str(masterport))
     if masterwebport != None and masterwebport != '':
         configs.append('SPARK_MASTER_WEBUI_PORT=' + str(masterwebport))
     # configure for workers
     if workercores != None and workercores != '':
         configs.append('SPARK_WORKER_CORES=' + str(workercores))
-    if workermemory != None and workermemory  != '':
+    if workermemory != None and workermemory != '':
         configs.append('SPARK_WORKER_MEMORY=' + str(workermemory))
     if workerport != None and workerport != '':
         configs.append('SPARK_WORKER_PORT=' + str(workerport))

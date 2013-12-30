@@ -21,7 +21,7 @@ LOG = logging.getLogger(__name__)
 
 def start_processes(remote, *processes):
     for proc in processes:
-        remote.execute_command('sudo hdfs namenode start %s'% proc)
+        remote.execute_command("sudo su -c 'hdfs %s &' hdfs" % proc)
 
 
 def refresh_nodes(remote, service):
@@ -31,6 +31,7 @@ def refresh_nodes(remote, service):
 
 def format_namenode(nn_remote):
     nn_remote.execute_command("sudo hdfs namenode -format -force")
+
 
 def clean_port_hadoop(nn_remote):
     nn_remote.execute_command("sudo netstat -tlnp | awk '/:8020 */ {split($NF,a,\"/\"); print a[1]}' | xargs sudo kill -9")
