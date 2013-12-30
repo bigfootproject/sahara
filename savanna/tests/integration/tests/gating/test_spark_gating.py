@@ -128,7 +128,8 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 description='test cluster template',
                 cluster_configs={
                     'HDFS': cluster_configs.CLUSTER_HDFS_CONFIG,
-                    #'general': {'Enable Swift': True}
+                    'general': {'Enable Swift': False},
+                    'SPARK': cluster_configs.CLUSTER_SPARK_CONFIG,
                 },
                 node_groups=[
                     dict(
