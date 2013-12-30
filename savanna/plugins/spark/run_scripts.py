@@ -21,8 +21,7 @@ LOG = logging.getLogger(__name__)
 
 def start_processes(remote, *processes):
     for proc in processes:
-        remote.execute_command('sudo su -c "/usr/sbin/hadoop-daemon.sh '
-                               'start %s" hdfs' % proc)
+        remote.execute_command('sudo su -c "hdfs namenode" hdfs')
 
 
 def refresh_nodes(remote, service):
@@ -31,12 +30,12 @@ def refresh_nodes(remote, service):
 
 
 def format_namenode(nn_remote):
-    nn_remote.execute_command("sudo su -c 'hadoop namenode -format' hdfs")
+    nn_remote.execute_command("sudo su -c 'hdfs namenode -format -force' hdfs")
 
 
 def start_spark(nn_remote):
-    nn_remote.execute_command("bash ~/spark/bin/start-all.sh")
+    nn_remote.execute_command("bash /home/ubuntu/spark-0.8.0/bin/start-all.sh")
 
 
 def stop_spark(nn_remote):
-    nn_remote.execute_command("bash ~/spark/bin/stop-all.sh")
+    nn_remote.execute_command("bash /home/ubuntu/spark-0.8.0/bin/stop-all.sh")
