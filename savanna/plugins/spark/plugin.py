@@ -102,6 +102,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         sp_instance = utils.get_masternode(cluster)
 
         with remote.get_remote(nn_instance) as r:
+            #run.clean_port_hadoop(r)
             run.format_namenode(r)
             run.start_processes(r, "namenode")
 
@@ -272,8 +273,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                   'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         for ng in cluster.node_groups:
-            dn_path = c_helper.extract_hadoop_path(ng.storage_path, '/dfs/dn')
-            nn_path = c_helper.extract_hadoop_path(ng.storage_path, '/dfs/nn')
+            dn_path = c_helper.extract_hadoop_path(ng.storage_paths, '/dfs/dn')
+            nn_path = c_helper.extract_hadoop_path(ng.storage_paths, '/dfs/nn')
             hdfs_dir_cmd = 'sudo mkdir -p %s %s;'\
                             'sudo chown -R hdfs:hdfs %s %s;'\
                             'sudo chmod go-rx %s %s;'\
@@ -295,7 +296,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
             r.execute_command(hdfs_dir_cmd)
-            r.execute_command(key_cmd)
+            #r.execute_command(key_cmd)
 
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
