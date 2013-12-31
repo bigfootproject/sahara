@@ -38,11 +38,11 @@ def clean_port_hadoop(nn_remote):
 
 
 def start_spark_master(nn_remote):
-    nn_remote.execute_command("sudo su -c 'bash /home/ubuntu/spark-0.8.0/bin/start-master.sh' ubuntu")
+    nn_remote.execute_command("screen -d -m sudo su -c 'bash /home/ubuntu/spark-0.8.0/bin/start-master.sh' ubuntu")
 
 
 def start_spark_slave(nn_remote):
-    nn_remote.execute_command("sudo su -c 'bash /home/ubuntu/spark-0.8.0/bin/start-slave.sh' ubuntu")
+    nn_remote.execute_command("screen -d -m sudo su -c 'bash /home/ubuntu/spark-0.8.0/bin/start-slave.sh' ubuntu")
 
 
 def stop_spark(nn_remote):
