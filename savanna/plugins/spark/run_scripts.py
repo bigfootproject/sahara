@@ -37,8 +37,12 @@ def clean_port_hadoop(nn_remote):
     nn_remote.execute_command("sudo netstat -tlnp | awk '/:8020 */ {split($NF,a,\"/\"); print a[1]}' | xargs sudo kill -9")
 
 
-def start_spark(nn_remote):
-    nn_remote.execute_command("screen -d -m bash /home/ubuntu/spark-0.8.0/bin/start-all.sh")
+def start_spark_master(nn_remote):
+    nn_remote.execute_command("bash /home/ubuntu/spark-0.8.0/bin/start-master.sh")
+
+
+def start_spark_slave(nn_remote):
+    nn_remote.execute_command("bash /home/ubuntu/spark-0.8.0/bin/start-slave.sh")
 
 
 def stop_spark(nn_remote):

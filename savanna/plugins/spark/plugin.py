@@ -99,8 +99,8 @@ class SparkProvider(p.ProvisioningPluginBase):
     def start_cluster(self, cluster):
         instances = utils.get_instances(cluster)
         nn_instance = utils.get_namenode(cluster)
-        sp_instance = utils.get_masternode(cluster)
-
+        sm_instance = utils.get_masternode(cluster)
+        sl_instances = utils.get_slavenodes(cluster)
         with remote.get_remote(nn_instance) as r:
             #run.clean_port_hadoop(r)
             run.format_namenode(r)
@@ -115,13 +115,23 @@ class SparkProvider(p.ProvisioningPluginBase):
         LOG.info("Hadoop services in cluster %s have been started" %
                  cluster.name)
 
-        if sp_instance:
-            with remote.get_remote(sp_instance) as r:
+        # start spark master node
+        if sm_instance:
+            with remote.get_remote(sm_instance) as r:
                 #TODO: Start Spark
                 run.stop_spark(r)
-                run.start_spark(r)
-                LOG.info("Spark service at '%s' has been started",
-                         nn_instance.hostname)
+                run.start_spark_master(r)
+                LOG.info("Spark master service at '%s' has been started",
+                         sm_instance.hostname)
+
+        # start spark slaves node
+        if sl_instances:
+                for inst in sl_instances:
+                    with remote.get_remote(inst) as r:
+                        run.start_spark_slave(r)
+                        LOG.info(
+                            "Spark slave service at '%s' has been started",
+                            inst.hostname)
 
         LOG.info('Cluster %s has been started successfully' % cluster.name)
         self._set_cluster_info(cluster)
