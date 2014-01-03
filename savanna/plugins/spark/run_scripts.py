@@ -25,7 +25,7 @@ def start_processes(remote, *processes):
 
 
 def refresh_nodes(remote, service):
-    remote.execute_command("screen -d -m sudo su -c 'hadoop %s -refreshNodes' hdfs"
+    remote.execute_command("screen -d -m sudo hadoop %s -refreshNodes"
                            % service)
 
 
@@ -38,12 +38,12 @@ def clean_port_hadoop(nn_remote):
 
 
 def start_spark_master(nn_remote):
-    nn_remote.execute_command("screen -d -m sudo su -c 'bash /home/ubuntu/spark-0.8.0/bin/start-master.sh' ubuntu")
+    nn_remote.execute_command("bash /home/ubuntu/spark/bin/start-master.sh")
 
 
 def start_spark_slave(nn_remote):
-    nn_remote.execute_command("screen -d -m sudo su -c 'bash /home/ubuntu/spark-0.8.0/bin/start-slave.sh' ubuntu")
+    nn_remote.execute_command("bash /home/ubuntu/spark/bin/start-slave.sh")
 
 
 def stop_spark(nn_remote):
-    nn_remote.execute_command("screen -d -m bash /home/ubuntu/spark-0.8.0/bin/stop-all.sh")
+    nn_remote.execute_command("bash /home/ubuntu/spark/bin/stop-all.sh")
