@@ -118,20 +118,19 @@ class SparkProvider(p.ProvisioningPluginBase):
         # start spark master node
         if sm_instance:
             with remote.get_remote(sm_instance) as r:
-                #TODO: Start Spark
                 #run.stop_spark(r)
                 run.start_spark_master(r)
                 LOG.info("Spark service at '%s' has been started",
                          sm_instance.hostname)
 
         # start spark slaves node
-        if sl_instances:
-                for inst in sl_instances:
-                    with remote.get_remote(inst) as r:
-                        run.start_spark_slave(r)
-                        LOG.info(
-                            "Spark slave service at '%s' has been started",
-                            inst.hostname)
+        #if sl_instances:
+        #        for inst in sl_instances:
+        #            with remote.get_remote(inst) as r:
+        #                run.start_spark_slave(r)
+        #                LOG.info(
+        #                    "Spark slave service at '%s' has been started",
+        #                    inst.hostname)
 
         LOG.info('Cluster %s has been started successfully' % cluster.name)
         self._set_cluster_info(cluster)
