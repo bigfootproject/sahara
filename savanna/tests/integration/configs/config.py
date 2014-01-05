@@ -198,10 +198,10 @@ SPARK_CONFIG_OPTS = [
                 default={
                     'nn': 'namenode',
                     'dn': 'datanode',
-                    'master': 'masternode',
-                    'slave': 'slavenode'
+                    'master': 'master',
+                    'slave': 'slave'
                 },
-                help='Names for namenode, datanode, masternode and slavenode '
+                help='Names for namenode, datanode, master and slave '
                      'processes.'),
 
     cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',

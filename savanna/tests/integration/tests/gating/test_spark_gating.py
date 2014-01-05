@@ -52,7 +52,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 description='test node group template',
                 volumes_per_node=0,
                 volume_size=0,
-                node_processes=['slavenode', 'datanode'],
+                node_processes=['slave', 'datanode'],
                 node_configs={
                     'HDFS': cluster_configs.DN_CONFIG,
                 }
@@ -77,7 +77,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 description='test node group template',
                 volumes_per_node=0,
                 volume_size=0,
-                node_processes=['slavenode'],
+                node_processes=['slave'],
                 node_configs={
                 }
             )
@@ -139,7 +139,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                     dict(
                         name='master-nn',
                         flavor_id=self.flavor_id,
-                        node_processes=['namenode', 'masternode'],
+                        node_processes=['namenode', 'master'],
                         node_configs={
                             'HDFS': cluster_configs.NN_CONFIG,
                             #'MapReduce': cluster_configs.JT_CONFIG

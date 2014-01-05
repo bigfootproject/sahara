@@ -56,11 +56,11 @@ CONFIG_MAP = {
         'service': 'MapReduce',
         'config': TT_CONFIG
     },
-    'slavenode': {
+    'slave': {
         'service': 'Spark',
         'config': ''
     },
-    'masternode': {
+    'master': {
         'service': 'Spark',
         'config': ''
     },
