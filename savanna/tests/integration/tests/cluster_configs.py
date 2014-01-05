@@ -56,6 +56,14 @@ CONFIG_MAP = {
         'service': 'MapReduce',
         'config': TT_CONFIG
     },
+    'slavenode': {
+        'service': 'Spark',
+        'config': ''
+    },
+    'masternode': {
+        'service': 'Spark',
+        'config': ''
+    },
     'oozie': {
         'service': 'JobFlow',
         'config': OOZIE_CONFIG

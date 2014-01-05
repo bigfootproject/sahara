@@ -197,7 +197,9 @@ SPARK_CONFIG_OPTS = [
     cfg.DictOpt('PROCESS_NAMES',
                 default={
                     'nn': 'namenode',
-                    'dn': 'datanode'
+                    'dn': 'datanode',
+                    'master': 'masternode',
+                    'slave': 'slavenode'
                 },
                 help='Names for namenode, tasktracker and datanode '
                      'processes.'),
