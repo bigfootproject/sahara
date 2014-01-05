@@ -237,6 +237,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
             node_group_template_id_list
         )
 
+#---------------------INHERITED FUNCTION FROM base.py -------------------------
     def get_node_info(self, node_ip_list_with_node_processes, plugin_config):
 
         slave_count = 0
@@ -306,3 +307,52 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
             'node_count': node_count
         }
 
+    def create_cluster_and_get_info(self, plugin_config, cluster_template_id,
+                                    description, cluster_configs,
+                                    node_groups=None, anti_affinity=None,
+                                    net_id=None, hadoop_version=None,
+                                    image_id=None, is_transient=False):
+
+        if not hadoop_version:
+
+            hadoop_version = plugin_config.HADOOP_VERSION
+
+        if not image_id:
+
+            image_id = plugin_config.IMAGE_ID
+
+        self.cluster_id = None
+
+        data = self.savanna.clusters.create(
+            self.common_config.CLUSTER_NAME, plugin_config.PLUGIN_NAME,
+            hadoop_version, cluster_template_id, image_id, is_transient,
+            description, cluster_configs, node_groups,
+            self.common_config.USER_KEYPAIR_ID, anti_affinity, net_id)
+
+        self.cluster_id = data.id
+
+        self.poll_cluster_state(self.cluster_id)
+
+        node_ip_list_with_node_processes = \
+            self.get_cluster_node_ip_list_with_node_processes(self.cluster_id)
+
+        try:
+
+            node_info = self.get_node_info(node_ip_list_with_node_processes,
+                                           plugin_config)
+
+        except Exception as e:
+
+            with excutils.save_and_reraise_exception():
+
+                print(
+                    '\nFailure during check of node process deployment '
+                    'on cluster node: ' + str(e)
+                )
+
+        return {
+            'cluster_id': self.cluster_id,
+            'node_ip_list': node_ip_list_with_node_processes,
+            'node_info': node_info,
+            'plugin_config': plugin_config
+        }
