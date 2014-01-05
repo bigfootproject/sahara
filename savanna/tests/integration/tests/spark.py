@@ -12,7 +12,7 @@ class SparkTest(base.ITestCase):
     def __run_RL_job(self, masternode_ip, masternode_port):
 
         self.execute_command(
-                './spark/run-example org.apache.spark.examples.SparkLR spark://%s:%s'
+                'bash /home/ubuntu/spark/run-example org.apache.spark.examples.SparkLR spark://%s:%s'
                 % (masternode_ip, masternode_port))
 
     @base.skip_test('SKIP__TEST',
@@ -20,7 +20,7 @@ class SparkTest(base.ITestCase):
     def __run_HdfsLR_job(self, master_ip, namenode_ip, namenode_port, master_port, filename):
 
         self.execute_command(
-                './spark/run-example org.apache.spark.examples.JavaHdfsLR spark://%s:%s hdfs://%s:%s/%s'
+                'bash /home/ubuntu/spark/run-example org.apache.spark.examples.JavaHdfsLR spark://%s:%s hdfs://%s:%s/%s'
                 % (master_ip, master_port, namenode_ip, namenode_port, filename))
 
     def __copy_data_to_Hdfs(self, local_file_name, remote_file_name):
