@@ -52,7 +52,7 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 description='test node group template',
                 volumes_per_node=0,
                 volume_size=0,
-                node_processes=['slave', 'datanode'],
+                node_processes=['slavenode', 'datanode'],
                 node_configs={
                     'HDFS': cluster_configs.DN_CONFIG,
                 }
@@ -72,12 +72,12 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
         try:
 
             node_group_template_slave_id = self.create_node_group_template(
-                name='master',
+                name='slave',
                 plugin_config=self.spark_config,
                 description='test node group template',
                 volumes_per_node=0,
                 volume_size=0,
-                node_processes=['slave'],
+                node_processes=['slavenode'],
                 node_configs={
                 }
             )
@@ -139,19 +139,19 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                     dict(
                         name='master-nn',
                         flavor_id=self.flavor_id,
-                        node_processes=['namenode', 'master'],
+                        node_processes=['namenode', 'masternode'],
                         node_configs={
                             'HDFS': cluster_configs.NN_CONFIG,
                             #'MapReduce': cluster_configs.JT_CONFIG
                         },
                         count=1),
-                    dict(
-                        name='sec-nn',
-                        flavor_id=self.flavor_id,
-                        node_processes=['secondarynamenode'],
-                        node_configs={
-                        },
-                        count=1),
+                    #dict(
+                    #    name='sec-nn',
+                    #    flavor_id=self.flavor_id,
+                    #    node_processes=['secondarynamenode'],
+                    #    node_configs={
+                    #    },
+                    #    count=1),
                     dict(
                         name='worker-node-slave-dn',
                         node_group_template_id=node_group_template_slave_dn_id,

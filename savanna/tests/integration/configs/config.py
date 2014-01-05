@@ -201,7 +201,7 @@ SPARK_CONFIG_OPTS = [
                     'master': 'masternode',
                     'slave': 'slavenode'
                 },
-                help='Names for namenode, tasktracker and datanode '
+                help='Names for namenode, datanode, masternode and slavenode '
                      'processes.'),
 
     cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',
@@ -212,7 +212,8 @@ SPARK_CONFIG_OPTS = [
     cfg.BoolOpt('SPARK_DIRECTORY', default='/home/ubuntu/spark-0.8.0/'),
     cfg.BoolOpt('SPARK_MASTER_PORT', default=7077),
     cfg.BoolOpt('SKIP_SCALING_TEST', default=True),
-    cfg.BoolOpt('SKIP_EDP_TEST', default=True)
+    cfg.BoolOpt('SKIP_EDP_TEST', default=True),
+    cfg.BoolOpt('SKIP_SPARK_TEST', default=False)
 ]
 
 HDP_CONFIG_GROUP = cfg.OptGroup(name='HDP')
