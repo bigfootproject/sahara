@@ -32,8 +32,8 @@ class SparkTest(base.ITestCase):
         node_count = cluster_info['node_info']['node_count']
         namenode_ip = cluster_info['node_info']['namenode_ip']
         masternode_ip = cluster_info['node_info']['master_ip']
-        namenode_port = cluster_info.HADOOP_PROCESSES_WITH_PORTS.namenode
-        masternode_port = cluster_info.SPARK_MASTER_PORT
+        namenode_port = cluster_info['plugin_config']['HADOOP_PROCESSES_WITH_PORTS']['namenode']
+        masternode_port = cluster_info['plugin_config']['SPARK_MASTER_PORT']
 
         # Test standalone Spark job (without HDFS)
         self.open_ssh_connection(masternode_ip, plugin_config.NODE_USERNAME)
