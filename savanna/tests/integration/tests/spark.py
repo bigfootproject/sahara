@@ -9,11 +9,11 @@ from savanna.tests.integration.tests import base
 
 class SparkTest(base.ITestCase):
 
-    def __run_RL_job(self, hostname, port):
+    def __run_RL_job(self, masternode_ip, masternode_port):
 
         self.execute_command(
                 './spark/run-example org.apache.spark.examples.SparkLR spark://%s:%s'
-                % {hostname, port})
+                % (masternode_ip, masternode_port))
 
     @base.skip_test('SKIP__TEST',
                     message='Test for Spark was skipped.')
@@ -21,7 +21,7 @@ class SparkTest(base.ITestCase):
 
         self.execute_command(
                 './spark/run-example org.apache.spark.examples.JavaHdfsLR spark://%s:%s hdfs://%s:%s/%s'
-                % {master_ip, master_port, namenode_ip, namenode_port, filename})
+                % (master_ip, master_port, namenode_ip, namenode_port, filename))
 
     def __copy_data_to_Hdfs(self, local_file_name, remote_file_name):
         self.execute_command('sudo hdfs dfs -copyFromLocal %s %s' %
