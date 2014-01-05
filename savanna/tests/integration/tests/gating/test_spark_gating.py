@@ -15,16 +15,20 @@
 
 import nose.plugins.attrib as attrib
 import unittest2
+import socket
+import telnetlib
+import time
 
 from savanna.openstack.common import excutils
 from savanna.tests.integration.configs import config as cfg
 from savanna.tests.integration.tests import cluster_configs
 from savanna.tests.integration.tests import edp
 from savanna.tests.integration.tests import scaling
+from savanna.tests.integration.tests import spark
 
 
 class SparkGatingTest(cluster_configs.ClusterConfigTest,
-                        scaling.ScalingTest, edp.EDPTest):
+                        scaling.ScalingTest, edp.EDPTest, spark.SparkTest):
     SKIP_CLUSTER_CONFIG_TEST = cfg.ITConfig().spark_config.SKIP_CLUSTER_CONFIG_TEST
     SKIP_EDP_TEST = cfg.ITConfig().spark_config.SKIP_EDP_TEST
     SKIP_SCALING_TEST = cfg.ITConfig().spark_config.SKIP_SCALING_TEST
@@ -198,24 +202,107 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
                 self.print_error_log(message, e)
 
 #----------------------------CLUSTER CONFIG TESTING----------------------------
-        #try:
-        #    self._cluster_config_testing(cluster_info)
-        #except Exception as e:
+        try:
+            self._cluster_config_testing(cluster_info)
+        except Exception as e:
 
-        #    with excutils.save_and_reraise_exception():
+            with excutils.save_and_reraise_exception():
 
-        #        self.delete_objects(
-        #            cluster_info['cluster_id'], cluster_template_id,
-        #            node_group_template_id_list
-        #        )
+                self.delete_objects(
+                    cluster_info['cluster_id'], cluster_template_id,
+                    node_group_template_id_list
+                )
 
-        #        message = 'Failure while cluster config testing: '
-        #        self.print_error_log(message, e)
+                message = 'Failure while cluster config testing: '
+                self.print_error_log(message, e)
 
+#----------------------------SPARK JOBS TESTING----------------------------
+        try:
+            self._spark_testing(cluster_info)
+        except Exception as e:
 
+            with excutils.save_and_reraise_exception():
+
+                self.delete_objects(
+                    cluster_info['cluster_id'], cluster_template_id,
+                    node_group_template_id_list
+                )
+
+                message = 'Failure while testing: '
+                self.print_error_log(message, e)
 #----------------------------DELETE CREATED OBJECTS----------------------------
 
         self.delete_objects(
             cluster_info['cluster_id'], cluster_template_id,
             node_group_template_id_list
         )
+
+    def get_node_info(self, node_ip_list_with_node_processes, plugin_config):
+
+        slave_count = 0
+        datanode_count = 0
+        node_count = 0
+
+        for node_ip, processes in node_ip_list_with_node_processes.items():
+
+            self.try_telnet(node_ip, '22')
+            node_count += 1
+
+            for process in processes:
+
+                if process in plugin_config.HADOOP_PROCESSES_WITH_PORTS:
+
+                    for i in range(self.common_config.TELNET_TIMEOUT * 60):
+
+                        try:
+
+                            time.sleep(1)
+                            telnetlib.Telnet(
+                                node_ip,
+                                plugin_config.HADOOP_PROCESSES_WITH_PORTS[
+                                    process]
+                            )
+
+                            break
+
+                        except socket.error:
+
+                            print(
+                                'Connection attempt. NODE PROCESS: %s, '
+                                'PORT: %s.'
+                                % (process,
+                                   plugin_config.HADOOP_PROCESSES_WITH_PORTS[
+                                       process])
+                            )
+
+                    else:
+
+                        self.try_telnet(
+                            node_ip,
+                            plugin_config.HADOOP_PROCESSES_WITH_PORTS[process]
+                        )
+
+            if plugin_config.PROCESS_NAMES['slave'] in processes:
+
+                slave_count += 1
+
+            if plugin_config.PROCESS_NAMES['dn'] in processes:
+
+                datanode_count += 1
+
+            if plugin_config.PROCESS_NAMES['nn'] in processes:
+
+                namenode_ip = node_ip
+
+            if plugin_config.PROCESS_NAMES['master'] in processes:
+
+                master_ip = node_ip
+
+        return {
+            'namenode_ip': namenode_ip,
+            'master_ip': master_ip,
+            'slave_count': slave_count,
+            'datanode_count': datanode_count,
+            'node_count': node_count
+        }
+
