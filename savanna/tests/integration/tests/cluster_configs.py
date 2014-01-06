@@ -28,7 +28,7 @@ OOZIE_CONFIG = {'Oozie Heap Size': 520,
                 'oozie.notification.url.connection.timeout': 10001}
 
 CLUSTER_HDFS_CONFIG = {'dfs.replication': 2}
-CLUSTER_SPARK_CONFIG = {'SPARK_MASTER_PORT': 7020,
+CLUSTER_SPARK_CONFIG = {'SPARK_MASTER_PORT': 7077,
                     'SPARK_MASTER_WEBUI_PORT': 8080,
                     'SPARK_WORKER_CORES': 1,
                     'SPARK_WORKER_MEMORY': 1024,
