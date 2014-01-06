@@ -9,6 +9,12 @@ from savanna.tests.integration.tests import base
 
 class SparkTest(base.ITestCase):
 
+    def __check_spark_up(self):
+        ret_code, stdout, stderr = self.execute_command('cat /home/ubuntu/spark/logs/*')
+        print stdout
+        ret_code, stdout, stderr = self.execute_command('netstat -lnpt | grep 7077')
+        print stdout
+
     def __run_RL_job(self, masternode_ip, masternode_port):
 
         self.execute_command(
@@ -37,6 +43,7 @@ class SparkTest(base.ITestCase):
 
         # Test standalone Spark job (without HDFS)
         self.open_ssh_connection(masternode_ip, plugin_config.NODE_USERNAME)
+        self.__check_spark_up()
         self.__run_RL_job(masternode_ip, masternode_port)
         self.close_ssh_connection()
 
