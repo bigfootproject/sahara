@@ -233,6 +233,52 @@ class SparkGatingTest(cluster_configs.ClusterConfigTest,
 
                 message = 'Failure while testing: '
                 self.print_error_log(message, e)
+
+#--------------------------------CLUSTER SCALING-------------------------------
+
+        change_list = [
+            {
+                'operation': 'resize',
+                'info': ['worker-node-slave-dn', 2]
+            },
+            {
+                'operation': 'resize',
+                'info': ['worker-node-dn', 0]
+            },
+            {
+                'operation': 'resize',
+                'info': ['worker-node-slave', 0]
+            },
+            {
+                'operation': 'add',
+                'info': [
+                    'new-worker-node-slave', 1, '%s' % node_group_template_slave_id
+                ]
+            },
+            {
+                'operation': 'add',
+                'info': [
+                    'new-worker-node-dn', 1, '%s' % node_group_template_dn_id
+                ]
+            }
+        ]
+
+        try:
+
+            new_cluster_info = self._cluster_scaling(cluster_info, change_list)
+
+        except Exception as e:
+
+            with excutils.save_and_reraise_exception():
+
+                self.delete_objects(
+                    cluster_info['cluster_id'], cluster_template_id,
+                    node_group_template_id_list
+                )
+
+                message = 'Failure while cluster scaling: '
+                self.print_error_log(message, e)
+
 #----------------------------DELETE CREATED OBJECTS----------------------------
 
         self.delete_objects(
