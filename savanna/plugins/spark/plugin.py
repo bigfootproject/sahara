@@ -385,6 +385,23 @@ class SparkProvider(p.ProvisioningPluginBase):
                 return obj
         return None
 
+    def _validate_additional_ng_scaling(self, cluster, additional):
+        master = utils.get_masternode(cluster)
+        scalable_processes = self._get_scalable_processes()
+
+        for ng_id in additional:
+            ng = self._get_by_id(cluster.node_groups, ng_id)
+            if not set(ng.node_processes).issubset(scalable_processes):
+                raise ex.NodeGroupCannotBeScaled(
+                    ng.name, "Spark plugin cannot scale nodegroup"
+                             " with processes: " +
+                             ' '.join(ng.node_processes))
+            if not master and 'slave' in ng.node_processes:
+                raise ex.NodeGroupCannotBeScaled(
+                    ng.name, "Spark plugin cannot scale node group with "
+                             "processes which have no master-processes run "
+                             "in cluster")
+
     def _validate_existing_ng_scaling(self, cluster, existing):
         scalable_processes = self._get_scalable_processes()
         dn_to_delete = 0
