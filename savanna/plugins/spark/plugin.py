@@ -321,17 +321,25 @@ class SparkProvider(p.ProvisioningPluginBase):
 
     def _push_configs_to_existing_node(self, cluster, extra, instance):
         node_processes = instance.node_group.node_processes
-        need_update = (c_helper.is_data_locality_enabled(cluster) or
+        need_update_hadoop = (c_helper.is_data_locality_enabled(cluster) or
                        'namenode' in node_processes or
                        'master' in node_processes or
                        'slave' in node_processes)
+        need_update_spark = ('master' in node_processes or 
+                             'slave' in node_processes)
 
-        if not need_update:
-            return
-
-        with remote.get_remote(instance) as r:
-            self._write_topology_data(r, cluster, extra)
-            self._push_master_configs(r, cluster, extra, instance)
+        if need_update_spark:
+            ng_extra = extra[instance.node_group.id]
+            files = {
+                '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
+                '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
+            }
+            r = remote.get_remote(instance)
+            r.write_files_to(files)
+        if need_update_hadoop:
+            with remote.get_remote(instance) as r:
+                self._write_topology_data(r, cluster, extra)
+                self._push_master_configs(r, cluster, extra, instance)
 
     def _write_topology_data(self, r, cluster, extra):
         if c_helper.is_data_locality_enabled(cluster):
