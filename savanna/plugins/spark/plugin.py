@@ -123,15 +123,6 @@ class SparkProvider(p.ProvisioningPluginBase):
                 LOG.info("Spark service at '%s' has been started",
                          sm_instance.hostname)
 
-        # start spark slaves node
-        #if sl_instances:
-        #        for inst in sl_instances:
-        #            with remote.get_remote(inst) as r:
-        #                run.start_spark_slave(r)
-        #                LOG.info(
-        #                    "Spark slave service at '%s' has been started",
-        #                    inst.hostname)
-
         LOG.info('Cluster %s has been started successfully' % cluster.name)
         self._set_cluster_info(cluster)
 
@@ -167,9 +158,9 @@ class SparkProvider(p.ProvisioningPluginBase):
             slavenames = []
             for slave in sp_slaves:
                 slavenames.append(slave.hostname)
-            if len(slavenames) > 0:
-                config_slaves = c_helper.generate_spark_slaves_configs(
-                                                                slavenames)
+            config_slaves = c_helper.generate_spark_slaves_configs(slavenames)
+        else:
+            config_slaves = "\n"
 
         for ng in cluster.node_groups:
             extra[ng.id] = {
