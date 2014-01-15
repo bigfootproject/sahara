@@ -39,12 +39,8 @@ def clean_port_hadoop(nn_remote):
 
 
 def start_spark_master(nn_remote):
-    nn_remote.execute_command("bash /home/ubuntu/spark/bin/start-all.sh")
-
-
-#def start_spark_slave(nn_remote):
-#    nn_remote.execute_command("bash /home/ubuntu/spark/bin/start-slave.sh")
+    nn_remote.execute_command("bash /opt/spark/bin/start-all.sh")
 
 
 def stop_spark(nn_remote):
-    nn_remote.execute_command("bash /home/ubuntu/spark/bin/stop-all.sh")
+    nn_remote.execute_command("bash /opt/spark/bin/stop-all.sh")

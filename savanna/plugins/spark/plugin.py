@@ -260,8 +260,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         files = {
             '/etc/hadoop/conf/core-site.xml': ng_extra['xml']['core-site'],
             '/etc/hadoop/conf/hdfs-site.xml': ng_extra['xml']['hdfs-site'],
-            '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
-            '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
+            '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
+            '/opt/spark/conf/slaves': ng_extra['sp_slaves'],
             '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
             'id_rsa': cluster.management_private_key,
             'authorized_keys': cluster.management_public_key
@@ -322,8 +322,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         if need_update_spark:
             ng_extra = extra[instance.node_group.id]
             files = {
-                '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
-                '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
+                '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
+                '/opt/spark/conf/slaves': ng_extra['sp_slaves'],
             }
             r = remote.get_remote(instance)
             r.write_files_to(files)

@@ -10,19 +10,21 @@ from savanna.tests.integration.tests import base
 class SparkTest(base.ITestCase):
 
     def __check_spark_up(self):
-        ret_code, stdout, stderr = self.execute_command('cat /home/ubuntu/spark/logs/*')
+        ret_code, stdout, stderr = self.execute_command('cat /opt/spark/logs/*')
         print stdout
         ret_code, stdout, stderr = self.execute_command('sudo netstat -lnpt | grep 7077')
         print stdout
 
     def __gethostname(self):
         ret_code, stdout, stderr = self.execute_command('cat /etc/hostname')
-        return stdout
+        # Remove '\n' character
+        hostname = stdout[:-1]
+        return hostname
 
     def __run_RL_job(self, master_hostname, masternode_port):
 
         self.execute_command(
-                'bash /home/ubuntu/spark/run-example org.apache.spark.examples.SparkLR spark://%s:%s'
+                'bash /opt/spark/run-example org.apache.spark.examples.SparkLR spark://%s:%s'
                 % (master_hostname, masternode_port))
 
     @base.skip_test('SKIP__TEST',
@@ -30,7 +32,7 @@ class SparkTest(base.ITestCase):
     def __run_HdfsLR_job(self, master_hostname, namenode_ip, namenode_port, master_port, filename):
 
         self.execute_command(
-                'bash /home/ubuntu/spark/run-example org.apache.spark.examples.JavaHdfsLR spark://%s:%s hdfs://%s:%s/%s'
+                'bash /opt/spark/run-example org.apache.spark.examples.JavaHdfsLR spark://%s:%s hdfs://%s:%s/%s'
                 % (master_hostname, master_port, namenode_ip, namenode_port, filename))
 
     def __copy_data_to_Hdfs(self, local_file_name, remote_file_name):
@@ -57,7 +59,7 @@ class SparkTest(base.ITestCase):
 
         # Test Spark job with HDFS data
         self.open_ssh_connection(masternode_ip, plugin_config.NODE_USERNAME)
-        self.__copy_data_to_Hdfs('/home/ubuntu/spark/examples_data/lr_data.txt', '/')
+        self.__copy_data_to_Hdfs('/opt/spark/lr_data.txt', '/')
         self.__run_HdfsLR_job(master_hostname, namenode_ip,
                               namenode_port, masternode_port, 'lr_data.txt')
         self.close_ssh_connection()
