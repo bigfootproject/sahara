@@ -26,7 +26,7 @@ def start_processes(remote, *processes):
 
 
 def refresh_nodes(remote, service):
-    remote.execute_command("screen -d -m sudo hadoop %s -refreshNodes"
+    remote.execute_command("screen -d -m sudo hdfs %s -refreshNodes"
                            % service)
 
 

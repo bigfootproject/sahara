@@ -22,35 +22,22 @@ from savanna.utils import remote
 from savanna.plugins.spark import config_helper as c_helper
 
 
-def decommission_tt(jt, inst_to_be_deleted, survived_inst):
-    with remote.get_remote(jt) as r:
-        r.write_file_to('/etc/hadoop/tt.excl',
-                        utils.generate_fqdn_host_names(
-                            inst_to_be_deleted))
-        run.refresh_nodes(remote.get_remote(jt), "mradmin")
-        context.sleep(3)
-        r.write_files_to({'/etc/hadoop/tt.incl':
-                         utils.generate_fqdn_host_names(survived_inst),
-                         '/etc/hadoop/tt.excl': "",
-                          })
-
-
 def decommission_sl(master, inst_to_be_deleted, survived_inst):
     #Modify slaves file in all cluster
     #Go to stop spark in cluster and restart again with new slaves file
     slave_content = c_helper.generate_spark_slaves_configs(survived_inst)
     with remote.get_remote(master) as r_master:
-        files = {'~/spark/conf/slaves': slave_content}
+        files = {'/opt/spark/conf/slaves': slave_content}
         r_master.write_files_to(files)
         run.stop_spark(r_master)
     context.sleep(3)
 
     for i in survived_inst:
         with remote.get_remote(i) as r:
-            files = {'~/spark/conf/slaves': slave_content}
+            files = {'/opt/spark/conf/slaves': slave_content}
             r.write_files_to(files)
     context.sleep(3)
-    run.start_spark(r_master)
+    run.start_spark_master(r_master)
 
 
 def decommission_dn(nn, inst_to_be_deleted, survived_inst):
@@ -64,7 +51,7 @@ def decommission_dn(nn, inst_to_be_deleted, survived_inst):
         att_amount = 100
         while att_amount:
             cmd = r.execute_command(
-                "sudo su -c 'hadoop dfsadmin -report' hadoop")
+                "sudo su -c 'hdfs dfsadmin -report' hadoop")
             all_found = True
             datanodes_info = parse_dfs_report(cmd[1])
             for i in inst_to_be_deleted:

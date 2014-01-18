@@ -203,7 +203,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         spark_master = utils.get_masternode(cluster)
 
         if decommission_sls:
-            sc.decommission_tt(spark_master, instances, sls)
+            sc.decommission_sl(spark_master, instances, sls)
         if decommission_dns:
             sc.decommission_dn(nn, instances, dns)
 
