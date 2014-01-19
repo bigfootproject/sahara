@@ -25,18 +25,30 @@ from savanna.plugins.spark import config_helper as c_helper
 def decommission_sl(master, inst_to_be_deleted, survived_inst):
     #Modify slaves file in all cluster
     #Go to stop spark in cluster and restart again with new slaves file
-    slave_content = c_helper.generate_spark_slaves_configs(survived_inst)
+    if survived_inst is not None:
+        slavenames = []
+        for slave in survived_inst:
+            slavenames.append(slave.hostname)
+        config_slaves = c_helper.generate_spark_slaves_configs(slavenames)
+    else:
+        config_slaves = "\n"
+    slave_content = c_helper.generate_spark_slaves_configs(config_slaves)
+
+    # write new slave file to master
     with remote.get_remote(master) as r_master:
         files = {'/opt/spark/conf/slaves': slave_content}
         r_master.write_files_to(files)
         run.stop_spark(r_master)
     context.sleep(3)
 
+    # write new slave file to each survived slaves as well
     for i in survived_inst:
         with remote.get_remote(i) as r:
             files = {'/opt/spark/conf/slaves': slave_content}
             r.write_files_to(files)
     context.sleep(3)
+
+    # restart spark in master node
     run.start_spark_master(r_master)
 
 
