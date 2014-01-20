@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+
 from oslo.config import cfg
+import six
 
 from savanna import conductor
 from savanna import context
 from savanna.openstack.common import log as logging
-from savanna.openstack.common import uuidutils
 from savanna.plugins.general import exceptions as ex
 from savanna.plugins.general import utils
 from savanna.plugins import provisioning as p
@@ -27,6 +29,7 @@ from savanna.plugins.spark import run_scripts as run
 from savanna.plugins.spark import scaling as sc
 from savanna.topology import topology_helper as th
 from savanna.utils import files as f
+from savanna.utils import general as g
 from savanna.utils import remote
 
 
@@ -41,12 +44,6 @@ class SparkProvider(p.ProvisioningPluginBase):
             "HDFS": ["namenode", "datanode", "secondarynamenode"],
             "SPARK": ["master", "slave"]
         }
-
-    def get_plugin_opts(self):
-        return []
-
-    def setup(self, conf):
-        self.conf = conf
 
     def get_title(self):
         return "Spark Apache Hadoop"

@@ -63,7 +63,7 @@ def decommission_dn(nn, inst_to_be_deleted, survived_inst):
         att_amount = 100
         while att_amount:
             cmd = r.execute_command(
-                "sudo su -c 'hdfs dfsadmin -report' hadoop")
+                "sudo su -c 'hadoop dfsadmin -report' hadoop")
             all_found = True
             datanodes_info = parse_dfs_report(cmd[1])
             for i in inst_to_be_deleted:

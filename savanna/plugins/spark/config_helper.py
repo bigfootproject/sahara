@@ -188,6 +188,23 @@ def generate_cfg_from_general(cfg, configs, general_config,
     return cfg
 
 
+def _get_hostname(service):
+    return service.hostname() if service else None
+
+
+def get_hadoop_ssh_keys(cluster):
+    extra = cluster.extra or {}
+    private_key = extra.get('hadoop_private_ssh_key')
+    public_key = extra.get('hadoop_public_ssh_key')
+    if not private_key or not public_key:
+        private_key, public_key = crypto.generate_key_pair()
+        extra['hadoop_private_ssh_key'] = private_key
+        extra['hadoop_public_ssh_key'] = public_key
+        conductor.cluster_update(context.ctx(), cluster, {'extra': extra})
+
+    return private_key, public_key
+
+
 def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port
                          ):
     # inserting common configs depends on provisioned VMs and HDFS placement
@@ -264,18 +281,18 @@ def generate_spark_env_configs(mastername, masterport, masterwebport=None,
     if masterport is None or masterport == '':
         masterport = 7077
     configs.append('SPARK_MASTER_PORT=' + str(masterport))
-    if masterwebport != None and masterwebport != '':
+    if masterwebport is not None and masterwebport != '':
         configs.append('SPARK_MASTER_WEBUI_PORT=' + str(masterwebport))
     # configure for workers
-    if workercores != None and workercores != '':
+    if workercores is not None and workercores != '':
         configs.append('SPARK_WORKER_CORES=' + str(workercores))
-    if workermemory != None and workermemory != '':
+    if workermemory is not None and workermemory != '':
         configs.append('SPARK_WORKER_MEMORY=' + str(workermemory))
-    if workerport != None and workerport != '':
+    if workerport is not None and workerport != '':
         configs.append('SPARK_WORKER_PORT=' + str(workerport))
-    if workerwebport != None and workerwebport != '':
+    if workerwebport is not None and workerwebport != '':
         configs.append('SPARK_WORKER_WEBUI_PORT=' + str(workerwebport))
-    if workerinstances != None and workerinstances != '':
+    if workerinstances is not None and workerinstances != '':
         configs.append('SPARK_WORKER_INSTANCES=' + str(workerinstances))
     return '\n'.join(configs)
 
@@ -305,7 +322,7 @@ def extract_environment_confs(configs):
                     if param_name == cfg_name and param_value is not None:
                         lst.append(cfg_format_str % param_value)
         else:
-            LOG.warn("Plugin recieved wrong applicable target '%s' in "
+            LOG.warn("Plugin received wrong applicable target '%s' in "
                      "environmental configs" % service)
     return lst
 
@@ -323,7 +340,7 @@ def extract_xml_confs(configs):
                     if param_name in names and param_value is not None:
                         lst.append((param_name, param_value))
         else:
-            LOG.warn("Plugin recieved wrong applicable target '%s' for "
+            LOG.warn("Plugin received wrong applicable target '%s' for "
                      "xml configs" % service)
     return lst
 
@@ -348,8 +365,8 @@ def generate_setup_script(storage_paths, env_configs):
                         '/etc/hadoop/hadoop-env.sh' % hadoop_log)
 
     for path in storage_paths:
-        script_lines.append("chown -R hdfs:hdfs %s" % path)
-        script_lines.append("chmod -R 700 %s" % path)
+        script_lines.append("chown -R hadoop:hadoop %s" % path)
+        script_lines.append("chmod -R 755 %s" % path)
     return "\n".join(script_lines)
 
 
@@ -358,18 +375,8 @@ def extract_name_values(configs):
 
 
 def extract_hadoop_path(lst, hadoop_dir):
-    return ",".join([p + hadoop_dir for p in lst])
-
-
-def determine_cluster_config(cluster, service, config_name):
-    if service in cluster.cluster_configs:
-        service_configs = cluster.cluster_configs.get(service)
-        if config_name in service_configs:
-            return service_configs.get(config_name)
-    all_conf = get_plugin_configs()
-    for conf in all_conf:
-        if conf.name == config_name:
-            return conf.default_value
+    if lst:
+        return ",".join([p + hadoop_dir for p in lst])
 
 
 def _set_config(cfg, gen_cfg, name=None):
@@ -383,7 +390,7 @@ def _set_config(cfg, gen_cfg, name=None):
 
 def _is_general_option_enabled(cluster, option):
     for ng in cluster.node_groups:
-        conf = ng.configuration
+        conf = ng.configuration()
         if 'general' in conf and option.name in conf['general']:
                 return conf['general'][option.name]
     return option.default_value
@@ -393,3 +400,8 @@ def is_data_locality_enabled(cluster):
     if not CONF.enable_data_locality:
         return False
     return _is_general_option_enabled(cluster, ENABLE_DATA_LOCALITY)
+
+
+def get_port_from_config(service, name, cluster=None):
+    address = get_config_value(service, name, cluster)
+    return utils.get_port_from_address(address)
