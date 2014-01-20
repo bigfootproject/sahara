@@ -28,7 +28,7 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     if survived_inst is not None:
         slavenames = []
         for slave in survived_inst:
-            slavenames.append(slave.hostname)
+            slavenames.append(slave.hostname())
         config_slaves = c_helper.generate_spark_slaves_configs(slavenames)
     else:
         config_slaves = "\n"

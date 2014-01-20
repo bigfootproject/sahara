@@ -118,7 +118,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 #run.stop_spark(r)
                 run.start_spark_master(r)
                 LOG.info("Spark service at '%s' has been started",
-                         sm_instance.hostname)
+                         sm_instance.hostname())
 
         LOG.info('Cluster %s has been started successfully' % cluster.name)
         self._set_cluster_info(cluster)
@@ -142,7 +142,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         config_master = config_slaves = ''
         if sp_master is not None:
             config_master = c_helper.generate_spark_env_configs(
-        sp_master.hostname, master_port,
+        sp_master.hostname(), master_port,
         master_web_port,
         worker_cores,
         worker_memory,
@@ -154,7 +154,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         if sp_slaves is not None:
             slavenames = []
             for slave in sp_slaves:
-                slavenames.append(slave.hostname)
+                slavenames.append(slave.hostname())
             config_slaves = c_helper.generate_spark_slaves_configs(slavenames)
         else:
             config_slaves = "\n"
@@ -164,7 +164,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 'xml': c_helper.generate_xml_configs(
                     ng.configuration,
                     ng.storage_paths,
-                    nn.hostname, None,
+                    nn.hostname(), None,
                     ),
                 'setup_script': c_helper.generate_setup_script(
                     ng.storage_paths,
@@ -359,7 +359,7 @@ class SparkProvider(p.ProvisioningPluginBase):
             info['HDFS'] = {
                 'Web UI': 'http://%s:%s' % (nn.management_ip, port)
             }
-            info['HDFS']['NameNode'] = 'hdfs://%s:8020' % nn.hostname
+            info['HDFS']['NameNode'] = 'hdfs://%s:8020' % nn.hostname()
 
         if sp_master:
             port = c_helper.get_config_value(
