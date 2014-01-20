@@ -13,8 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+from oslo.config import cfg
+
 from savanna.plugins.general import exceptions as ex
+from savanna.plugins.general import utils
 from savanna.swift import swift_helper as h
+from savanna.topology import topology_helper as th
+
+CONF = cfg.CONF
+TOPOLOGY_CONFIG = {
+    "topology.node.switch.mapping.impl":
+    "org.apache.hadoop.net.ScriptBasedMapping",
+    "topology.script.file.name":
+    "/etc/hadoop/conf/topology.sh"
+}
 
 
 def create_service(name):
@@ -71,9 +84,9 @@ class Service(object):
 
     def _get_common_paths(self, node_groups):
         if len(node_groups) == 1:
-            paths = node_groups[0].storage_paths
+            paths = node_groups[0].storage_paths()
         else:
-            sets = [set(ng.storage_paths) for ng in node_groups]
+            sets = [set(ng.storage_paths()) for ng in node_groups]
             paths = list(set.intersection(*sets))
 
         if len(paths) > 1 and '/mnt' in paths:
@@ -83,6 +96,10 @@ class Service(object):
 
     def _generate_storage_path(self, storage_paths, path):
         return ",".join([p + path for p in storage_paths])
+
+    def _get_port_from_cluster_spec(self, cluster_spec, service, prop_name):
+        address = cluster_spec.configurations[service][prop_name]
+        return utils.get_port_from_address(address)
 
 
 class HdfsService(Service):
@@ -106,21 +123,28 @@ class HdfsService(Service):
             props = {'core-site': ['fs.default.name'],
                      'hdfs-site': ['dfs.http.address', 'dfs.https.address']}
             self._replace_config_token(
-                cluster_spec, '%NN_HOST%', nn_hosts.pop().fqdn, props)
+                cluster_spec, '%NN_HOST%', nn_hosts.pop().fqdn(), props)
 
         snn_hosts = cluster_spec.determine_component_hosts(
             'SECONDARY_NAMENODE')
         if snn_hosts:
             props = {'hdfs-site': ['dfs.secondary.http.address']}
             self._replace_config_token(
-                cluster_spec, '%SNN_HOST%', snn_hosts.pop().fqdn, props)
+                cluster_spec, '%SNN_HOST%', snn_hosts.pop().fqdn(), props)
 
         # add swift properties to configuration
         core_site_config = cluster_spec.configurations['core-site']
         for prop in self._get_swift_properties():
             core_site_config[prop['name']] = prop['value']
 
-        # process storage paths to accommodate ephemeral or cinder storage
+        # add topology properties to configuration, if enabled
+        if CONF.enable_data_locality:
+            for prop in th.vm_awareness_core_config():
+                core_site_config[prop['name']] = prop['value']
+
+            core_site_config.update(TOPOLOGY_CONFIG)
+
+            # process storage paths to accommodate ephemeral or cinder storage
         nn_ng = cluster_spec.get_node_groups_containing_component(
             'NAMENODE')[0]
         dn_node_groups = cluster_spec.get_node_groups_containing_component(
@@ -131,9 +155,9 @@ class HdfsService(Service):
         hdfs_site_config = cluster_spec.configurations['hdfs-site']
         global_config = cluster_spec.configurations['global']
         hdfs_site_config['dfs.name.dir'] = self._generate_storage_path(
-            nn_ng.storage_paths, '/hadoop/hdfs/namenode')
+            nn_ng.storage_paths(), '/hadoop/hdfs/namenode')
         global_config['dfs_name_dir'] = self._generate_storage_path(
-            nn_ng.storage_paths, '/hadoop/hdfs/namenode')
+            nn_ng.storage_paths(), '/hadoop/hdfs/namenode')
         if common_paths:
             hdfs_site_config['dfs.data.dir'] = self._generate_storage_path(
                 common_paths, '/hadoop/hdfs/data')
@@ -144,10 +168,14 @@ class HdfsService(Service):
         namenode_ip = cluster_spec.determine_component_hosts(
             'NAMENODE').pop().management_ip
 
-        #TODO(jspeidel): Don't hard code port
+        ui_port = self._get_port_from_cluster_spec(cluster_spec, 'hdfs-site',
+                                                   'dfs.http.address')
+        nn_port = self._get_port_from_cluster_spec(cluster_spec, 'core-site',
+                                                   'fs.default.name')
+
         url_info['HDFS'] = {
-            'Web UI': 'http://%s:50070' % namenode_ip,
-            'NameNode': 'hdfs://%s:8020' % namenode_ip
+            'Web UI': 'http://%s:%s' % (namenode_ip, ui_port),
+            'NameNode': 'hdfs://%s:%s' % (namenode_ip, nn_port)
         }
         return url_info
 
@@ -186,7 +214,13 @@ class MapReduceService(Service):
                                      'mapreduce.history.server.http.address']}
 
             self._replace_config_token(
-                cluster_spec, '%JT_HOST%', jt_hosts.pop().fqdn, props)
+                cluster_spec, '%JT_HOST%', jt_hosts.pop().fqdn(), props)
+
+        # data locality/rack awareness prop processing
+        mapred_site_config = cluster_spec.configurations['mapred-site']
+        if CONF.enable_data_locality:
+            for prop in th.vm_awareness_mapred_config():
+                mapred_site_config[prop['name']] = prop['value']
 
         # process storage paths to accommodate ephemeral or cinder storage
         # NOTE:  mapred.system.dir is an HDFS namespace path (not a filesystem
@@ -194,7 +228,6 @@ class MapReduceService(Service):
         tt_node_groups = cluster_spec.get_node_groups_containing_component(
             'TASKTRACKER')
         if tt_node_groups:
-            mapred_site_config = cluster_spec.configurations['mapred-site']
             global_config = cluster_spec.configurations['global']
             common_paths = self._get_common_paths(tt_node_groups)
             mapred_site_config['mapred.local.dir'] = \
@@ -206,10 +239,14 @@ class MapReduceService(Service):
         jobtracker_ip = cluster_spec.determine_component_hosts(
             'JOBTRACKER').pop().management_ip
 
-        #TODO(jspeidel): Don't hard code port
+        ui_port = self._get_port_from_cluster_spec(
+            cluster_spec, 'mapred-site', 'mapred.job.tracker.http.address')
+        jt_port = self._get_port_from_cluster_spec(
+            cluster_spec, 'mapred-site', 'mapred.job.tracker')
+
         url_info['MapReduce'] = {
-            'Web UI': 'http://%s:50030' % jobtracker_ip,
-            'JobTracker': '%s:50300' % jobtracker_ip
+            'Web UI': 'http://%s:%s' % (jobtracker_ip, ui_port),
+            'JobTracker': '%s:%s' % (jobtracker_ip, jt_port)
         }
         return url_info
 
@@ -238,18 +275,18 @@ class HiveService(Service):
                      'core-site': ['hadoop.proxyuser.hive.hosts'],
                      'hive-site': ['javax.jdo.option.ConnectionURL']}
             self._replace_config_token(
-                cluster_spec, '%HIVE_HOST%', hive_servers.pop().fqdn, props)
+                cluster_spec, '%HIVE_HOST%', hive_servers.pop().fqdn(), props)
 
         hive_ms = cluster_spec.determine_component_hosts('HIVE_METASTORE')
         if hive_ms:
             self._replace_config_token(
-                cluster_spec, '%HIVE_METASTORE_HOST%', hive_ms.pop().fqdn,
+                cluster_spec, '%HIVE_METASTORE_HOST%', hive_ms.pop().fqdn(),
                 {'hive-site': ['hive.metastore.uris']})
 
         hive_mysql = cluster_spec.determine_component_hosts('MYSQL_SERVER')
         if hive_mysql:
             self._replace_config_token(
-                cluster_spec, '%HIVE_MYSQL_HOST%', hive_mysql.pop().fqdn,
+                cluster_spec, '%HIVE_MYSQL_HOST%', hive_mysql.pop().fqdn(),
                 {'global': ['hive_jdbc_connection_url']})
 
     def register_user_input_handlers(self, ui_handlers):
@@ -294,7 +331,7 @@ class HiveService(Service):
             return
 
         # get any instance
-        with cluster_spec.servers[0].remote as r:
+        with cluster_spec.servers[0].remote() as r:
             r.execute_command('su -c "hadoop fs -mkdir /user/hive" '
                               '-s /bin/sh hdfs')
             r.execute_command('su -c "hadoop fs -chown -R '
@@ -332,7 +369,7 @@ class WebHCatService(Service):
             'WEBHCAT_SERVER')
         if webhcat_servers:
             self._replace_config_token(
-                cluster_spec, '%WEBHCAT_HOST%', webhcat_servers.pop().fqdn,
+                cluster_spec, '%WEBHCAT_HOST%', webhcat_servers.pop().fqdn(),
                 {'core-site': ['hadoop.proxyuser.hcat.hosts']})
 
         hive_ms_servers = cluster_spec.determine_component_hosts(
@@ -340,13 +377,13 @@ class WebHCatService(Service):
         if hive_ms_servers:
             self._replace_config_token(
                 cluster_spec, '%HIVE_METASTORE_HOST%',
-                hive_ms_servers.pop().fqdn,
+                hive_ms_servers.pop().fqdn(),
                 {'webhcat-site': ['templeton.hive.properties']})
 
         zk_servers = cluster_spec.determine_component_hosts('ZOOKEEPER_SERVER')
         if zk_servers:
             self._replace_config_token(
-                cluster_spec, '%ZOOKEEPER_HOST%', zk_servers.pop().fqdn,
+                cluster_spec, '%ZOOKEEPER_HOST%', zk_servers.pop().fqdn(),
                 {'webhcat-site': ['templeton.zookeeper.hosts']})
 
     def finalize_ng_components(self, cluster_spec):
@@ -377,7 +414,7 @@ class WebHCatService(Service):
             return
 
         # get any instance
-        with cluster_spec.servers[0].remote as r:
+        with cluster_spec.servers[0].remote() as r:
             r.execute_command('su -c "hadoop fs -mkdir /user/hcat" '
                               '-s /bin/sh hdfs')
             r.execute_command('su -c "hadoop fs -chown -R hcat:hdfs '
@@ -432,7 +469,7 @@ class OozieService(Service):
         oozie_servers = cluster_spec.determine_component_hosts('OOZIE_SERVER')
         if oozie_servers:
             self._replace_config_token(
-                cluster_spec, '%OOZIE_HOST%', oozie_servers.pop().fqdn,
+                cluster_spec, '%OOZIE_HOST%', oozie_servers.pop().fqdn(),
                 {'global': ['oozie_hostname'],
                     'core-site': ['hadoop.proxyuser.oozie.hosts'],
                     'oozie-site': ['oozie.base.url']})
@@ -458,9 +495,10 @@ class OozieService(Service):
     def register_service_urls(self, cluster_spec, url_info):
         oozie_ip = cluster_spec.determine_component_hosts(
             'OOZIE_SERVER').pop().management_ip
-        #TODO(jspeidel): Don't hard code port
+        port = self._get_port_from_cluster_spec(cluster_spec, 'oozie-site',
+                                                'oozie.base.url')
         url_info['JobFlow'] = {
-            'Oozie': 'http://%s:11000' % oozie_ip
+            'Oozie': 'http://%s:%s' % (oozie_ip, port)
         }
         return url_info
 
@@ -557,3 +595,20 @@ class AmbariService(Service):
         admin_user = next(user for user in self.users
                           if user.name == self.admin_user_name)
         admin_user.password = user_input.value
+
+
+class SqoopService(Service):
+    def __init__(self):
+        super(SqoopService, self).__init__(SqoopService.get_service_id())
+
+    @classmethod
+    def get_service_id(cls):
+        return 'SQOOP'
+
+    def finalize_ng_components(self, cluster_spec):
+        sqoop_ngs = cluster_spec.get_node_groups_containing_component('SQOOP')
+        for ng in sqoop_ngs:
+            if 'HDFS_CLIENT' not in ng.components:
+                ng.components.append('HDFS_CLIENT')
+            if 'MAPREDUCE_CLIENT' not in ng.components:
+                ng.components.append('MAPREDUCE_CLIENT')

@@ -181,7 +181,8 @@ class NodeGroupResource(Resource, objects.NodeGroup):
         'node_group_template': (NodeGroupTemplateResource, None)
     }
 
-    _filter_fields = ['id', 'tenant_id', 'cluster_id', 'cluster_template_id']
+    _filter_fields = ['id', 'tenant_id', 'cluster_id', 'cluster_template_id',
+                      'image_username']
 
 
 class ClusterTemplateResource(Resource, objects.ClusterTemplate):
@@ -200,7 +201,7 @@ class ClusterResource(Resource, objects.Cluster):
         'cluster_template': (ClusterTemplateResource, None)
     }
 
-    _filter_fields = ['management_private_key']
+    _filter_fields = ['management_private_key', 'extra']
 
 
 ##EDP Resources

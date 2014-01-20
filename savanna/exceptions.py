@@ -13,10 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import savanna.openstack.common.exception as ex
 
-
-class SavannaException(ex.Error):
+class SavannaException(Exception):
     """Base Exception for the project
 
     To correctly use this class, inherit from it and define
@@ -55,6 +53,8 @@ class NameAlreadyExistsException(SavannaException):
 
 
 class InvalidCredentials(SavannaException):
+    message = "Invalid credentials"
+
     def __init__(self, message=None):
         self.code = "INVALID_CREDENTIALS"
         if message:
@@ -182,3 +182,10 @@ class ThreadException(SavannaException):
         self.message = "An error occurred in thread '%s': %s" % (
             thread_description, str(e))
         self.code = "THREAD_EXCEPTION"
+
+
+class NotImplementedException(SavannaException):
+    code = "NOT_IMPLEMENTED"
+
+    def __init__(self, feature):
+        self.message = "Feature '%s' is not implemented" % feature

@@ -15,6 +15,11 @@
 
 import six
 
+from savanna import conductor as c
+from savanna import context
+
+conductor = c.API
+
 
 def find_dict(iterable, **rules):
     """Search for dict in iterable of dicts using specified key-value rules."""
@@ -49,3 +54,29 @@ def format_cluster_status(cluster):
     if cluster:
         return msg % (cluster.id, cluster.status)
     return msg % ("Unknown", "Unknown")
+
+
+def check_cluster_exists(cluster):
+    ctx = context.ctx()
+    # check if cluster still exists (it might have been removed)
+    cluster = conductor.cluster_get(ctx, cluster)
+    return cluster is not None
+
+
+def get_instances(cluster, instances_ids=None):
+    inst_map = {}
+    for node_group in cluster.node_groups:
+        for instance in node_group.instances:
+            inst_map[instance.id] = instance
+
+    if instances_ids is not None:
+        return [inst_map[id] for id in instances_ids]
+    else:
+        return [v for v in six.itervalues(inst_map)]
+
+
+def clean_cluster_from_empty_ng(cluster):
+    ctx = context.ctx()
+    for ng in cluster.node_groups:
+        if ng.count == 0:
+            conductor.node_group_remove(ctx, ng)

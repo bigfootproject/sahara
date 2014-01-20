@@ -14,13 +14,14 @@
 # limitations under the License.
 
 import datetime
+import uuid
 
 from oslo.config import cfg
+import six
 
 from savanna import conductor as c
 from savanna import context
 from savanna.openstack.common import log
-from savanna.openstack.common import uuidutils
 from savanna.plugins import base as plugin_base
 from savanna.plugins.general import utils as u
 from savanna.service.edp.binary_retrievers import dispatch
@@ -51,6 +52,10 @@ terminated_job_states = ['DONEWITHERROR', 'FAILED', 'KILLED', 'SUCCEEDED']
 def get_job_status(job_execution_id):
     ctx = context.ctx()
     job_execution = conductor.job_execution_get(ctx, job_execution_id)
+    if job_execution.oozie_job_id is None:
+        # We don't have an Oozie id yet for this job, that's okay
+        return job_execution
+
     cluster = conductor.cluster_get(ctx, job_execution.cluster_id)
 
     if cluster is None or cluster.status != 'Active':
@@ -102,8 +107,12 @@ def run_job(job_execution):
         return job_execution
 
     job = conductor.job_get(ctx, job_execution.job_id)
-    input_source = conductor.data_source_get(ctx,  job_execution.input_id)
-    output_source = conductor.data_source_get(ctx,  job_execution.output_id)
+    if job.type != 'Java':
+        input_source = conductor.data_source_get(ctx,  job_execution.input_id)
+        output_source = conductor.data_source_get(ctx, job_execution.output_id)
+    else:
+        input_source = None
+        output_source = None
     #TODO(nprivalova): should be removed after all features implemented
     validate(input_source, output_source, job)
 
@@ -118,8 +127,9 @@ def run_job(job_execution):
     # uploading hive configuration
     creator.configure_workflow_if_needed(cluster, wf_dir)
 
-    wf_xml = creator.get_workflow_xml(job_execution.job_configs,
-                                      input_source, output_source)
+    wf_xml = creator.get_workflow_xml(job_execution,
+                                      input_source,
+                                      output_source)
 
     path_to_workflow = upload_workflow_file(u.get_jobtracker(cluster),
                                             wf_dir, wf_xml, hdfs_user)
@@ -175,7 +185,7 @@ def upload_workflow_file(where, job_dir, wf_xml, hdfs_user):
 def create_workflow_dir(where, job, hdfs_user):
     constructed_dir = '/user/%s/' % hdfs_user
     constructed_dir = _add_postfix(constructed_dir)
-    constructed_dir += '%s/%s' % (job.name, uuidutils.generate_uuid())
+    constructed_dir += '%s/%s' % (job.name, six.text_type(uuid.uuid4()))
     with remote.get_remote(where) as r:
         h.create_dir(r, constructed_dir, hdfs_user)
 
@@ -199,7 +209,8 @@ def _append_slash_if_needed(path):
 #TODO(nprivalova): this validation should be removed after implementing
 #  all features
 def validate(input_data, output_data, job):
-    if input_data.type != 'swift' or output_data.type != 'swift':
+    if (input_data and input_data.type != 'swift') or\
+       (output_data and output_data.type != 'swift'):
         raise RuntimeError
-    if job.type not in ['Pig', 'Jar', 'Hive']:
+    if job.type not in ['Pig', 'MapReduce', 'Hive', 'Java', 'Jar']:
         raise RuntimeError

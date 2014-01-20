@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nose.plugins.attrib as attrib
+from testtools import testcase
 import unittest2
 
 from savanna.openstack.common import excutils
@@ -30,10 +30,21 @@ class HDPGatingTest(map_reduce.MapReduceTest, swift.SwiftTest,
     SKIP_SWIFT_TEST = cfg.ITConfig().hdp_config.SKIP_SWIFT_TEST
     SKIP_SCALING_TEST = cfg.ITConfig().hdp_config.SKIP_SCALING_TEST
 
-    @attrib.attr(tags='hdp')
     @unittest2.skipIf(cfg.ITConfig().hdp_config.SKIP_ALL_TESTS_FOR_PLUGIN,
                       'All tests for HDP plugin were skipped')
+    @testcase.attr('hdp')
     def test_hdp_plugin_gating(self):
+
+        # Default value of self.common_config.FLOATING_IP_POOL is None
+        floating_ip_pool = self.common_config.FLOATING_IP_POOL
+        internal_neutron_net = None
+
+        # If Neutron enabled then get ID of floating IP pool and ID of internal
+        # Neutron network
+        if self.common_config.NEUTRON_ENABLED:
+
+            floating_ip_pool = self.get_floating_ip_pool_id_for_neutron_net()
+            internal_neutron_net = self.get_internal_neutron_net_id()
 
         node_group_template_id_list = []
 
@@ -44,14 +55,15 @@ class HDPGatingTest(map_reduce.MapReduceTest, swift.SwiftTest,
         try:
 
             node_group_template_tt_dn_id = self.create_node_group_template(
-                name='tt-dn',
+                name='test-node-group-template-hdp-tt-dn',
                 plugin_config=self.hdp_config,
-                description='test node group template',
+                description='test node group template for HDP plugin',
                 volumes_per_node=0,
                 volume_size=0,
                 node_processes=['TASKTRACKER', 'DATANODE', 'HDFS_CLIENT',
                                 'MAPREDUCE_CLIENT'],
-                node_configs={}
+                node_configs={},
+                floating_ip_pool=floating_ip_pool
             )
             node_group_template_id_list.append(node_group_template_tt_dn_id)
 
@@ -68,9 +80,9 @@ class HDPGatingTest(map_reduce.MapReduceTest, swift.SwiftTest,
         try:
 
             cluster_template_id = self.create_cluster_template(
-                name='test-cluster-template',
+                name='test-cluster-template-hdp',
                 plugin_config=self.hdp_config,
-                description='test cluster template',
+                description='test cluster template for HDP plugin',
                 cluster_configs={},
                 node_groups=[
                     dict(
@@ -81,12 +93,14 @@ class HDPGatingTest(map_reduce.MapReduceTest, swift.SwiftTest,
                             'GANGLIA_SERVER', 'NAGIOS_SERVER',
                             'AMBARI_SERVER'],
                         node_configs={},
+                        floating_ip_pool=floating_ip_pool,
                         count=1),
                     dict(
                         name='worker-node-tt-dn',
                         node_group_template_id=node_group_template_tt_dn_id,
                         count=3)
-                ]
+                ],
+                net_id=internal_neutron_net
             )
 
         except Exception as e:
@@ -101,6 +115,11 @@ class HDPGatingTest(map_reduce.MapReduceTest, swift.SwiftTest,
                 self.print_error_log(message, e)
 
 #-------------------------------Cluster creation-------------------------------
+
+        self.hdp_config.IMAGE_ID, self.hdp_config.NODE_USERNAME = \
+            self.get_image_id_and_savanna_cluster_node_username(
+                self.hdp_config
+            )
 
         try:
 

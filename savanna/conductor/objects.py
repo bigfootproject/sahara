@@ -52,6 +52,7 @@ class Cluster(object):
     status
     status_description
     info
+    extra
     node_groups - list of NodeGroup objects
     cluster_template_id
     cluster_template - ClusterTemplate object
@@ -65,6 +66,7 @@ class NodeGroup(object):
     name
     flavor_id
     image_id
+    image_username
     node_processes - list of node processes
     node_configs - configs dict converted to object,
                    see the docs for details
@@ -87,12 +89,10 @@ class NodeGroup(object):
     cluster_template - parent ClusterTemplate object
     """
 
-    @property
     def configuration(self):
         return configs.merge_configs(self.cluster.cluster_configs,
                                      self.node_configs)
 
-    @property
     def storage_paths(self):
         mp = []
         for idx in range(1, self.volumes_per_node + 1):
@@ -122,15 +122,12 @@ class Instance(object):
     volumes
     """
 
-    @property
     def hostname(self):
         return self.instance_name
 
-    @property
     def fqdn(self):
         return self.instance_name + '.' + CONF.node_domain
 
-    @property
     def remote(self):
         return remote.get_remote(self)
 

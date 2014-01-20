@@ -24,7 +24,6 @@ from savanna.openstack.common import log as logging
 from savanna.plugins import base as plugin_base
 from savanna.plugins import provisioning
 from savanna.service.edp import job_manager as jm
-from savanna.service import instances as i
 from savanna.service import trusts
 from savanna.utils import general as g
 from savanna.utils.openstack import nova
@@ -33,6 +32,15 @@ from savanna.utils.openstack import nova
 conductor = c.API
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+
+INFRA = None
+
+
+def setup_service_api(engine):
+    global INFRA
+
+    INFRA = engine
 
 
 ## Cluster ops
@@ -61,6 +69,15 @@ def scale_cluster(id, data):
         to_be_enlarged.update({ng_id: ng['count']})
 
     additional = construct_ngs_for_scaling(cluster, additional_node_groups)
+    cluster = conductor.cluster_get(ctx, cluster)
+
+    # update nodegroup image usernames
+    for nodegroup in cluster.node_groups:
+        if additional.get(nodegroup.id):
+            image_username = INFRA.get_node_group_image_username(nodegroup)
+            conductor.node_group_update(
+                ctx, nodegroup, {"image_username": image_username})
+    cluster = conductor.cluster_get(ctx, cluster)
 
     try:
         cluster = conductor.cluster_update(ctx, cluster,
@@ -69,7 +86,7 @@ def scale_cluster(id, data):
         plugin.validate_scaling(cluster, to_be_enlarged, additional)
     except Exception:
         with excutils.save_and_reraise_exception():
-            i.clean_cluster_from_empty_ng(cluster)
+            INFRA.clean_cluster_from_empty_ng(cluster)
             cluster = conductor.cluster_update(ctx, cluster,
                                                {"status": "Active"})
             LOG.info(g.format_cluster_status(cluster))
@@ -78,8 +95,12 @@ def scale_cluster(id, data):
     # So let's update to_be_enlarged map:
     to_be_enlarged.update(additional)
 
+    for node_group in cluster.node_groups:
+        if node_group.id not in to_be_enlarged:
+            to_be_enlarged[node_group.id] = node_group.count
+
     context.spawn("cluster-scaling-%s" % id,
-                  _provision_nodes, id, to_be_enlarged)
+                  _provision_scaled_cluster, id, to_be_enlarged)
     return conductor.cluster_get(ctx, id)
 
 
@@ -87,6 +108,13 @@ def create_cluster(values):
     ctx = context.ctx()
     cluster = conductor.cluster_create(ctx, values)
     plugin = plugin_base.PLUGINS.get_plugin(cluster.plugin_name)
+
+    # update nodegroup image usernames
+    for nodegroup in cluster.node_groups:
+        conductor.node_group_update(
+            ctx, nodegroup,
+            {"image_username": INFRA.get_node_group_image_username(nodegroup)})
+    cluster = conductor.cluster_get(ctx, cluster)
 
     # validating cluster
     try:
@@ -110,29 +138,51 @@ def create_cluster(values):
     return conductor.cluster_get(ctx, cluster.id)
 
 
-def _provision_nodes(id, node_group_id_map):
+def _provision_scaled_cluster(id, node_group_id_map):
     ctx = context.ctx()
     cluster = conductor.cluster_get(ctx, id)
     plugin = plugin_base.PLUGINS.get_plugin(cluster.plugin_name)
 
+    # Decommissioning surplus nodes with the plugin
+
+    cluster = conductor.cluster_update(ctx, cluster,
+                                       {"status": "Decommissioning"})
+    LOG.info(g.format_cluster_status(cluster))
+
+    instances_to_delete = []
+
+    for node_group in cluster.node_groups:
+        new_count = node_group_id_map[node_group.id]
+        if new_count < node_group.count:
+            instances_to_delete += node_group.instances[new_count:
+                                                        node_group.count]
+
+    if instances_to_delete:
+        plugin.decommission_nodes(cluster, instances_to_delete)
+
+    # Scaling infrastructure
     cluster = conductor.cluster_update(ctx, cluster, {"status": "Scaling"})
     LOG.info(g.format_cluster_status(cluster))
-    instances = i.scale_cluster(cluster, node_group_id_map, plugin)
+
+    instances = INFRA.scale_cluster(cluster, node_group_id_map)
+
+    # Setting up new nodes with the plugin
 
     if instances:
         cluster = conductor.cluster_update(ctx, cluster,
                                            {"status": "Configuring"})
         LOG.info(g.format_cluster_status(cluster))
         try:
-            plugin.scale_cluster(cluster, i.get_instances(cluster, instances))
+            instances = g.get_instances(cluster, instances)
+            plugin.scale_cluster(cluster, instances)
         except Exception as ex:
             LOG.exception("Can't scale cluster '%s' (reason: %s)",
                           cluster.name, ex)
-            conductor.cluster_update(ctx, cluster, {"status": "Error"})
+            cluster = conductor.cluster_update(ctx, cluster,
+                                               {"status": "Error"})
             LOG.info(g.format_cluster_status(cluster))
             return
 
-    # cluster is now up and ready
     cluster = conductor.cluster_update(ctx, cluster, {"status": "Active"})
     LOG.info(g.format_cluster_status(cluster))
 
@@ -150,7 +200,7 @@ def _provision_cluster(cluster_id):
 
     # creating instances and configuring them
     cluster = conductor.cluster_get(ctx, cluster_id)
-    i.create_cluster(cluster)
+    INFRA.create_cluster(cluster)
 
     # configure cluster
     cluster = conductor.cluster_update(ctx, cluster, {"status": "Configuring"})
@@ -160,7 +210,7 @@ def _provision_cluster(cluster_id):
     except Exception as ex:
         LOG.exception("Can't configure cluster '%s' (reason: %s)",
                       cluster.name, ex)
-        conductor.cluster_update(ctx, cluster, {"status": "Error"})
+        cluster = conductor.cluster_update(ctx, cluster, {"status": "Error"})
         LOG.info(g.format_cluster_status(cluster))
         return
 
@@ -172,7 +222,7 @@ def _provision_cluster(cluster_id):
     except Exception as ex:
         LOG.exception("Can't start services for cluster '%s' (reason: %s)",
                       cluster.name, ex)
-        conductor.cluster_update(ctx, cluster, {"status": "Error"})
+        cluster = conductor.cluster_update(ctx, cluster, {"status": "Error"})
         LOG.info(g.format_cluster_status(cluster))
         return
 
@@ -194,7 +244,7 @@ def terminate_cluster(id):
 
     plugin = plugin_base.PLUGINS.get_plugin(cluster.plugin_name)
     plugin.on_terminate_cluster(cluster)
-    i.shutdown_cluster(cluster)
+    INFRA.shutdown_cluster(cluster)
     if CONF.use_identity_api_v3:
         trusts.delete_trust(cluster)
     conductor.cluster_destroy(ctx, cluster)

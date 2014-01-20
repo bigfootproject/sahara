@@ -17,10 +17,10 @@ Tests may be disabled in the `/savanna/tests/integration/configs/config.py` file
 or created the config file `/savanna/tests/integration/configs/itest.conf`.
 
 If you want to run integration tests for one plugin or a few plugins you should use
-the corresponding tox env: `tox -e integration -- -a tags=<plugin_name>` or
-`tox -e integration -- -a tags=<plugin_name_1>,<plugin_name_2>`.
+the corresponding tox env: `tox -e integration -- <plugin_name>` or
+`tox -e integration -- <plugin_name_1> <plugin_name_2>`.
 
-For example: `tox -e integration -- -a tags=vanilla` or `tox -e integration -- -a tags=vanilla,hdp`
+For example: `tox -e integration -- vanilla` or `tox -e integration vanilla hdp`
 
 Contents
 --------
@@ -40,7 +40,7 @@ the cluster creation. Desired configuration values are checked with GET-request
 as well as directly in configuration files on the cluster.
 
 3. Test for a check of Elastic Data Processing (EDP). This test launches
-pig-job with jar-library.
+pig-job with jar-library and jar-job.
 
 4. Test for a check of Hadoop (Map Reduce and HDFS). This test launches Map
 Reduce jobs "PI estimator" and "Word count". Input file for job "Word count" is
