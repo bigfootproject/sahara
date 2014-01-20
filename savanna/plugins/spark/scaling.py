@@ -38,7 +38,9 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     files = {'/opt/spark/conf/slaves': slave_content}
     with remote.get_remote(master) as r_master:
         r_master.write_files_to(files)
-        #run.stop_spark(r_master)
+        # restart spark in master node
+        run.stop_spark(r_master)
+        run.start_spark_master(r_master)
     context.sleep(3)
 
     # write new slave file to each survived slaves as well
@@ -46,9 +48,6 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
         with remote.get_remote(i) as r:
             r.write_files_to(files)
     context.sleep(3)
-
-    # restart spark in master node
-    run.start_spark_slaves(r_master)
 
 
 def decommission_dn(nn, inst_to_be_deleted, survived_inst):
