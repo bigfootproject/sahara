@@ -21,7 +21,7 @@ import unittest2
 from savanna.conductor import resource as r
 from savanna.plugins.vanilla import plugin
 import savanna.service.validation as v
-from savanna.tests.unit.plugins.vanilla import test_utils as tu
+from savanna.tests.unit.plugins.general import test_utils as tu
 
 m = {}
 
@@ -57,9 +57,13 @@ def _get_keypair(name):
         raise nova_ex.NotFound("")
 
 
-def _get_flavor(flavor_id):
-    if flavor_id != "42":
-        raise nova_ex.NotFound("")
+class FakeFlavor(object):
+    def __init__(self, id):
+        self.id = id
+
+
+def _get_flavors_list():
+    return [FakeFlavor("42")]
 
 
 def start_patch(patch_templates=True):
@@ -100,7 +104,7 @@ def start_patch(patch_templates=True):
     if patch_templates:
         get_cl_templates.return_value = []
 
-    nova().flavors.get.side_effect = _get_flavor
+    nova().flavors.list.side_effect = _get_flavors_list
     nova().keypairs.get.side_effect = _get_keypair
 
     class Service:

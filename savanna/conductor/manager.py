@@ -72,7 +72,7 @@ class ConductorManager(db_base.Base):
     def _populate_node_groups(self, context, cluster):
         node_groups = cluster.get('node_groups')
         if not node_groups:
-            return
+            return []
 
         populated_node_groups = []
         for node_group in node_groups:
@@ -328,6 +328,8 @@ class ConductorManager(db_base.Base):
         """Create a Job from the values dictionary."""
         values = copy.deepcopy(values)
         values['tenant_id'] = context.tenant_id
+        if values['type'] == 'Jar':
+            values['type'] = 'MapReduce'
         return self.db.job_create(context, values)
 
     def job_update(self, context, job, values):

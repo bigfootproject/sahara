@@ -107,8 +107,6 @@
 # syslog facility to receive log lines (string value)
 #syslog_log_facility=LOG_USER
 
-
-
 # List of plugins to be loaded. Savanna preserves the order of
 # the list when returning it. (list value)
 plugins=vanilla,hdp,spark

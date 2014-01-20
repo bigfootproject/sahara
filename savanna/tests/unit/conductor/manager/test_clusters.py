@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+
 from savanna.conductor import manager
 from savanna import context
 from savanna import exceptions as ex
@@ -109,10 +111,24 @@ class ClusterTest(test_base.ConductorManagerTestCase):
             ng.pop("volumes_size")
             ng.pop("volumes_per_node")
             ng.pop("floating_ip_pool")
+            ng.pop("image_username")
             ng.pop("tenant_id")
 
         self.assertEqual(SAMPLE_CLUSTER["node_groups"],
                          cl_db_obj["node_groups"])
+
+    def test_cluster_no_ng(self):
+        ctx = context.ctx()
+        cluster_schema = copy.deepcopy(SAMPLE_CLUSTER)
+        cluster_schema.pop('node_groups')
+        cl_db_obj = self.api.cluster_create(ctx, cluster_schema)
+        self.assertIsInstance(cl_db_obj, dict)
+
+        for key, val in cluster_schema.items():
+            self.assertEqual(val, cl_db_obj.get(key),
+                             "Key not found %s" % key)
+
+        self.assertEqual(cl_db_obj["node_groups"], [])
 
     def test_cluster_update_status(self):
         ctx = context.ctx()

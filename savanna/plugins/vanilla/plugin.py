@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+
 from oslo.config import cfg
+import six
 
 from savanna import conductor
 from savanna import context
 from savanna.openstack.common import log as logging
-from savanna.openstack.common import uuidutils
 from savanna.plugins.general import exceptions as ex
 from savanna.plugins.general import utils
 from savanna.plugins import provisioning as p
@@ -27,6 +29,7 @@ from savanna.plugins.vanilla import run_scripts as run
 from savanna.plugins.vanilla import scaling as sc
 from savanna.topology import topology_helper as th
 from savanna.utils import files as f
+from savanna.utils import general as g
 from savanna.utils import remote
 
 
@@ -43,12 +46,6 @@ class VanillaProvider(p.ProvisioningPluginBase):
             "JobFlow": ["oozie"],
             "Hive": ["hiveserver"]
         }
-
-    def get_plugin_opts(self):
-        return []
-
-    def setup(self, conf):
-        self.conf = conf
 
     def get_title(self):
         return "Vanilla Apache Hadoop"
@@ -119,12 +116,7 @@ class VanillaProvider(p.ProvisioningPluginBase):
         self._setup_instances(cluster, instances)
 
     def start_cluster(self, cluster):
-        instances = utils.get_instances(cluster)
         nn_instance = utils.get_namenode(cluster)
-        jt_instance = utils.get_jobtracker(cluster)
-        oozie = utils.get_oozie(cluster)
-        hive_server = utils.get_hiveserver(cluster)
-
         with remote.get_remote(nn_instance) as r:
             run.format_namenode(r)
             run.start_processes(r, "namenode")
@@ -132,65 +124,84 @@ class VanillaProvider(p.ProvisioningPluginBase):
         for snn in utils.get_secondarynamenodes(cluster):
             run.start_processes(remote.get_remote(snn), "secondarynamenode")
 
+        jt_instance = utils.get_jobtracker(cluster)
         if jt_instance:
             run.start_processes(remote.get_remote(jt_instance), "jobtracker")
 
-        self._start_tt_dn_processes(instances)
+        self._start_tt_dn_processes(utils.get_instances(cluster))
+
+        self._await_datanodes(cluster)
 
         LOG.info("Hadoop services in cluster %s have been started" %
                  cluster.name)
 
+        oozie = utils.get_oozie(cluster)
         if oozie:
             with remote.get_remote(oozie) as r:
                 if c_helper.is_mysql_enable(cluster):
                     run.mysql_start(r, oozie)
                     run.oozie_create_db(r)
-                run.oozie_share_lib(r, nn_instance.hostname)
+                run.oozie_share_lib(r, nn_instance.hostname())
                 run.start_oozie(r)
                 LOG.info("Oozie service at '%s' has been started",
-                         nn_instance.hostname)
+                         nn_instance.hostname())
 
+        hive_server = utils.get_hiveserver(cluster)
         if hive_server:
             with remote.get_remote(nn_instance) as r:
                 run.hive_create_warehouse_dir(r)
             if c_helper.is_mysql_enable(cluster):
                 with remote.get_remote(hive_server) as h:
-                    if not oozie or hive_server.hostname != oozie.hostname:
+                    if not oozie or hive_server.hostname() != oozie.hostname():
                         run.mysql_start(h, hive_server)
                     run.hive_create_db(h)
                     run.hive_metastore_start(h)
                 LOG.info("Hive Metastore server at %s has been started",
-                         hive_server.hostname)
+                         hive_server.hostname())
 
         LOG.info('Cluster %s has been started successfully' % cluster.name)
         self._set_cluster_info(cluster)
 
+    def _await_datanodes(self, cluster):
+        datanodes_count = len(utils.get_datanodes(cluster))
+        if datanodes_count < 1:
+            return
+
+        LOG.info("Waiting %s datanodes to start up" % datanodes_count)
+        with remote.get_remote(utils.get_namenode(cluster)) as r:
+            while True:
+                if run.check_datanodes_count(r, datanodes_count):
+                    LOG.info(
+                        'Datanodes on cluster %s has been started' %
+                        cluster.name)
+                    return
+
+                context.sleep(1)
+
+                if not g.check_cluster_exists(cluster):
+                    LOG.info(
+                        'Stop waiting datanodes on cluster %s since it has '
+                        'been deleted' % cluster.name)
+                    return
+
     def _extract_configs_to_extra(self, cluster):
-        nn = utils.get_namenode(cluster)
-        jt = utils.get_jobtracker(cluster)
         oozie = utils.get_oozie(cluster)
         hive = utils.get_hiveserver(cluster)
 
         extra = dict()
 
         if hive:
-            extra['hive_mysql_passwd'] = uuidutils.generate_uuid()
+            extra['hive_mysql_passwd'] = six.text_type(uuid.uuid4())
 
         for ng in cluster.node_groups:
             extra[ng.id] = {
                 'xml': c_helper.generate_xml_configs(
-                    ng.configuration,
-                    ng.storage_paths,
-                    nn.hostname,
-                    jt.hostname if jt else None,
-                    oozie.hostname if oozie else None,
-                    hive.hostname if hive else None,
-                    extra['hive_mysql_passwd'] if hive else None),
+                    cluster, ng, extra['hive_mysql_passwd'] if hive else None),
                 'setup_script': c_helper.generate_setup_script(
-                    ng.storage_paths,
-                    c_helper.extract_environment_confs(ng.configuration),
+                    ng.storage_paths(),
+                    c_helper.extract_environment_confs(ng.configuration()),
                     append_oozie=(
-                        oozie is not None and oozie.node_group.id == ng.id)
+                        oozie and oozie.node_group.id == ng.id)
                 )
             }
 
@@ -252,7 +263,7 @@ class VanillaProvider(p.ProvisioningPluginBase):
                              self._start_tt_dn, i, list(tt_dn_procs))
 
     def _start_tt_dn(self, instance, tt_dn_procs):
-        with instance.remote as r:
+        with instance.remote() as r:
             run.start_processes(r, *tt_dn_procs)
 
     def _setup_instances(self, cluster, instances):
@@ -274,19 +285,20 @@ class VanillaProvider(p.ProvisioningPluginBase):
 
     def _push_configs_to_new_node(self, cluster, extra, instance):
         ng_extra = extra[instance.node_group.id]
+        private_key, public_key = c_helper.get_hadoop_ssh_keys(cluster)
 
         files = {
             '/etc/hadoop/core-site.xml': ng_extra['xml']['core-site'],
             '/etc/hadoop/mapred-site.xml': ng_extra['xml']['mapred-site'],
             '/etc/hadoop/hdfs-site.xml': ng_extra['xml']['hdfs-site'],
             '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
-            'id_rsa': cluster.management_private_key,
-            'authorized_keys': cluster.management_public_key
+            'id_rsa': private_key,
+            'authorized_keys': public_key
         }
 
-        key_cmd = 'sudo mkdir -p /home/hadoop/.ssh/; ' \
-                  'sudo mv id_rsa authorized_keys /home/hadoop/.ssh ; ' \
-                  'sudo chown -R hadoop:hadoop /home/hadoop/.ssh; ' \
+        key_cmd = 'sudo mkdir -p /home/hadoop/.ssh/ && ' \
+                  'sudo mv id_rsa authorized_keys /home/hadoop/.ssh && ' \
+                  'sudo chown -R hadoop:hadoop /home/hadoop/.ssh && ' \
                   'sudo chmod 600 /home/hadoop/.ssh/{id_rsa,authorized_keys}'
 
         with remote.get_remote(instance) as r:
@@ -399,26 +411,29 @@ class VanillaProvider(p.ProvisioningPluginBase):
         info = {}
 
         if jt:
-            address = c_helper.get_config_value(
+            ui_port = c_helper.get_port_from_config(
                 'MapReduce', 'mapred.job.tracker.http.address', cluster)
-            port = address[address.rfind(':') + 1:]
+            jt_port = c_helper.get_port_from_config(
+                'MapReduce', 'mapred.job.tracker', cluster)
+
             info['MapReduce'] = {
-                'Web UI': 'http://%s:%s' % (jt.management_ip, port)
+                'Web UI': 'http://%s:%s' % (jt.management_ip, ui_port),
+                'JobTracker': '%s:%s' % (jt.hostname(), jt_port)
             }
-            #TODO(aignatov) change from hardcode value
-            info['MapReduce']['JobTracker'] = '%s:8021' % jt.hostname
 
         if nn:
-            address = c_helper.get_config_value(
-                'HDFS', 'dfs.http.address', cluster)
-            port = address[address.rfind(':') + 1:]
+            ui_port = c_helper.get_port_from_config('HDFS', 'dfs.http.address',
+                                                    cluster)
+            nn_port = c_helper.get_port_from_config('HDFS', 'fs.default.name',
+                                                    cluster)
+
             info['HDFS'] = {
-                'Web UI': 'http://%s:%s' % (nn.management_ip, port)
+                'Web UI': 'http://%s:%s' % (nn.management_ip, ui_port),
+                'NameNode': 'hdfs://%s:%s' % (nn.hostname(), nn_port)
             }
-            #TODO(aignatov) change from hardcode value
-            info['HDFS']['NameNode'] = 'hdfs://%s:8020' % nn.hostname
 
         if oozie:
+            #TODO(yrunts) change from hardcode value
             info['JobFlow'] = {
                 'Oozie': 'http://%s:11000' % oozie.management_ip
             }
@@ -468,8 +483,8 @@ class VanillaProvider(p.ProvisioningPluginBase):
                                  ' '.join(ng.node_processes))
 
         dn_amount = len(utils.get_datanodes(cluster))
-        rep_factor = c_helper.determine_cluster_config(cluster, 'HDFS',
-                                                       "dfs.replication")
+        rep_factor = c_helper.get_config_value('HDFS', 'dfs.replication',
+                                               cluster)
 
         if dn_to_delete > 0 and dn_amount - dn_to_delete < rep_factor:
             raise ex.ClusterCannotBeScaled(

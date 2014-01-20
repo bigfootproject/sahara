@@ -36,6 +36,27 @@ def load_hadoop_xml_defaults(file_name):
     return configs
 
 
+def load_hadoop_xml_defaults_with_type_and_locale(file_name):
+    doc = load_xml_document(file_name)
+    configs = []
+    prop = doc.getElementsByTagName('property')
+    for elements in prop:
+        configs.append({
+            'name': _get_text_from_node(elements, 'name'),
+            'value': _get_text_from_node(elements, 'value'),
+            'type': _get_text_from_node(elements, 'valuetype'),
+            'description': _adjust_field(
+                _get_text_from_node(
+                    _get_node_element(elements, 'description'), 'en'))
+        })
+    return configs
+
+
+def _get_node_element(element, name):
+    element = element.getElementsByTagName(name)
+    return element[0] if element and element[0].hasChildNodes() else None
+
+
 def create_hadoop_xml(configs, config_filter=None):
     doc = xml.Document()
 
@@ -62,13 +83,19 @@ def create_hadoop_xml(configs, config_filter=None):
 
 ## basic utils
 
-def load_xml_document(file_name):
-    return xml.parse(pkg.resource_filename(
-        version.version_info.package, file_name))
+def load_xml_document(file_name, strip=False):
+    fname = pkg.resource_filename(
+        version.version_info.package, file_name)
+    if strip:
+        with open(fname, "r") as f:
+            doc = "".join(line.strip() for line in f)
+            return xml.parseString(doc)
+    else:
+        return xml.parse(fname)
 
 
 def _get_text_from_node(element, name):
-    element = element.getElementsByTagName(name)
+    element = element.getElementsByTagName(name) if element else None
     return element[0].firstChild.nodeValue if (
         element and element[0].hasChildNodes()) else ''
 

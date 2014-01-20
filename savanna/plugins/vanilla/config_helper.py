@@ -15,16 +15,21 @@
 
 from oslo.config import cfg
 
+from savanna import conductor as c
+from savanna import context
 from savanna.openstack.common import log as logging
+from savanna.plugins.general import utils
 from savanna.plugins import provisioning as p
 from savanna.plugins.vanilla import mysql_helper as m_h
 from savanna.plugins.vanilla import oozie_helper as o_h
 from savanna.swift import swift_helper as swift
 from savanna.topology import topology_helper as topology
+from savanna.utils import crypto
 from savanna.utils import types as types
 from savanna.utils import xmlutils as x
 
 
+conductor = c.API
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
@@ -61,7 +66,7 @@ ENV_CONFS = {
         'Data Node Heap Size': 'HADOOP_DATANODE_OPTS=\\"-Xmx%sm\\"'
     },
     "JobFlow": {
-        'Oozie Heap Size': 'CATALINA_OPTS=\\"-Xmx%sm\\"'
+        'Oozie Heap Size': 'CATALINA_OPTS -Xmx%sm'
     }
 }
 
@@ -175,10 +180,14 @@ def get_general_configs(hive_hostname, passwd_hive_mysql):
 
 def get_config_value(service, name, cluster=None):
     if cluster:
+        savanna_configs = generate_savanna_configs(cluster)
+        if savanna_configs.get(name):
+            return savanna_configs[name]
+
         for ng in cluster.node_groups:
-            if (ng.configuration.get(service) and
-                    ng.configuration[service].get(name)):
-                return ng.configuration[service][name]
+            if (ng.configuration().get(service) and
+                    ng.configuration()[service].get(name)):
+                return ng.configuration()[service][name]
 
     for c in PLUGIN_CONFIGS:
         if c.applicable_target == service and c.name == name:
@@ -203,11 +212,34 @@ def generate_cfg_from_general(cfg, configs, general_config,
     return cfg
 
 
-def generate_xml_configs(configs, storage_path, nn_hostname, jt_hostname,
-                         oozie_hostname, hive_hostname, passwd_hive_mysql):
-    general_cfg = get_general_configs(hive_hostname, passwd_hive_mysql)
+def _get_hostname(service):
+    return service.hostname() if service else None
+
+
+def get_hadoop_ssh_keys(cluster):
+    extra = cluster.extra or {}
+    private_key = extra.get('hadoop_private_ssh_key')
+    public_key = extra.get('hadoop_public_ssh_key')
+    if not private_key or not public_key:
+        private_key, public_key = crypto.generate_key_pair()
+        extra['hadoop_private_ssh_key'] = private_key
+        extra['hadoop_public_ssh_key'] = public_key
+        conductor.cluster_update(context.ctx(), cluster, {'extra': extra})
+
+    return private_key, public_key
+
+
+def generate_savanna_configs(cluster, node_group=None):
+    nn_hostname = _get_hostname(utils.get_namenode(cluster))
+    jt_hostname = _get_hostname(utils.get_jobtracker(cluster))
+    oozie_hostname = _get_hostname(utils.get_oozie(cluster))
+    hive_hostname = _get_hostname(utils.get_hiveserver(cluster))
+
+    storage_path = node_group.storage_paths() if node_group else None
+
     # inserting common configs depends on provisioned VMs and HDFS placement
     # TODO(aignatov): should be moved to cluster context
+
     cfg = {
         'fs.default.name': 'hdfs://%s:8020' % nn_hostname,
         'dfs.name.dir': extract_hadoop_path(storage_path,
@@ -249,39 +281,52 @@ def generate_xml_configs(configs, storage_path, nn_hostname, jt_hostname,
         cfg.update(h_cfg)
         LOG.debug('Applied Hive config for hive metastore server')
 
+    return cfg
+
+
+def generate_xml_configs(cluster, node_group, hive_mysql_passwd):
+    oozie_hostname = _get_hostname(utils.get_oozie(cluster))
+    hive_hostname = _get_hostname(utils.get_hiveserver(cluster))
+
+    ng_configs = node_group.configuration()
+
+    general_cfg = get_general_configs(hive_hostname, hive_mysql_passwd)
+
+    all_cfg = generate_savanna_configs(cluster, node_group)
+
     # inserting user-defined configs
-    for key, value in extract_xml_confs(configs):
-        cfg[key] = value
+    for key, value in extract_xml_confs(ng_configs):
+        all_cfg[key] = value
 
     # applying swift configs if user enabled it
     swift_xml_confs = swift.get_swift_configs()
-    cfg = generate_cfg_from_general(cfg, configs, general_cfg)
+    all_cfg = generate_cfg_from_general(all_cfg, ng_configs, general_cfg)
 
     # invoking applied configs to appropriate xml files
     core_all = CORE_DEFAULT + swift_xml_confs
     mapred_all = MAPRED_DEFAULT
 
     if CONF.enable_data_locality:
-        cfg.update(topology.TOPOLOGY_CONFIG)
+        all_cfg.update(topology.TOPOLOGY_CONFIG)
 
         # applying vm awareness configs
         core_all += topology.vm_awareness_core_config()
         mapred_all += topology.vm_awareness_mapred_config()
 
     xml_configs = {
-        'core-site': x.create_hadoop_xml(cfg, core_all),
-        'mapred-site': x.create_hadoop_xml(cfg, mapred_all),
-        'hdfs-site': x.create_hadoop_xml(cfg, HDFS_DEFAULT)
+        'core-site': x.create_hadoop_xml(all_cfg, core_all),
+        'mapred-site': x.create_hadoop_xml(all_cfg, mapred_all),
+        'hdfs-site': x.create_hadoop_xml(all_cfg, HDFS_DEFAULT)
     }
 
     if hive_hostname:
         xml_configs.update({'hive-site':
-                            x.create_hadoop_xml(cfg, HIVE_DEFAULT)})
+                            x.create_hadoop_xml(all_cfg, HIVE_DEFAULT)})
         LOG.debug('Generated hive-site.xml for hive % s', hive_hostname)
 
     if oozie_hostname:
         xml_configs.update({'oozie-site':
-                            x.create_hadoop_xml(cfg, o_h.OOZIE_DEFAULT)})
+                            x.create_hadoop_xml(all_cfg, o_h.OOZIE_DEFAULT)})
         LOG.debug('Generated oozie-site.xml for oozie % s', oozie_hostname)
 
     return xml_configs
@@ -298,7 +343,7 @@ def extract_environment_confs(configs):
                     if param_name == cfg_name and param_value is not None:
                         lst.append(cfg_format_str % param_value)
         else:
-            LOG.warn("Plugin recieved wrong applicable target '%s' in "
+            LOG.warn("Plugin received wrong applicable target '%s' in "
                      "environmental configs" % service)
     return lst
 
@@ -316,7 +361,7 @@ def extract_xml_confs(configs):
                     if param_name in names and param_value is not None:
                         lst.append((param_name, param_value))
         else:
-            LOG.warn("Plugin recieved wrong applicable target '%s' for "
+            LOG.warn("Plugin received wrong applicable target '%s' for "
                      "xml configs" % service)
     return lst
 
@@ -354,18 +399,8 @@ def extract_name_values(configs):
 
 
 def extract_hadoop_path(lst, hadoop_dir):
-    return ",".join([p + hadoop_dir for p in lst])
-
-
-def determine_cluster_config(cluster, service, config_name):
-    if service in cluster.cluster_configs:
-        service_configs = cluster.cluster_configs.get(service)
-        if config_name in service_configs:
-            return service_configs.get(config_name)
-    all_conf = get_plugin_configs()
-    for conf in all_conf:
-        if conf.name == config_name:
-            return conf.default_value
+    if lst:
+        return ",".join([p + hadoop_dir for p in lst])
 
 
 def _set_config(cfg, gen_cfg, name=None):
@@ -379,7 +414,7 @@ def _set_config(cfg, gen_cfg, name=None):
 
 def _is_general_option_enabled(cluster, option):
     for ng in cluster.node_groups:
-        conf = ng.configuration
+        conf = ng.configuration()
         if 'general' in conf and option.name in conf['general']:
                 return conf['general'][option.name]
     return option.default_value
@@ -393,3 +428,8 @@ def is_data_locality_enabled(cluster):
     if not CONF.enable_data_locality:
         return False
     return _is_general_option_enabled(cluster, ENABLE_DATA_LOCALITY)
+
+
+def get_port_from_config(service, name, cluster=None):
+    address = get_config_value(service, name, cluster)
+    return utils.get_port_from_address(address)

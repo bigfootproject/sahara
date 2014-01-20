@@ -13,18 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest2
+import mock
 
+from savanna import conductor as cond
+from savanna.conductor import resource as r
+from savanna import context
 from savanna.plugins.general import exceptions as ex
 from savanna.plugins.vanilla import config_helper as c_h
 from savanna.plugins.vanilla import mysql_helper as m_h
 from savanna.plugins.vanilla import plugin as p
-from savanna.tests.unit.plugins.vanilla import test_utils as tu
+from savanna.tests.unit import base as models_test_base
+from savanna.tests.unit.plugins.general import test_utils as tu
+
+conductor = cond.API
 
 
-class VanillaPluginTest(unittest2.TestCase):
+def _resource_passthrough(*args, **kwargs):
+    return True
+
+
+class VanillaPluginTest(models_test_base.DbTestCase):
     def setUp(self):
         self.pl = p.VanillaProvider()
+        r.Resource._is_passthrough_type = _resource_passthrough
+        super(VanillaPluginTest, self).setUp()
 
     def test_validate(self):
         self.ng = []
@@ -90,7 +102,7 @@ class VanillaPluginTest(unittest2.TestCase):
         self.assertListEqual(c_h.extract_environment_confs(env_configs),
                              ['HADOOP_NAMENODE_OPTS=\\"-Xmx3000m\\"',
                               'HADOOP_DATANODE_OPTS=\\"-Xmx4000m\\"',
-                              'CATALINA_OPTS=\\"-Xmx4000m\\"',
+                              'CATALINA_OPTS -Xmx4000m',
                               'HADOOP_JOBTRACKER_OPTS=\\"-Xmx1000m\\"',
                               'HADOOP_TASKTRACKER_OPTS=\\"-Xmx2000m\\"'])
 
@@ -163,3 +175,118 @@ class VanillaPluginTest(unittest2.TestCase):
         cfg_to_compare.update(m_h.get_hive_mysql_configs(
             "metastore_host", "passwd"))
         self.assertDictEqual(cfg, cfg_to_compare)
+
+    @mock.patch('savanna.conductor.api.LocalApi.cluster_get')
+    def test_get_config_value(self, cond_get_cluster):
+        cluster = self._get_fake_cluster()
+        cond_get_cluster.return_value = cluster
+
+        self.assertEqual(
+            c_h.get_config_value('HDFS', 'fs.default.name', cluster),
+            'hdfs://inst1:8020')
+        self.assertEqual(
+            c_h.get_config_value('HDFS', 'spam', cluster), 'eggs')
+        self.assertEqual(
+            c_h.get_config_value('HDFS', 'dfs.safemode.extension'), 30000)
+        self.assertRaises(RuntimeError,
+                          c_h.get_config_value,
+                          'MapReduce', 'spam', cluster)
+
+    @mock.patch('savanna.plugins.vanilla.plugin.context')
+    @mock.patch('savanna.conductor.api.LocalApi.cluster_update')
+    def test_set_cluster_info(self, cond_cluster_update, context_mock):
+        cluster = self._get_fake_cluster()
+        self.pl._set_cluster_info(cluster)
+        expected_info = {
+            'HDFS': {
+                'NameNode': 'hdfs://inst1:8020',
+                'Web UI': 'http://127.0.0.1:50070'
+            },
+            'MapReduce': {
+                'Web UI': 'http://127.0.0.1:50030',
+                'JobTracker': 'inst1:8021'
+            },
+            'JobFlow': {
+                'Oozie': 'http://127.0.0.1:11000'
+            }
+        }
+        cond_cluster_update.assert_called_with(context_mock.ctx(), cluster,
+                                               {'info': expected_info})
+
+    def _get_fake_cluster(self):
+        class FakeNG(object):
+            def __init__(self, name, flavor, processes, count, instances=None,
+                         configuration=None, cluster_id=None):
+                self.name = name
+                self.flavor = flavor
+                self.node_processes = processes
+                self.count = count
+                self.instances = instances or []
+                self.ng_configuration = configuration
+                self.cluster_id = cluster_id
+
+            def configuration(self):
+                return self.ng_configuration
+
+            def storage_paths(self):
+                return ['/mnt']
+
+        class FakeCluster(object):
+            def __init__(self, name, tenant, plugin, version, node_groups):
+                self.name = name
+                self.tenant = tenant
+                self.plugin = plugin
+                self.version = version
+                self.node_groups = node_groups
+
+        class FakeInst(object):
+            def __init__(self, inst_name, inst_id, management_ip):
+                self.instance_name = inst_name
+                self.instance_id = inst_id
+                self.management_ip = management_ip
+
+            def hostname(self):
+                return self.instance_name
+
+        ms_inst = FakeInst('inst1', 'id1', '127.0.0.1')
+        wk_inst = FakeInst('inst2', 'id2', '127.0.0.1')
+
+        conf = {
+            "MapReduce": {},
+            "HDFS": {
+                "spam": "eggs"
+            },
+            "JobFlow": {},
+        }
+
+        ng1 = FakeNG('master', 'fl1', ['namenode', 'jobtracker', 'oozie'], 1,
+                     [ms_inst], conf, 'id1')
+        ng2 = FakeNG('worker', 'fl1', ['datanode', 'tasktracker'], 1,
+                     [wk_inst], conf, 'id1')
+        return FakeCluster('cl1', 'ten1', 'vanilla', '1.2.1', [ng1, ng2])
+
+    def test_get_hadoop_ssh_keys(self):
+        cluster_dict = {
+            'name': 'cluster1',
+            'plugin_name': 'mock_plugin',
+            'hadoop_version': 'mock_version',
+            'default_image_id': 'initial',
+            'node_groups': [tu._make_ng_dict("ng1", "f1", ["s1"], 1)]}
+
+        cluster1 = conductor.cluster_create(context.ctx(), cluster_dict)
+        (private_key1, public_key1) = c_h.get_hadoop_ssh_keys(cluster1)
+
+        #should store keys for old cluster
+        cluster1 = conductor.cluster_get(context.ctx(), cluster1)
+        (private_key2, public_key2) = c_h.get_hadoop_ssh_keys(cluster1)
+
+        self.assertEqual(public_key1, public_key2)
+        self.assertEqual(private_key1, private_key2)
+
+        #should generate new keys for new cluster
+        cluster_dict.update({'name': 'cluster2'})
+        cluster2 = conductor.cluster_create(context.ctx(), cluster_dict)
+        (private_key3, public_key3) = c_h.get_hadoop_ssh_keys(cluster2)
+
+        self.assertNotEqual(public_key1, public_key3)
+        self.assertNotEqual(private_key1, private_key3)

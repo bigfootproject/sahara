@@ -21,6 +21,7 @@ import uuid
 
 import unittest2
 
+from neutronclient.v2_0 import client as neutron_client
 from novaclient.v1_1 import client as nova_client
 import savannaclient.api.client as savanna_client
 from swiftclient import client as swift_client
@@ -82,11 +83,17 @@ class ITestCase(unittest2.TestCase):
                 self.common_config.SAVANNA_PORT,
                 self.common_config.SAVANNA_API_VERSION))
 
-        self.nova = nova_client.Client(self.common_config.OS_USERNAME,
-                                       self.common_config.OS_PASSWORD,
-                                       self.common_config.OS_TENANT_NAME,
-                                       self.common_config.OS_AUTH_URL,
-                                       service_type='compute')
+        self.nova = nova_client.Client(
+            username=self.common_config.OS_USERNAME,
+            api_key=self.common_config.OS_PASSWORD,
+            project_id=self.common_config.OS_TENANT_NAME,
+            auth_url=self.common_config.OS_AUTH_URL)
+
+        self.neutron = neutron_client.Client(
+            username=self.common_config.OS_USERNAME,
+            password=self.common_config.OS_PASSWORD,
+            tenant_name=self.common_config.OS_TENANT_NAME,
+            auth_url=self.common_config.OS_AUTH_URL)
 
         if not self.common_config.FLAVOR_ID:
 
@@ -94,10 +101,11 @@ class ITestCase(unittest2.TestCase):
                 name='i-test-flavor-%s' % str(uuid.uuid4())[:30],
                 ram=1024,
                 vcpus=1,
-                disk=40,
-                ephemeral=0).id
+                disk=10,
+                ephemeral=10).id
 
         else:
+
             self.flavor_id = self.common_config.FLAVOR_ID
 
         if not self.common_config.PATH_TO_SSH_KEY:
@@ -108,73 +116,8 @@ class ITestCase(unittest2.TestCase):
                 self.common_config.USER_KEYPAIR_ID).private_key
 
         else:
+
             self.private_key = open(self.common_config.PATH_TO_SSH_KEY).read()
-
-        images = self.nova.images.list()
-
-        self.vanilla_config.IMAGE_ID = None
-        self.hdp_config.IMAGE_ID = None
-        self.spark_config.IMAGE_ID = None
-        for image in images:
-
-            if image.metadata.get('_savanna_username'):
-                    #image.metadata.get('_savanna_tag_ci'):
-
-                if not self.vanilla_config.SKIP_ALL_TESTS_FOR_PLUGIN:
-
-                    if image.metadata.get('_savanna_tag_vanilla'):
-
-                        self.vanilla_config.IMAGE_ID = image.id
-                        self.vanilla_config.NODE_USERNAME = \
-                            image.metadata['_savanna_username']
-
-                if not self.spark_config.SKIP_ALL_TESTS_FOR_PLUGIN:
-
-                    if image.metadata.get('_savanna_tag_spark'):
-
-                        self.spark_config.IMAGE_ID = image.id
-                        self.spark_config.NODE_USERNAME = \
-                            image.metadata['_savanna_username']
-
-                if not self.hdp_config.SKIP_ALL_TESTS_FOR_PLUGIN:
-
-                    if image.metadata.get('_savanna_tag_hdp'):
-
-                        self.hdp_config.IMAGE_ID = image.id
-                        self.hdp_config.NODE_USERNAME = \
-                            image.metadata['_savanna_username']
-
-        if not self.hdp_config.SKIP_ALL_TESTS_FOR_PLUGIN and \
-                not self.hdp_config.IMAGE_ID:
-            self.fail("""
-            ***********************************************
-            Integration tests for HDP plugin is Enabled
-            but Image for this plugin not found.
-            Please check that the image is registered
-            and all necessary tags are added.
-            ***********************************************
-            """)
-
-        if not self.vanilla_config.SKIP_ALL_TESTS_FOR_PLUGIN and \
-                not self.vanilla_config.IMAGE_ID:
-            self.fail("""
-            ***********************************************
-            Integration tests for Vanilla plugin is Enabled
-            but Image for this plugin not found.
-            Please check that the image is registered
-            and all necessary tags are added.
-            ***********************************************
-            """)
-        if not self.spark_config.SKIP_ALL_TESTS_FOR_PLUGIN and \
-                not self.spark_config.IMAGE_ID:
-            self.fail("""
-            ***********************************************
-            Integration tests for Spark plugin is Enabled
-            but Image for this plugin not found.
-            Please check that the image is registered
-            and all necessary tags are added.
-            ***********************************************
-            """)
 
 #-------------------------Methods for object creation--------------------------
 
@@ -205,6 +148,14 @@ class ITestCase(unittest2.TestCase):
 
             hadoop_version = plugin_config.HADOOP_VERSION
 
+        for node_group in node_groups:
+
+            for key, value in node_group.items():
+
+                if value is None:
+
+                    del node_group[key]
+
         data = self.savanna.cluster_templates.create(
             name, plugin_config.PLUGIN_NAME, hadoop_version, description,
             cluster_configs, node_groups, anti_affinity, net_id)
@@ -230,9 +181,9 @@ class ITestCase(unittest2.TestCase):
         self.cluster_id = None
 
         data = self.savanna.clusters.create(
-            self.common_config.CLUSTER_NAME, plugin_config.PLUGIN_NAME,
-            hadoop_version, cluster_template_id, image_id, is_transient,
-            description, cluster_configs, node_groups,
+            self.common_config.CLUSTER_NAME + '-' + plugin_config.PLUGIN_NAME,
+            plugin_config.PLUGIN_NAME, hadoop_version, cluster_template_id,
+            image_id, is_transient, description, cluster_configs, node_groups,
             self.common_config.USER_KEYPAIR_ID, anti_affinity, net_id)
 
         self.cluster_id = data.id
@@ -521,11 +472,12 @@ class ITestCase(unittest2.TestCase):
 
     def transfer_helper_script_to_node(self, script_name, parameter_list=None):
 
-        script = open('integration/tests/resources/%s' % script_name).read()
+        script = open('savanna/tests/integration/tests/resources/%s'
+                      % script_name).read()
 
         if parameter_list:
 
-            for parameter, value in parameter_list.iteritems():
+            for parameter, value in parameter_list.items():
 
                 script = script.replace(
                     '%s=""' % parameter, '%s=%s' % (parameter, value))
@@ -557,6 +509,173 @@ class ITestCase(unittest2.TestCase):
             self.close_ssh_connection()
 
 #--------------------------------Helper methods--------------------------------
+
+    def get_image_id_and_savanna_cluster_node_username(self, plugin_config):
+
+        def print_error_log(parameter, value):
+
+            print(
+                '\nImage with %s "%s" was found in image list but it was '
+                'possibly not registered for Savanna. Please, make sure image '
+                'was correctly registered.' % (parameter, value)
+            )
+
+        def try_get_image_id_and_savanna_username(parameter, value):
+
+            try:
+
+                return image.id, image.metadata['_savanna_username']
+
+            except KeyError:
+
+                with excutils.save_and_reraise_exception():
+
+                    print_error_log(parameter, value)
+
+        images = self.nova.images.list()
+
+        # If plugin_config.IMAGE_ID is not None then find corresponding image
+        # and return its ID and username. If image not found then handle error
+        if plugin_config.IMAGE_ID:
+
+            for image in images:
+
+                if image.id == plugin_config.IMAGE_ID:
+
+                    return try_get_image_id_and_savanna_username(
+                        'ID', plugin_config.IMAGE_ID
+                    )
+
+            self.fail(
+                '\n\nImage with ID "%s" not found in image list. Please, make '
+                'sure you specified right image ID.\n' % plugin_config.IMAGE_ID
+            )
+
+        # If plugin_config.IMAGE_NAME is not None then find corresponding image
+        # and return its ID and username. If image not found then handle error
+        if plugin_config.IMAGE_NAME:
+
+            for image in images:
+
+                if image.name == plugin_config.IMAGE_NAME:
+
+                    return try_get_image_id_and_savanna_username(
+                        'name', plugin_config.IMAGE_NAME
+                    )
+
+            self.fail(
+                '\n\nImage with name "%s" not found in image list. Please, '
+                'make sure you specified right image name.\n'
+                % plugin_config.IMAGE_NAME
+            )
+
+        # If plugin_config.IMAGE_TAG is not None then find corresponding image
+        # and return its ID and username. If image not found then handle error
+        if plugin_config.IMAGE_TAG:
+
+            for image in images:
+
+                if (image.metadata.get('_savanna_tag_%s'
+                    % plugin_config.IMAGE_TAG)) and (
+                        image.metadata.get('_savanna_tag_'
+                                           '%s' % plugin_config.PLUGIN_NAME)):
+
+                    return try_get_image_id_and_savanna_username(
+                        'tag', plugin_config.IMAGE_TAG
+                    )
+
+            self.fail(
+                '\n\nImage with tag "%s" not found in list of registered '
+                'images for Savanna. Please, make sure tag "%s" was added to '
+                'image and image was correctly registered.\n'
+                % (plugin_config.IMAGE_TAG, plugin_config.IMAGE_TAG)
+            )
+
+        # If plugin_config.IMAGE_ID, plugin_config.IMAGE_NAME and
+        # plugin_config.IMAGE_TAG are None then image is chosen
+        # by tag "savanna_i_tests". If image has tag "savanna_i_tests"
+        # (at the same time image ID, image name and image tag were not
+        # specified in configuration file of integration tests) then return
+        # its ID and username. Found image will be chosen as image for tests.
+        # If image with tag "savanna_i_tests" not found then handle error
+        for image in images:
+
+            if (image.metadata.get('_savanna_tag_savanna_i_tests')) and (
+                    image.metadata.get('_savanna_tag_'
+                                       '%s' % plugin_config.PLUGIN_NAME)):
+
+                try:
+
+                    return image.id, image.metadata['_savanna_username']
+
+                except KeyError:
+
+                        with excutils.save_and_reraise_exception():
+
+                            print(
+                                '\nNone of parameters of image (ID, name, tag)'
+                                ' was specified in configuration file of '
+                                'integration tests. That is why there was '
+                                'attempt to choose image by tag '
+                                '"savanna_i_tests" and image with such tag '
+                                'was found in image list but it was possibly '
+                                'not registered for Savanna. Please, make '
+                                'sure image was correctly registered.'
+                            )
+
+        self.fail(
+            '\n\nNone of parameters of image (ID, name, tag) was specified in '
+            'configuration file of integration tests. That is why there was '
+            'attempt to choose image by tag "savanna_i_tests" but image with '
+            'such tag not found in list of registered images for Savanna. '
+            'Please, make sure image was correctly registered. Please, '
+            'specify one of parameters of image (ID, name or tag) in '
+            'configuration file of integration tests.\n'
+        )
+
+    def get_floating_ip_pool_id_for_neutron_net(self):
+
+        # Find corresponding floating IP pool by its name and get its ID.
+        # If pool not found then handle error
+        try:
+
+            floating_ip_pool = self.neutron.list_networks(
+                name=self.common_config.FLOATING_IP_POOL)
+            floating_ip_pool_id = floating_ip_pool['networks'][0]['id']
+
+            return floating_ip_pool_id
+
+        except IndexError:
+
+            with excutils.save_and_reraise_exception():
+
+                raise Exception(
+                    '\nFloating IP pool \'%s\' not found in pool list. '
+                    'Please, make sure you specified right floating IP pool.'
+                    % self.common_config.FLOATING_IP_POOL
+                )
+
+    def get_internal_neutron_net_id(self):
+
+        # Find corresponding internal Neutron network by its name and get
+        # its ID. If network not found then handle error
+        try:
+
+            internal_neutron_net = self.neutron.list_networks(
+                name=self.common_config.INTERNAL_NEUTRON_NETWORK)
+            internal_neutron_net_id = internal_neutron_net['networks'][0]['id']
+
+            return internal_neutron_net_id
+
+        except IndexError:
+
+            with excutils.save_and_reraise_exception():
+
+                raise Exception(
+                    '\nInternal Neutron network \'%s\' not found in network '
+                    'list. Please, make sure you specified right network name.'
+                    % self.common_config.INTERNAL_NEUTRON_NETWORK
+                )
 
     def delete_objects(self, cluster_id=None,
                        cluster_template_id=None,

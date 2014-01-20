@@ -38,6 +38,7 @@ import logging
 from oslo.config import cfg
 import paramiko
 import requests
+import six
 
 from savanna import context
 from savanna import exceptions as ex
@@ -45,7 +46,6 @@ from savanna.openstack.common import excutils
 from savanna.utils import crypto
 from savanna.utils.openstack import base
 from savanna.utils.openstack import neutron
-from savanna.utils.openstack import nova
 from savanna.utils import procutils
 
 import time
@@ -67,8 +67,12 @@ remote_opts = [
 CONF = cfg.CONF
 CONF.register_opts(remote_opts)
 
+
 _ssh = None
 _sessions = {}
+
+
+INFRA = None
 
 
 def _get_proxy(neutron_info):
@@ -226,10 +230,14 @@ def _execute_on_vm_interactive(cmd, matcher):
 _global_remote_semaphore = None
 
 
-def setup_remote():
+def setup_remote(engine):
     global _global_remote_semaphore
+    global INFRA
+
     _global_remote_semaphore = semaphore.Semaphore(
         CONF.global_remote_threshold)
+
+    INFRA = engine
 
 
 def _acquire_remote_semaphore():
@@ -245,13 +253,11 @@ def _release_remote_semaphore():
 class InstanceInteropHelper(object):
     def __init__(self, instance):
         self.instance = instance
-        self.username = nova.get_node_group_image_username(
-            self.instance.node_group)
 
     def __enter__(self):
         _acquire_remote_semaphore()
         try:
-            self.bulk = BulkInstanceInteropHelper(self.instance, self.username)
+            self.bulk = BulkInstanceInteropHelper(self.instance)
             return self.bulk
         except Exception:
             with excutils.save_and_reraise_exception():
@@ -280,7 +286,8 @@ class InstanceInteropHelper(object):
         info = None
         if CONF.use_namespaces and not CONF.use_floating_ips:
             info = self._get_neutron_info()
-        return (self.instance.management_ip, self.username,
+        return (self.instance.management_ip,
+                self.instance.node_group.image_username,
                 self.instance.node_group.cluster.management_private_key, info)
 
     def _run(self, func, *args, **kwargs):
@@ -389,9 +396,8 @@ def get_remote(instance):
 
 
 class BulkInstanceInteropHelper(InstanceInteropHelper):
-    def __init__(self, instance, username):
-        self.instance = instance
-        self.username = username
+    def __init__(self, instance):
+        super(BulkInstanceInteropHelper, self).__init__(instance)
         self.proc = procutils.start_subprocess()
         try:
             procutils.run_in_subprocess(self.proc, _connect,
@@ -412,4 +418,4 @@ class BulkInstanceInteropHelper(InstanceInteropHelper):
 
 class HashableDict(dict):
     def __hash__(self):
-        return hash((frozenset(self), frozenset(self.itervalues())))
+        return hash((frozenset(self), frozenset(six.itervalues(self))))

@@ -13,19 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+
 import six
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from savanna.db.sqlalchemy import model_base as mb
 from savanna.db.sqlalchemy import types as st
-from savanna.openstack.common import uuidutils
 
 
 ## Helpers
 
 def _generate_unicode_uuid():
-    return six.text_type(uuidutils.generate_uuid())
+    return six.text_type(uuid.uuid4())
 
 
 def _id_column():
@@ -63,6 +64,7 @@ class Cluster(mb.SavannaBase):
     status = sa.Column(sa.String(80))
     status_description = sa.Column(sa.String(200))
     info = sa.Column(st.JsonDictType())
+    extra = sa.Column(st.JsonDictType())
     node_groups = relationship('NodeGroup', cascade="all,delete",
                                backref='cluster', lazy='joined')
     cluster_template_id = sa.Column(sa.String(36),
@@ -90,6 +92,7 @@ class NodeGroup(mb.SavannaBase):
     tenant_id = sa.Column(sa.String(36))
     flavor_id = sa.Column(sa.String(36), nullable=False)
     image_id = sa.Column(sa.String(36))
+    image_username = sa.Column(sa.String(36))
     node_processes = sa.Column(st.JsonListType())
     node_configs = sa.Column(st.JsonDictType())
     volumes_per_node = sa.Column(sa.Integer)
@@ -263,6 +266,8 @@ class JobExecution(mb.SavannaBase):
     oozie_job_id = sa.Column(sa.String(100))
     return_code = sa.Column(sa.String(80))
     job_configs = sa.Column(st.JsonDictType())
+    main_class = sa.Column(sa.String)
+    java_opts = sa.Column(sa.String)
 
 
 mains_association = sa.Table("mains_association",

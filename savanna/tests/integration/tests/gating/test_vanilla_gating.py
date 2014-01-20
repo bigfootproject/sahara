@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nose.plugins.attrib as attrib
+from testtools import testcase
 import unittest2
 
 from savanna.openstack.common import excutils
@@ -25,9 +25,9 @@ from savanna.tests.integration.tests import scaling
 from savanna.tests.integration.tests import swift
 
 
-class VanillaGatingTest(cluster_configs.ClusterConfigTest,
+class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
                         map_reduce.MapReduceTest, swift.SwiftTest,
-                        scaling.ScalingTest, edp.EDPTest):
+                        scaling.ScalingTest):
 
     SKIP_CLUSTER_CONFIG_TEST = \
         cfg.ITConfig().vanilla_config.SKIP_CLUSTER_CONFIG_TEST
@@ -36,10 +36,21 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
     SKIP_SWIFT_TEST = cfg.ITConfig().vanilla_config.SKIP_SWIFT_TEST
     SKIP_SCALING_TEST = cfg.ITConfig().vanilla_config.SKIP_SCALING_TEST
 
-    @attrib.attr(tags='vanilla')
     @unittest2.skipIf(cfg.ITConfig().vanilla_config.SKIP_ALL_TESTS_FOR_PLUGIN,
                       'All tests for Vanilla plugin were skipped')
+    @testcase.attr('vanilla')
     def test_vanilla_plugin_gating(self):
+
+        # Default value of self.common_config.FLOATING_IP_POOL is None
+        floating_ip_pool = self.common_config.FLOATING_IP_POOL
+        internal_neutron_net = None
+
+        # If Neutron enabled then get ID of floating IP pool and ID of internal
+        # Neutron network
+        if self.common_config.NEUTRON_ENABLED:
+
+            floating_ip_pool = self.get_floating_ip_pool_id_for_neutron_net()
+            internal_neutron_net = self.get_internal_neutron_net_id()
 
         node_group_template_id_list = []
 
@@ -50,16 +61,17 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
         try:
 
             node_group_template_tt_dn_id = self.create_node_group_template(
-                name='tt-dn',
+                name='test-node-group-template-vanilla-tt-dn',
                 plugin_config=self.vanilla_config,
-                description='test node group template',
+                description='test node group template for Vanilla plugin',
                 volumes_per_node=0,
                 volume_size=0,
                 node_processes=['tasktracker', 'datanode'],
                 node_configs={
                     'HDFS': cluster_configs.DN_CONFIG,
                     'MapReduce': cluster_configs.TT_CONFIG
-                }
+                },
+                floating_ip_pool=floating_ip_pool
             )
             node_group_template_id_list.append(node_group_template_tt_dn_id)
 
@@ -76,15 +88,16 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
         try:
 
             node_group_template_tt_id = self.create_node_group_template(
-                name='tt',
+                name='test-node-group-template-vanilla-tt',
                 plugin_config=self.vanilla_config,
-                description='test node group template',
+                description='test node group template for Vanilla plugin',
                 volumes_per_node=0,
                 volume_size=0,
                 node_processes=['tasktracker'],
                 node_configs={
                     'MapReduce': cluster_configs.TT_CONFIG
-                }
+                },
+                floating_ip_pool=floating_ip_pool
             )
             node_group_template_id_list.append(node_group_template_tt_id)
 
@@ -104,15 +117,16 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
         try:
 
             node_group_template_dn_id = self.create_node_group_template(
-                name='dn',
+                name='test-node-group-template-vanilla-dn',
                 plugin_config=self.vanilla_config,
-                description='test node group template',
+                description='test node group template for Vanilla plugin',
                 volumes_per_node=0,
                 volume_size=0,
                 node_processes=['datanode'],
                 node_configs={
                     'HDFS': cluster_configs.DN_CONFIG
-                }
+                },
+                floating_ip_pool=floating_ip_pool
             )
             node_group_template_id_list.append(node_group_template_dn_id)
 
@@ -132,9 +146,9 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
         try:
 
             cluster_template_id = self.create_cluster_template(
-                name='test-cluster-template',
+                name='test-cluster-template-vanilla',
                 plugin_config=self.vanilla_config,
-                description='test cluster template',
+                description='test cluster template for Vanilla plugin',
                 cluster_configs={
                     'HDFS': cluster_configs.CLUSTER_HDFS_CONFIG,
                     'MapReduce': cluster_configs.CLUSTER_MR_CONFIG,
@@ -149,6 +163,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
                             'HDFS': cluster_configs.NN_CONFIG,
                             'MapReduce': cluster_configs.JT_CONFIG
                         },
+                        floating_ip_pool=floating_ip_pool,
                         count=1),
                     dict(
                         name='master-node-sec-nn',
@@ -157,6 +172,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
                         node_configs={
                             'JobFlow': cluster_configs.OOZIE_CONFIG
                         },
+                        floating_ip_pool=floating_ip_pool,
                         count=1),
                     dict(
                         name='worker-node-tt-dn',
@@ -170,7 +186,8 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
                         name='worker-node-tt',
                         node_group_template_id=node_group_template_tt_id,
                         count=1)
-                ]
+                ],
+                net_id=internal_neutron_net
             )
 
         except Exception as e:
@@ -185,6 +202,11 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
                 self.print_error_log(message, e)
 
 #-------------------------------Cluster creation-------------------------------
+
+        self.vanilla_config.IMAGE_ID, self.vanilla_config.NODE_USERNAME = \
+            self.get_image_id_and_savanna_cluster_node_username(
+                self.vanilla_config
+            )
 
         try:
 
@@ -226,11 +248,10 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
 
 #----------------------------------EDP TESTING---------------------------------
 
-        job_data = open('integration/tests/resources/edp-job.pig').read()
-
-        lib_data = open('integration/tests/resources/edp-lib.jar').read()
-
-        job_jar_data = open('integration/tests/resources/edp-job.jar').read()
+        path = 'savanna/tests/integration/tests/resources/'
+        job_data = open(path + 'edp-job.pig').read()
+        lib_data = open(path + 'edp-lib.jar').read()
+        job_jar_data = open(path + 'edp-job.jar').read()
 
         configs = {
             "configs": {
@@ -244,7 +265,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest,
             self._edp_testing('Pig', [{'pig': job_data}], [{'jar': lib_data}])
 
         #TODO(vrovachev): remove mains after when bug #1237434 will be fixed
-            self._edp_testing('Jar', [{'pig': job_data}],
+            self._edp_testing('MapReduce', [{'pig': job_data}],
                               [{'jar': job_jar_data}], configs)
 
         except Exception as e:

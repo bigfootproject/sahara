@@ -9,6 +9,7 @@ include savanna/db/migration/alembic_migrations/versions/README
 
 recursive-include savanna/locale *
 
+include savanna/plugins/intel/resources/*.xml
 include savanna/plugins/vanilla/resources/*.xml
 include savanna/plugins/vanilla/resources/*.sh
 include savanna/plugins/vanilla/resources/*.sql
@@ -19,8 +20,10 @@ include savanna/plugins/hdp/versions/2_0/resources/*.json
 include savanna/plugins/spark/resources/*.xml
 include savanna/plugins/spark/resources/*.sh
 include savanna/plugins/spark/resources/*.template
+include savanna/resources/*.heat
 include savanna/service/edp/resources/*.xml
 include savanna/swift/resources/*.xml
+include savanna/tests/unit/resources/*.heat
 include savanna/tests/unit/resources/*.xml
 include savanna/tests/unit/resources/*.txt
 include savanna/topology/resources/*.xml
