@@ -42,5 +42,9 @@ def start_spark_master(nn_remote):
     nn_remote.execute_command("bash /opt/spark/bin/start-all.sh")
 
 
+def start_spark_slaves(nn_remote):
+    nn_remote.execute_command("bash /opt/spark/bin/start-slaves.sh")
+
+
 def stop_spark(nn_remote):
     nn_remote.execute_command("bash /opt/spark/bin/stop-all.sh")
