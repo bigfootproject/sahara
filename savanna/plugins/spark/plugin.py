@@ -162,13 +162,13 @@ class SparkProvider(p.ProvisioningPluginBase):
         for ng in cluster.node_groups:
             extra[ng.id] = {
                 'xml': c_helper.generate_xml_configs(
-                    ng.configuration,
-                    ng.storage_paths,
+                    ng.configuration(),
+                    ng.storage_paths(),
                     nn.hostname(), None,
                     ),
                 'setup_script': c_helper.generate_setup_script(
-                    ng.storage_paths,
-                    c_helper.extract_environment_confs(ng.configuration)
+                    ng.storage_paths(),
+                    c_helper.extract_environment_confs(ng.configuration())
                 ),
                 'sp_master': config_master,
                 'sp_slaves': config_slaves
@@ -270,8 +270,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                   'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         for ng in cluster.node_groups:
-            dn_path = c_helper.extract_hadoop_path(ng.storage_paths, '/dfs/dn')
-            nn_path = c_helper.extract_hadoop_path(ng.storage_paths, '/dfs/nn')
+            dn_path = c_helper.extract_hadoop_path(ng.storage_paths(), '/dfs/dn')
+            nn_path = c_helper.extract_hadoop_path(ng.storage_paths(), '/dfs/nn')
             hdfs_dir_cmd = 'sudo mkdir -p %s %s;'\
                             'sudo chown -R hdfs:hdfs %s %s;'\
                             'sudo chmod go-rx %s %s;'\
