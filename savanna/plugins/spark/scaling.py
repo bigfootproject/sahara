@@ -17,9 +17,9 @@ import os
 
 from savanna import context
 from savanna.plugins.general import utils
+from savanna.plugins.spark import config_helper as c_helper
 from savanna.plugins.spark import run_scripts as run
 from savanna.utils import remote
-from savanna.plugins.spark import config_helper as c_helper
 
 
 def decommission_sl(master, inst_to_be_deleted, survived_inst):

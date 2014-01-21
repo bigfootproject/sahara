@@ -15,14 +15,18 @@
 
 from oslo.config import cfg
 
+from savanna import conductor as c
+from savanna import context
 from savanna.openstack.common import log as logging
+from savanna.plugins.general import utils
 from savanna.plugins import provisioning as p
-from savanna.swift import swift_helper as swift
 from savanna.topology import topology_helper as topology
+from savanna.utils import crypto
 from savanna.utils import types as types
 from savanna.utils import xmlutils as x
 
 
+conductor = c.API
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
@@ -38,12 +42,12 @@ XML_CONFS = {
 
 SPARK_CONFS = {
     'SPARK': {
-             "OPTIONS": ['SPARK_MASTER_PORT',
+        "OPTIONS": ['SPARK_MASTER_PORT',
                     'SPARK_MASTER_WEBUI_PORT', 'SPARK_WORKER_CORES',
-                   'SPARK_WORKER_MEMORY', 'SPARK_WORKER_PORT',
-                   'SPARK_WORKER_WEBUI_PORT', 'SPARK_WORKER_INSTANCES'
-                   ]
-             }
+                    'SPARK_WORKER_MEMORY', 'SPARK_WORKER_PORT',
+                    'SPARK_WORKER_WEBUI_PORT', 'SPARK_WORKER_INSTANCES'
+                    ]
+    }
 }
 
 # TODO(aignatov): Environmental configs could be more complex
@@ -53,10 +57,6 @@ ENV_CONFS = {
         'Data Node Heap Size': 'HADOOP_DATANODE_OPTS=\\"-Xmx%sm\\"'
     }
 }
-
-ENABLE_SWIFT = p.Config('Enable Swift', 'general', 'cluster',
-                        config_type="bool", priority=1,
-                        default_value=True, is_optional=True)
 
 ENABLE_DATA_LOCALITY = p.Config('Enable Data Locality', 'general', 'cluster',
                                 config_type="bool", priority=1,
@@ -124,10 +124,9 @@ def _initialise_configs():
     for service, config_items in SPARK_CONFS.iteritems():
         for name in config_items['OPTIONS']:
             cfg = p.Config(name, service, "cluster",
-                        is_optional=True, priority=2)
+                           is_optional=True, priority=2)
             configs.append(cfg)
 
-    configs.append(ENABLE_SWIFT)
     if CONF.enable_data_locality:
         configs.append(ENABLE_DATA_LOCALITY)
 
@@ -142,12 +141,7 @@ def get_plugin_configs():
 
 
 def get_general_configs(hive_hostname, passwd_hive_mysql):
-    config = {
-        ENABLE_SWIFT.name: {
-            'default_value': ENABLE_SWIFT.default_value,
-            'conf': extract_name_values(swift.get_swift_configs())
-        }
-    }
+    config = {}
     if CONF.enable_data_locality:
         config.update({
             ENABLE_DATA_LOCALITY.name: {
@@ -209,8 +203,7 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port
                          ):
     # inserting common configs depends on provisioned VMs and HDFS placement
     # TODO(aignatov): should be moved to cluster context
-    """
-    dfs.name.dir': extract_hadoop_path(storage_path,
+    """dfs.name.dir': extract_hadoop_path(storage_path,
                                             '/lib/hadoop/hdfs/namenode'),
     'dfs.data.dir': extract_hadoop_path(storage_path,
                                             '/lib/hadoop/hdfs/datanode'),
@@ -220,15 +213,15 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port
     'dfs.hosts': '/etc/hadoop/dn.incl',
     'dfs.hosts.exclude': '/etc/hadoop/dn.excl',
     """
-    if hadoop_port == None:
+    if hadoop_port is None:
         hadoop_port = 8020
 
     cfg = {
         'fs.defaultFS': 'hdfs://%s:%s' % (nn_hostname, str(hadoop_port)),
         'dfs.namenode.name.dir': extract_hadoop_path(storage_path,
-                                            '/dfs/nn'),
+                                                     '/dfs/nn'),
         'dfs.datanode.data.dir': extract_hadoop_path(storage_path,
-                                            '/dfs/dn'),
+                                                     '/dfs/dn'),
         'dfs.replication': 1,
     }
 

@@ -13,10 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import uuid
-
 from oslo.config import cfg
-import six
 
 from savanna import conductor
 from savanna import context
@@ -29,7 +26,6 @@ from savanna.plugins.spark import run_scripts as run
 from savanna.plugins.spark import scaling as sc
 from savanna.topology import topology_helper as th
 from savanna.utils import files as f
-from savanna.utils import general as g
 from savanna.utils import remote
 
 
@@ -97,7 +93,6 @@ class SparkProvider(p.ProvisioningPluginBase):
         instances = utils.get_instances(cluster)
         nn_instance = utils.get_namenode(cluster)
         sm_instance = utils.get_masternode(cluster)
-        sl_instances = utils.get_slavenodes(cluster)
         with remote.get_remote(nn_instance) as r:
             #run.clean_port_hadoop(r)
             run.format_namenode(r)
@@ -142,14 +137,10 @@ class SparkProvider(p.ProvisioningPluginBase):
         config_master = config_slaves = ''
         if sp_master is not None:
             config_master = c_helper.generate_spark_env_configs(
-        sp_master.hostname(), master_port,
-        master_web_port,
-        worker_cores,
-        worker_memory,
-        worker_port,
-        worker_web_port,
-        worker_instances
-        )
+                sp_master.hostname(), master_port,
+                master_web_port, worker_cores,
+                worker_memory, worker_port,
+                worker_web_port, worker_instances)
 
         if sp_slaves is not None:
             slavenames = []
@@ -165,7 +156,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                     ng.configuration(),
                     ng.storage_paths(),
                     nn.hostname(), None,
-                    ),
+                ),
                 'setup_script': c_helper.generate_setup_script(
                     ng.storage_paths(),
                     c_helper.extract_environment_confs(ng.configuration())
@@ -264,20 +255,22 @@ class SparkProvider(p.ProvisioningPluginBase):
             'authorized_keys': cluster.management_public_key
         }
 
-        key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
-                  'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
-                  'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
-                  'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
+#        key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
+#                  'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
+#                  'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
+#                  'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         for ng in cluster.node_groups:
-            dn_path = c_helper.extract_hadoop_path(ng.storage_paths(), '/dfs/dn')
-            nn_path = c_helper.extract_hadoop_path(ng.storage_paths(), '/dfs/nn')
+            dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
+                                                   '/dfs/dn')
+            nn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
+                                                   '/dfs/nn')
             hdfs_dir_cmd = 'sudo mkdir -p %s %s;'\
-                            'sudo chown -R hdfs:hdfs %s %s;'\
-                            'sudo chmod go-rx %s %s;'\
-                            % (nn_path, dn_path,
-                               nn_path, dn_path,
-                               nn_path, dn_path)
+                'sudo chown -R hdfs:hdfs %s %s;'\
+                'sudo chmod go-rx %s %s;'\
+                % (nn_path, dn_path,
+                   nn_path, dn_path,
+                   nn_path, dn_path)
 
         with remote.get_remote(instance) as r:
             # TODO(aignatov): sudo chown is wrong solution. But it works.
@@ -310,10 +303,10 @@ class SparkProvider(p.ProvisioningPluginBase):
     def _push_configs_to_existing_node(self, cluster, extra, instance):
         node_processes = instance.node_group.node_processes
         need_update_hadoop = (c_helper.is_data_locality_enabled(cluster) or
-                       'namenode' in node_processes or
-                       'master' in node_processes or
-                       'slave' in node_processes)
-        need_update_spark = ('master' in node_processes or 
+                              'namenode' in node_processes or
+                              'master' in node_processes or
+                              'slave' in node_processes)
+        need_update_spark = ('master' in node_processes or
                              'slave' in node_processes)
 
         if need_update_spark:
@@ -335,7 +328,7 @@ class SparkProvider(p.ProvisioningPluginBase):
             r.write_file_to('/etc/hadoop/topology.data', topology_data)
 
     def _push_master_configs(self, r, cluster, extra, instance):
-        ng_extra = extra[instance.node_group.id]
+#        ng_extra = extra[instance.node_group.id]
         node_processes = instance.node_group.node_processes
 
         if 'namenode' in node_processes:
