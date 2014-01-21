@@ -43,7 +43,7 @@ COMMON_CONFIG_OPTS = [
                default='admin',
                help='Username for OpenStack.'),
     cfg.StrOpt('OS_PASSWORD',
-               default='test',
+               default='admin',
                help='Password for OpenStack.'),
     cfg.StrOpt('OS_TENANT_NAME',
                default='admin',
