@@ -155,9 +155,9 @@ def get_general_configs(hive_hostname, passwd_hive_mysql):
 def get_config_value(service, name, cluster=None):
     if cluster:
         for ng in cluster.node_groups:
-            if (ng.configuration.get(service) and
-                    ng.configuration[service].get(name)):
-                return ng.configuration[service][name]
+            if (ng.configuration().get(service) and
+                    ng.configuration()[service].get(name)):
+                return ng.configuration()[service][name]
 
     for c in PLUGIN_CONFIGS:
         if c.applicable_target == service and c.name == name:

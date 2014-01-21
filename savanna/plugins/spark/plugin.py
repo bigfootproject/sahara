@@ -222,7 +222,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                                  list(sl_dn_procs))
 
     def _start_slave_datanode(self, instance, sl_dn_procs):
-            with instance.remote as r:
+            with instance.remote() as r:
                 run.start_processes(r, *sl_dn_procs)
 
     def _setup_instances(self, cluster, instances):
