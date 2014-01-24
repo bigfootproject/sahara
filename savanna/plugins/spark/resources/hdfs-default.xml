@@ -201,8 +201,9 @@ creations/deletions), or "all".</description>
 </property>
 
 <property>
+  <!-- pietro: DIRTY! I ignored what's in the header of the file, and changed it -->
   <name>dfs.permissions</name>
-  <value>true</value>
+  <value>false</value>
   <description>
     If "true", enable permission checking in HDFS.
     If "false", permission checking is turned off,
