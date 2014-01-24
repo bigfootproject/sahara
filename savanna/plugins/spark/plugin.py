@@ -255,10 +255,13 @@ class SparkProvider(p.ProvisioningPluginBase):
             'authorized_keys': cluster.management_public_key
         }
 
-#        key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
-#                  'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
-#                  'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
-#                  'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
+
+       # This is required because the (secret) key is not stored in .ssh
+       # which hinders password-less ssh required by spark scripts
+       key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
+                 'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
+                 'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
+                 'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         for ng in cluster.node_groups:
             dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
@@ -286,7 +289,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
             r.execute_command(hdfs_dir_cmd)
-            #r.execute_command(key_cmd)
+            r.execute_command(key_cmd)
 
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
