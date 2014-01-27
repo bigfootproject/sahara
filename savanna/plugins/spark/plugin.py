@@ -287,6 +287,9 @@ class SparkProvider(p.ProvisioningPluginBase):
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
             r.execute_command(hdfs_dir_cmd)
+            # pietro: executing the key_cmd commands
+            LOG.info("SAVANNA Cluster: fixing passwordless ssh between hosts" %
+                 cluster.name)
             r.execute_command(key_cmd)
 
             if c_helper.is_data_locality_enabled(cluster):
