@@ -288,10 +288,9 @@ class SparkProvider(p.ProvisioningPluginBase):
 
             r.execute_command(hdfs_dir_cmd)
             # pietro: executing the key_cmd commands
-            LOG.info("Cluster %s: fixing passwordless ssh between hosts" %
-                 cluster.name)
             r.execute_command(key_cmd)
-
+            LOG.info("Cluster %s: fixing passwordless ssh between hosts" % cluster.name)
+            
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
                     '/etc/hadoop/topology.sh',
