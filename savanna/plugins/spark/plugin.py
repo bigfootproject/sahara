@@ -288,7 +288,7 @@ class SparkProvider(p.ProvisioningPluginBase):
 
             r.execute_command(hdfs_dir_cmd)
             # pietro: executing the key_cmd commands
-            LOG.info("SAVANNA Cluster: fixing passwordless ssh between hosts" %
+            LOG.info("Cluster %s: fixing passwordless ssh between hosts" %
                  cluster.name)
             r.execute_command(key_cmd)
 
