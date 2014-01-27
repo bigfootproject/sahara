@@ -245,11 +245,17 @@ class SparkProvider(p.ProvisioningPluginBase):
     def _push_configs_to_new_node(self, cluster, extra, instance):
         ng_extra = extra[instance.node_group.id]
 
-        files = {
+        files_hadoop = {
             '/etc/hadoop/conf/core-site.xml': ng_extra['xml']['core-site'],
             '/etc/hadoop/conf/hdfs-site.xml': ng_extra['xml']['hdfs-site'],
+        }
+
+        files_spark = {
             '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
-            '/opt/spark/conf/slaves': ng_extra['sp_slaves'],
+            '/opt/spark/conf/slaves': ng_extra['sp_slaves']
+        }
+
+        files_init = {
             '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
             'id_rsa': cluster.management_private_key,
             'authorized_keys': cluster.management_public_key
@@ -257,9 +263,9 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         # pietro: This is required because the (secret) key is not stored in
         # .ssh which hinders password-less ssh required by spark scripts
-        key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
-            'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
-            'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
+        key_cmd = 'sudo cp /home/ubuntu/id_rsa /home/ubuntu/.ssh/; '\
+            'sudo chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa; '\
+            'sudo chmod 600 /home/ubuntu/.ssh/id_rsa'
 
         for ng in cluster.node_groups:
             dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
@@ -289,7 +295,6 @@ class SparkProvider(p.ProvisioningPluginBase):
             r.execute_command(hdfs_dir_cmd)
             # pietro: executing the key_cmd commands
             r.execute_command(key_cmd)
-            LOG.info("Cluster %s: fixing passwordless ssh between hosts" % cluster.name)
             
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
