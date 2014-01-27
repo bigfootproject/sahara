@@ -256,7 +256,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         }
 
 
-       # This is required because the (secret) key is not stored in .ssh
+       # pietro: This is required because the (secret) key is not stored in .ssh
        # which hinders password-less ssh required by spark scripts
        key_cmd = 'sudo mkdir -p /home/ubuntu/.ssh/; ' \
                  'sudo mv id_rsa authorized_keys /home/ubuntu/.ssh ; ' \
