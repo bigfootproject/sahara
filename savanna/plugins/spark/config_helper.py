@@ -222,7 +222,8 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port
                                                      '/dfs/nn'),
         'dfs.datanode.data.dir': extract_hadoop_path(storage_path,
                                                      '/dfs/dn'),
-        'dfs.replication': 1,
+        'hadoop.tmp.dir': extract_hadoop_path(storage_path,
+                                              '/dfs'),
     }
 
     # inserting user-defined configs

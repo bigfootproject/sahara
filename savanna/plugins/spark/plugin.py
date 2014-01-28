@@ -37,7 +37,7 @@ CONF = cfg.CONF
 class SparkProvider(p.ProvisioningPluginBase):
     def __init__(self):
         self.processes = {
-            "HDFS": ["namenode", "datanode", "secondarynamenode"],
+            "HDFS": ["namenode", "datanode"],
             "SPARK": ["master", "slave"]
         }
 
@@ -56,7 +56,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         return c_helper.get_plugin_configs()
 
     def get_hdfs_user(self):
-        return 'hadoop'
+        return 'hdfs'
 
     def get_node_processes(self, hadoop_version):
         return self.processes
@@ -66,6 +66,11 @@ class SparkProvider(p.ProvisioningPluginBase):
                         in utils.get_node_groups(cluster, "namenode")])
         if nn_count != 1:
             raise ex.NotSingleNameNodeException(nn_count)
+
+        dn_count = sum([ng.count for ng
+                        in utils.get_node_groups(cluster, "datanode")])
+        if dn_count < 1:
+            raise ex.NotSingleDataNodeException(nn_count)
 
         # validate Spark Master Node and Spark Slaves
         sm_count = sum([ng.count for ng
@@ -90,24 +95,28 @@ class SparkProvider(p.ProvisioningPluginBase):
         self._setup_instances(cluster, instances)
 
     def start_cluster(self, cluster):
-        instances = utils.get_instances(cluster)
+#        instances = utils.get_instances(cluster)
         nn_instance = utils.get_namenode(cluster)
         sm_instance = utils.get_masternode(cluster)
+        dn_instances = utils.get_datanodes(cluster)
+
+        # Start the name node
         with remote.get_remote(nn_instance) as r:
             #run.clean_port_hadoop(r)
             run.format_namenode(r)
             run.start_processes(r, "namenode")
 
-        for snn in utils.get_secondarynamenodes(cluster):
-            run.start_processes(remote.get_remote(snn), "secondarynamenode")
-
-        #actually, just start datanode
-        self._start_slave_datanode_processes(instances)
+        # start the data nodes
+        self._start_slave_datanode_processes(dn_instances)
 
         LOG.info("Hadoop services in cluster %s have been started" %
                  cluster.name)
 
-        # start spark master node
+        with remote.get_remote(nn_instance) as r:
+            r.execute_command("sudo -u hdfs hdfs dfs -mkdir -p /user/ubuntu/")
+            r.execute_command("sudo -u hdfs hdfs dfs -chown ubuntu /user/ubuntu/")
+
+        # start spark nodes
         if sm_instance:
             with remote.get_remote(sm_instance) as r:
                 #run.stop_spark(r)
@@ -207,23 +216,15 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         self._start_slave_datanode_processes(instances)
 
-    def _start_slave_datanode_processes(self, instances):
-            #sl_dn_names = ["datanode", "slave"]
-            sl_dn_names = ["datanode"]
-
+    def _start_slave_datanode_processes(self, dn_instances):
             with context.ThreadGroup() as tg:
-                for i in instances:
-                    processes = set(i.node_group.node_processes)
-                    sl_dn_procs = processes.intersection(sl_dn_names)
+                for i in dn_instances:
+                    tg.spawn('spark-start-dn-%s' % i.instance_name,
+                             self._start_datanode, i)
 
-                    if sl_dn_procs:
-                        tg.spawn('spark-start-sl-dn-%s' % i.instance_name,
-                                 self._start_slave_datanode, i,
-                                 list(sl_dn_procs))
-
-    def _start_slave_datanode(self, instance, sl_dn_procs):
+    def _start_datanode(self, instance):
             with instance.remote() as r:
-                run.start_processes(r, *sl_dn_procs)
+                run.start_processes(r, "datanode")
 
     def _setup_instances(self, cluster, instances):
         extra = self._extract_configs_to_extra(cluster)
@@ -266,6 +267,9 @@ class SparkProvider(p.ProvisioningPluginBase):
         key_cmd = 'sudo cp /home/ubuntu/id_rsa /home/ubuntu/.ssh/; '\
             'sudo chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa; '\
             'sudo chmod 600 /home/ubuntu/.ssh/id_rsa'
+            #'sudo mkdir -p /home/ubuntu/.ssh/; ' \
+            #'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
+            #'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         for ng in cluster.node_groups:
             dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
@@ -273,8 +277,8 @@ class SparkProvider(p.ProvisioningPluginBase):
             nn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
                                                    '/dfs/nn')
             hdfs_dir_cmd = 'sudo mkdir -p %s %s;'\
-                'sudo chown -R hdfs:hdfs %s %s;'\
-                'sudo chmod go-rx %s %s;'\
+                'sudo chown -R hdfs:hadoop %s %s;'\
+                'sudo chmod 755 %s %s;'\
                 % (nn_path, dn_path,
                    nn_path, dn_path,
                    nn_path, dn_path)
@@ -284,7 +288,9 @@ class SparkProvider(p.ProvisioningPluginBase):
             r.execute_command(
                 'sudo chown -R $USER:$USER /etc/hadoop'
             )
-            r.write_files_to(files)
+            r.write_files_to(files_hadoop)
+            r.write_files_to(files_spark)
+            r.write_files_to(files_init)
             r.execute_command(
                 'sudo chmod 0500 /tmp/savanna-hadoop-init.sh'
             )
@@ -293,9 +299,9 @@ class SparkProvider(p.ProvisioningPluginBase):
                 '>> /tmp/savanna-hadoop-init.log 2>&1')
 
             r.execute_command(hdfs_dir_cmd)
-            # pietro: executing the key_cmd commands
             r.execute_command(key_cmd)
-            
+#            LOG.info("Cluster %s: configuring ssh" % cluster.name)
+
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
                     '/etc/hadoop/topology.sh',

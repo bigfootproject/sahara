@@ -22,7 +22,12 @@ LOG = logging.getLogger(__name__)
 
 def start_processes(remote, *processes):
     for proc in processes:
-        remote.execute_command("screen -d -m sudo hadoop %s" % proc)
+        if proc == "namenode":
+            remote.execute_command("sudo service hadoop-hdfs-namenode start")
+        elif proc == "datanode":
+            remote.execute_command("sudo service hadoop-hdfs-datanode start")
+        else:
+            remote.execute_command("screen -d -m sudo hadoop %s" % proc)
 
 
 def refresh_nodes(remote, service):
@@ -31,7 +36,7 @@ def refresh_nodes(remote, service):
 
 
 def format_namenode(nn_remote):
-    nn_remote.execute_command("sudo hadoop namenode -format -force")
+    nn_remote.execute_command("sudo -u hdfs hadoop namenode -format")
 
 
 def clean_port_hadoop(nn_remote):
