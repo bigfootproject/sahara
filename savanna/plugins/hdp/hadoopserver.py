@@ -21,7 +21,7 @@ from savanna.utils import files as f
 
 
 AMBARI_RPM = 'http://s3.amazonaws.com/public-repo-1.hortonworks.com/' \
-             'ambari/centos6/1.x/updates/1.2.5.17/ambari.repo'
+             'ambari/centos6/1.x/updates/1.4.3.38/ambari.repo'
 
 HADOOP_SWIFT_RPM = 'https://s3.amazonaws.com/public-repo-1.hortonworks.com/' \
                    'savanna/swift/hadoop-swift-1.0-1.x86_64.rpm'
@@ -55,8 +55,8 @@ class HadoopServer:
         #TODO(jspeidel): based on image type, use correct command
         rpm_cmd = 'curl -f -s -o /etc/yum.repos.d/ambari.repo %s' % \
                   self.ambari_rpm
-        r.execute_command(rpm_cmd)
-        r.execute_command('yum -y install epel-release')
+        r.execute_command(rpm_cmd, run_as_root=True)
+        r.execute_command('yum -y install epel-release', run_as_root=True)
 
     @savannautils.inject_remote('r')
     def install_swift_integration(self, r):
@@ -65,16 +65,16 @@ class HadoopServer:
             .format(self.instance.hostname()))
 
         rpm_cmd = 'rpm -Uvh ' + HADOOP_SWIFT_RPM
-        r.execute_command(rpm_cmd)
+        r.execute_command(rpm_cmd, run_as_root=True)
 
     @savannautils.inject_remote('r')
     def configure_topology(self, topology_str, r):
         r.write_file_to(
             '/etc/hadoop/conf/topology.sh',
             f.get_file_text(
-                'plugins/hdp/versions/1_3_2/resources/topology.sh'))
+                'plugins/hdp/versions/version_1_3_2/resources/topology.sh'))
         r.execute_command(
-            'sudo chmod +x /etc/hadoop/conf/topology.sh'
+            'chmod +x /etc/hadoop/conf/topology.sh', run_as_root=True
         )
         r.write_file_to('/etc/hadoop/conf/topology.data', topology_str)
 
@@ -82,20 +82,27 @@ class HadoopServer:
     def _setup_and_start_ambari_server(self, port, jdk_path, r):
         LOG.info('{0}: Installing ambari-server ...'.format(
             self.instance.hostname()))
-        r.execute_command('yum -y install ambari-server')
+        r.execute_command('yum -y install ambari-server', run_as_root=True)
 
         LOG.info('Running Ambari Server setup ...')
+        # remove postgres data directory as a precaution since its existance
+        # has prevented successful postgres installation
+        r.execute_command('rm -rf /var/lib/pgsql/data')
         # do silent setup since we only use default responses now
-        r.execute_command('ambari-server setup -s {jdk_arg} > /dev/null 2>&1'
-                          .format(jdk_arg='-j ' + jdk_path if jdk_path
-                                  else ''), timeout=1800)
+        r.execute_command(
+            'ambari-server setup -s {jdk_arg} > /dev/null 2>&1'.format(
+                jdk_arg='-j ' + jdk_path if jdk_path else ''),
+            run_as_root=True, timeout=1800
+        )
 
         self._configure_ambari_server_api_port(port)
 
         LOG.info('Starting Ambari ...')
         # NOTE(dmitryme): Reading stdout from 'ambari-server start'
         # hangs ssh. Redirecting output to /dev/null fixes that
-        r.execute_command('ambari-server start > /dev/null 2>&1')
+        r.execute_command(
+            'ambari-server start > /dev/null 2>&1', run_as_root=True
+        )
 
     @savannautils.inject_remote('r')
     def _configure_ambari_server_api_port(self, port, r):
@@ -110,14 +117,14 @@ class HadoopServer:
         data = '{0}\nclient.api.port={1}\n'.format(data, port)
 
         # write the file back
-        r.write_file_to(ambari_config_file, data)
+        r.write_file_to(ambari_config_file, data, run_as_root=True)
 
     @savannautils.inject_remote('r')
     def _setup_and_start_ambari_agent(self, ambari_server_ip, r):
         LOG.info('{0}: Installing Ambari Agent ...'.format(
             self.instance.hostname()))
 
-        r.execute_command('yum -y install ambari-agent')
+        r.execute_command('yum -y install ambari-agent', run_as_root=True)
         LOG.debug(
             '{0}: setting master-ip: {1} in ambari-agent.ini'.format(
                 self.instance.hostname(), ambari_server_ip))
@@ -127,7 +134,7 @@ class HadoopServer:
 
         LOG.info(
             '{0}: Starting Ambari Agent ...'.format(self.instance.hostname()))
-        r.execute_command('ambari-agent start')
+        r.execute_command('ambari-agent start', run_as_root=True)
 
     def _log(self, buf):
         LOG.debug(buf)

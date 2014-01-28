@@ -41,147 +41,149 @@ class EDPTest(base.ITestCase):
                                         description='').id
 
     def __await_job_execution(self, job):
-
         timeout = self.common_config.JOB_LAUNCH_TIMEOUT * 60
         status = self.savanna.job_executions.get(job.id).info['status']
-
         while status != 'SUCCEEDED':
-
-            print('JOB STATUS: ' + status)
-
             if status == 'KILLED':
                 self.fail('Job status == \'KILLED\'.')
-
             if timeout <= 0:
                 self.fail(
                     'Job did not return to \'SUCCEEDED\' status within '
-                    '%d minute(s).' % self.common_config.JOB_LAUNCH_TIMEOUT)
-
+                    '%d minute(s).' % self.common_config.JOB_LAUNCH_TIMEOUT
+                )
             status = self.savanna.job_executions.get(job.id).info['status']
             time.sleep(10)
             timeout -= 10
 
     def __create_job_binaries(self, job_data_list, job_binary_internal_list,
                               job_binary_list):
-
         for job_data in job_data_list:
-
-            name = 'binary_job-%s' % str(uuid.uuid4())[:30]
-
+            name = 'binary_job-%s' % str(uuid.uuid4())[:8]
             if isinstance(job_data, dict):
                 for key, value in job_data.items():
-                        name = 'binary_job-%s.%s' % (str(uuid.uuid4())[:30],
-                                                     key)
+                        name = 'binary_job-%s.%s' % (
+                            str(uuid.uuid4())[:8], key)
                         data = value
 
             else:
                 data = job_data
-
             job_binary_internal_list.append(
                 self.__create_job_binary_internals(name, data))
-
             job_binary_list.append(
                 self.__create_job_binary(
-                    name, "savanna-db://%s" % job_binary_internal_list[-1]))
+                    name, 'savanna-db://%s' % job_binary_internal_list[-1]))
 
     def __delete_job(self, execution_job, job_id, job_binary_list,
                      job_binary_internal_list, input_id, output_id):
-
         if execution_job:
             self.savanna.job_executions.delete(execution_job.id)
-
         if job_id:
             self.savanna.jobs.delete(job_id)
-
         if job_binary_list:
             for job_binary_id in job_binary_list:
                 self.savanna.job_binaries.delete(job_binary_id)
-
         if job_binary_internal_list:
             for internal_id in job_binary_internal_list:
                 self.savanna.job_binary_internals.delete(internal_id)
-
         if input_id:
             self.savanna.data_sources.delete(input_id)
-
         if output_id:
             self.savanna.data_sources.delete(output_id)
+
+    def _add_swift_configs(self, configs):
+        swift_user = "fs.swift.service.savanna.username"
+        swift_passw = "fs.swift.service.savanna.password"
+
+        if "configs" not in configs:
+            configs["configs"] = {}
+
+        if swift_user not in configs["configs"]:
+            configs["configs"][swift_user] = self.common_config.OS_USERNAME
+        if swift_passw not in configs["configs"]:
+            configs["configs"][swift_passw] = self.common_config.OS_PASSWORD
 
     @base.skip_test('SKIP_EDP_TEST',
                     'Test for EDP was skipped.')
     def _edp_testing(self, job_type, job_data_list, lib_data_list=None,
-                     configs=None):
-
+                     configs=None, pass_input_output_args=False,
+                     job_exec_data={}):
         try:
-
             swift = self.connect_to_swift()
-            container_name = 'Edp-test-%s' % str(uuid.uuid4())
+            container_name = 'Edp-test-%s' % str(uuid.uuid4())[:8]
             swift.put_container(container_name)
             swift.put_object(
                 container_name, 'input', ''.join(
-                    random.choice(
-                        ':' + ' ' + '\n' + string.ascii_lowercase)
-                    for x in range(10000)))
+                    random.choice(':' + ' ' + '\n' + string.ascii_lowercase)
+                    for x in range(10000)
+                )
+            )
 
         except Exception as e:
-
             with excutils.save_and_reraise_exception():
-
                 self.delete_swift_container(swift, container_name)
-
                 print(str(e))
-
         input_id = None
         output_id = None
         job_id = None
         job_execution = None
-
         try:
-
             job_binary_list = []
             lib_binary_list = []
             job_binary_internal_list = []
 
-            input_id = self.__create_data_source(
-                'input-%s' % str(uuid.uuid4()), 'swift',
-                'swift://%s.savanna/input' % container_name)
+            swift_input_url = 'swift://%s.savanna/input' % container_name
+            swift_output_url = 'swift://%s.savanna/output' % container_name
 
-            output_id = self.__create_data_source(
-                'output-%s' % str(uuid.uuid4()), 'swift',
-                'swift://%s.savanna/output' % container_name)
+            # Java jobs don't use data sources.  Input/output paths must
+            # be passed as args with corresponding username/password configs
+            if job_type != "Java":
+                input_id = self.__create_data_source(
+                    'input-%s' % str(uuid.uuid4())[:8], 'swift',
+                    swift_input_url)
+                output_id = self.__create_data_source(
+                    'output-%s' % str(uuid.uuid4())[:8], 'swift',
+                    swift_output_url)
 
             if job_data_list:
                 self.__create_job_binaries(
-                    job_data_list, job_binary_internal_list, job_binary_list)
-
+                    job_data_list, job_binary_internal_list, job_binary_list
+                )
             if lib_data_list:
                 self.__create_job_binaries(
-                    lib_data_list, job_binary_internal_list, lib_binary_list)
-
+                    lib_data_list, job_binary_internal_list, lib_binary_list
+                )
             job_id = self.__create_job(
-                'Edp-test-job-%s' % str(uuid.uuid4()), job_type,
+                'Edp-test-job-%s' % str(uuid.uuid4())[:8], job_type,
                 job_binary_list, lib_binary_list)
-
             if not configs:
                 configs = {}
 
+            # Append the input/output paths with the swift configs
+            # if the caller has requested it...
+            if job_type == "Java" and pass_input_output_args:
+                self._add_swift_configs(configs)
+                if "args" in configs:
+                    configs["args"].extend([swift_input_url,
+                                            swift_output_url])
+                else:
+                    configs["args"] = [swift_input_url,
+                                       swift_output_url]
+
             job_execution = self.savanna.job_executions.create(
-                job_id, self.cluster_id, input_id, output_id, configs=configs)
+                job_id, self.cluster_id, input_id, output_id,
+                configs=configs,
+                job_exec_data=job_exec_data)
 
             if job_execution:
-
                 self.__await_job_execution(job_execution)
 
         except Exception as e:
-
             with excutils.save_and_reraise_exception():
-
                 print(str(e))
 
         finally:
-
             self.delete_swift_container(swift, container_name)
-
-            self.__delete_job(job_execution, job_id,
-                              job_binary_list+lib_binary_list,
-                              job_binary_internal_list, input_id, output_id)
+            self.__delete_job(
+                job_execution, job_id, job_binary_list+lib_binary_list,
+                job_binary_internal_list, input_id, output_id
+            )

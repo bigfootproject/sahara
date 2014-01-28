@@ -40,25 +40,25 @@ class BaseFactory(object):
 
     def get_configs(self, input_data, output_data):
         configs = {}
-        if input_data.type == "swift" and hasattr(input_data, "credentials"):
-            if "user" in input_data.credentials:
-                configs[swift_username] = input_data.credentials['user']
-            if "password" in input_data.credentials:
-                configs[swift_password] = input_data.credentials['password']
+        for src in (input_data, output_data):
+            if src.type == "swift" and hasattr(src, "credentials"):
+                if "user" in src.credentials:
+                    configs[swift_username] = src.credentials['user']
+                if "password" in src.credentials:
+                    configs[swift_password] = src.credentials['password']
+                break
         return configs
 
     def get_params(self, input_data, output_data):
         return {'INPUT': input_data.url,
                 'OUTPUT': output_data.url}
 
-    def get_args(self):
-        return {}
-
     def update_configs(self, configs, execution_configs):
         if execution_configs is not None:
             for key, value in six.iteritems(configs):
-                new_vals = execution_configs.get(key, {})
-                value.update(new_vals)
+                if hasattr(value, "update"):
+                    new_vals = execution_configs.get(key, {})
+                    value.update(new_vals)
 
 
 class PigFactory(BaseFactory):
@@ -73,8 +73,15 @@ class PigFactory(BaseFactory):
     def get_workflow_xml(self, execution, input_data, output_data):
         configs = {'configs': self.get_configs(input_data, output_data),
                    'params': self.get_params(input_data, output_data),
-                   'args': self.get_args()}
+                   'args': []}
         self.update_configs(configs, execution.job_configs)
+
+        # Update is not supported for list types, and besides
+        # since args are listed (not named) update doesn't make
+        # sense, just replacement of any default args
+        if execution.job_configs:
+            configs['args'] = execution.job_configs.get('args', [])
+
         creator = pig_workflow.PigWorkflowCreator()
         creator.build_workflow_xml(self.name,
                                    configuration=configs['configs'],
@@ -134,13 +141,15 @@ class JavaFactory(BaseFactory):
     def get_workflow_xml(self, execution, *args, **kwargs):
         # input and output will be handled as args, so we don't really
         # know whether or not to include the swift configs.  Hmmm.
-        configs = {'configs': {}}
+        configs = {'configs': {},
+                   'args': []}
         self.update_configs(configs, execution.job_configs)
 
         # Update is not supported for list types, and besides
         # since args are listed (not named) update doesn't make
         # sense, just replacement of any default args
-        configs['args'] = execution.job_configs.get('args', [])
+        if execution.job_configs:
+            configs['args'] = execution.job_configs.get('args', [])
 
         if hasattr(execution, 'java_opts'):
             java_opts = execution.java_opts
@@ -194,6 +203,9 @@ def get_possible_job_config(job_type):
         #TODO(nmakhotkin) Savanna should return config based on specific plugin
         cfg = xmlutils.load_hadoop_xml_defaults(
             'plugins/vanilla/resources/hive-default.xml')
+
+    # TODO(tmckay): args should be a list when bug #269968
+    # is fixed on the UI side
     config = {'configs': cfg, "args": {}}
     if job_type not in ['MapReduce', 'Jar', 'Java']:
         config.update({'params': {}})
