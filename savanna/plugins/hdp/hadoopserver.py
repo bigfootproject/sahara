@@ -85,9 +85,9 @@ class HadoopServer:
         r.execute_command('yum -y install ambari-server', run_as_root=True)
 
         LOG.info('Running Ambari Server setup ...')
-        # remove postgres data directory as a precaution since its existance
+        # remove postgres data directory as a precaution since its existence
         # has prevented successful postgres installation
-        r.execute_command('rm -rf /var/lib/pgsql/data')
+        r.execute_command('rm -rf /var/lib/pgsql/data', run_as_root=True)
         # do silent setup since we only use default responses now
         r.execute_command(
             'ambari-server setup -s {jdk_arg} > /dev/null 2>&1'.format(

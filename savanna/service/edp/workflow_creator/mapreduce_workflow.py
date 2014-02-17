@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import six
+
 from savanna.service.edp.workflow_creator import base_workflow
 
 
@@ -23,12 +25,16 @@ class MapReduceWorkFlowCreator(base_workflow.OozieWorkflowCreator):
 
     def build_workflow_xml(self, prepare={},
                            job_xml=None, configuration=None,
-                           files=[], archives=[]):
+                           files=[], archives=[],
+                           streaming={}):
 
-        for k, v in prepare.items():
+        for k, v in six.iteritems(prepare):
             self._add_to_prepare_element(k, v)
 
-        # TODO(aignatov): Need to add STREAMING and PIPES workflows
+        # TODO(aignatov): Need to add PIPES workflow
+
+        for k, v in six.iteritems(streaming):
+            self._add_to_streaming_element(k, v)
 
         self._add_job_xml_element(job_xml)
 

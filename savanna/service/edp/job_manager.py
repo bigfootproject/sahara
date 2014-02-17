@@ -28,6 +28,7 @@ from savanna.service.edp.binary_retrievers import dispatch
 from savanna.service.edp import hdfs_helper as h
 from savanna.service.edp import oozie as o
 from savanna.service.edp.workflow_creator import workflow_factory
+from savanna.utils import edp
 from savanna.utils import remote
 from savanna.utils import xmlutils as x
 
@@ -61,8 +62,9 @@ def get_job_status(job_execution_id):
     if cluster is None or cluster.status != 'Active':
         return job_execution
 
-    client = o.OozieClient(cluster['info']['JobFlow']['Oozie'] + "/oozie")
-    job_info = client.get_job_status(job_execution.oozie_job_id)
+    client = o.OozieClient(cluster['info']['JobFlow']['Oozie'] + "/oozie",
+                           _get_oozie_server(cluster))
+    job_info = client.get_job_status(job_execution)
     update = {"info": job_info}
     if job_info['status'] in terminated_job_states:
         update['end_time'] = datetime.datetime.now()
@@ -82,15 +84,21 @@ def update_job_statuses():
                           (je.id, e))
 
 
+def _get_oozie_server(cluster):
+    plugin = plugin_base.PLUGINS.get_plugin(cluster.plugin_name)
+    return plugin.get_oozie_server(cluster)
+
+
 def cancel_job(job_execution_id):
     ctx = context.ctx()
     job_execution = conductor.job_execution_get(ctx, job_execution_id)
     cluster = conductor.cluster_get(ctx, job_execution.cluster_id)
 
-    client = o.OozieClient(cluster['info']['JobFlow']['Oozie'] + "/oozie/")
-    client.kill_job(job_execution.oozie_job_id)
+    client = o.OozieClient(cluster['info']['JobFlow']['Oozie'] + "/oozie/",
+                           _get_oozie_server(cluster))
+    client.kill_job(job_execution)
 
-    job_info = client.get_job_status(job_execution.oozie_job_id)
+    job_info = client.get_job_status(job_execution)
     update = {"info": job_info,
               "end_time": datetime.datetime.now()}
     job_execution = conductor.job_execution_update(ctx, job_execution,
@@ -107,7 +115,7 @@ def run_job(job_execution):
         return job_execution
 
     job = conductor.job_get(ctx, job_execution.job_id)
-    if job.type != 'Java':
+    if not edp.compare_job_type(job.type, 'Java'):
         input_source = conductor.data_source_get(ctx,  job_execution.input_id)
         output_source = conductor.data_source_get(ctx, job_execution.output_id)
     else:
@@ -141,7 +149,8 @@ def run_job(job_execution):
     jt_path = cluster['info']['MapReduce']['JobTracker']
     nn_path = cluster['info']['HDFS']['NameNode']
 
-    client = o.OozieClient(cluster['info']['JobFlow']['Oozie'] + "/oozie/")
+    client = o.OozieClient(cluster['info']['JobFlow']['Oozie'] + "/oozie/",
+                           _get_oozie_server(cluster))
     job_parameters = {"jobTracker": jt_path,
                       "nameNode": nn_path,
                       "user.name": hdfs_user,
@@ -149,13 +158,14 @@ def run_job(job_execution):
                       "%s%s" % (nn_path, path_to_workflow),
                       "oozie.use.system.libpath": "true"}
 
-    oozie_job_id = client.add_job(x.create_hadoop_xml(job_parameters))
-    client.run_job(oozie_job_id)
+    oozie_job_id = client.add_job(x.create_hadoop_xml(job_parameters),
+                                  job_execution)
     job_execution = conductor.job_execution_update(ctx, job_execution,
                                                    {'oozie_job_id':
                                                     oozie_job_id,
                                                     'start_time':
                                                     datetime.datetime.now()})
+    client.run_job(job_execution, oozie_job_id)
 
     return job_execution
 
@@ -213,5 +223,6 @@ def _append_slash_if_needed(path):
 #TODO(nprivalova): this validation should be removed after implementing
 #  all features
 def validate(input_data, output_data, job):
-    if job.type not in ['Pig', 'MapReduce', 'Hive', 'Java', 'Jar']:
+    if not edp.compare_job_type(job.type, 'Pig', 'MapReduce',
+                                'Hive', 'Java'):
         raise RuntimeError

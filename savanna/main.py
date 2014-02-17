@@ -53,7 +53,7 @@ opts = [
                help='IP or hostname of machine on which OpenStack Identity '
                     'service is located'),
     cfg.StrOpt('os_auth_port',
-               default='35357',
+               default='5000',
                help='Port of OpenStack Identity service'),
     cfg.StrOpt('os_admin_username',
                default='admin',
@@ -69,7 +69,11 @@ opts = [
     cfg.StrOpt('infrastructure_engine',
                default='savanna',
                help='An engine which will be used to provision '
-                    'infrastructure for Hadoop cluster.')
+                    'infrastructure for Hadoop cluster.'),
+    cfg.StrOpt('remote',
+               default='ssh',
+               help='A method for Savanna to execute commands '
+                    'on VMs.')
 ]
 
 CONF = cfg.CONF
@@ -104,8 +108,10 @@ def make_app():
     periodic.setup(app)
 
     engine = _get_infrastructure_engine()
-    remote.setup_remote(engine)
     service_api.setup_service_api(engine)
+
+    remote_driver = _get_remote_driver()
+    remote.setup_remote(remote_driver, engine)
 
     def make_json_error(ex):
         status_code = (ex.code
@@ -155,6 +161,18 @@ def _get_infrastructure_engine():
     extension_manager = stevedore.DriverManager(
         namespace='savanna.infrastructure.engine',
         name=CONF.infrastructure_engine,
+        invoke_on_load=True
+    )
+
+    return extension_manager.driver
+
+
+def _get_remote_driver():
+    LOG.info("Loading '%s' remote" % CONF.remote)
+
+    extension_manager = stevedore.DriverManager(
+        namespace='savanna.remote',
+        name=CONF.remote,
         invoke_on_load=True
     )
 

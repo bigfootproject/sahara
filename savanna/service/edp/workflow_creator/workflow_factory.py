@@ -24,6 +24,7 @@ from savanna.service.edp.workflow_creator import hive_workflow
 from savanna.service.edp.workflow_creator import java_workflow
 from savanna.service.edp.workflow_creator import mapreduce_workflow
 from savanna.service.edp.workflow_creator import pig_workflow
+from savanna.utils import edp
 from savanna.utils import remote
 from savanna.utils import xmlutils
 
@@ -37,6 +38,52 @@ swift_password = 'fs.swift.service.savanna.password'
 class BaseFactory(object):
     def configure_workflow_if_needed(self, *args, **kwargs):
         pass
+
+    def _separate_edp_configs(self, job_dict):
+        configs = {}
+        edp_configs = {}
+        if 'configs' in job_dict:
+            for k, v in six.iteritems(job_dict['configs']):
+                if k.startswith('edp.'):
+                    edp_configs[k] = v
+                else:
+                    configs[k] = v
+        return configs, edp_configs
+
+    def _prune_edp_configs(self, job_dict):
+        if job_dict is None:
+            return {}, {}
+
+        # Rather than copy.copy, we make this by hand
+        # to avoid FrozenClassError when we update 'configs'
+        pruned_job_dict = {}
+        for k, v in six.iteritems(job_dict):
+            pruned_job_dict[k] = v
+
+        # Separate out "edp." configs into its own dictionary
+        configs, edp_configs = self._separate_edp_configs(job_dict)
+
+        # Prune the new job_dict so it does not hold "edp." configs
+        pruned_job_dict['configs'] = configs
+
+        return pruned_job_dict, edp_configs
+
+    def _update_dict(self, dest, src):
+        if src is not None:
+            for key, value in six.iteritems(dest):
+                if hasattr(value, "update"):
+                    new_vals = src.get(key, {})
+                    value.update(new_vals)
+
+    def update_job_dict(self, job_dict, exec_dict):
+        pruned_exec_dict, edp_configs = self._prune_edp_configs(exec_dict)
+        self._update_dict(job_dict, pruned_exec_dict)
+
+        # Add the separated "edp." configs to the job_dict
+        job_dict['edp_configs'] = edp_configs
+
+        # Args are listed, not named. Simply replace them.
+        job_dict['args'] = pruned_exec_dict.get('args', [])
 
     def get_configs(self, input_data, output_data):
         configs = {}
@@ -53,13 +100,6 @@ class BaseFactory(object):
         return {'INPUT': input_data.url,
                 'OUTPUT': output_data.url}
 
-    def update_configs(self, configs, execution_configs):
-        if execution_configs is not None:
-            for key, value in six.iteritems(configs):
-                if hasattr(value, "update"):
-                    new_vals = execution_configs.get(key, {})
-                    value.update(new_vals)
-
 
 class PigFactory(BaseFactory):
     def __init__(self, job):
@@ -71,22 +111,15 @@ class PigFactory(BaseFactory):
         return conductor.job_main_name(context.ctx(), job)
 
     def get_workflow_xml(self, execution, input_data, output_data):
-        configs = {'configs': self.get_configs(input_data, output_data),
-                   'params': self.get_params(input_data, output_data),
-                   'args': []}
-        self.update_configs(configs, execution.job_configs)
-
-        # Update is not supported for list types, and besides
-        # since args are listed (not named) update doesn't make
-        # sense, just replacement of any default args
-        if execution.job_configs:
-            configs['args'] = execution.job_configs.get('args', [])
-
+        job_dict = {'configs': self.get_configs(input_data, output_data),
+                    'params': self.get_params(input_data, output_data),
+                    'args': []}
+        self.update_job_dict(job_dict, execution.job_configs)
         creator = pig_workflow.PigWorkflowCreator()
         creator.build_workflow_xml(self.name,
-                                   configuration=configs['configs'],
-                                   params=configs['params'],
-                                   arguments=configs['args'])
+                                   configuration=job_dict['configs'],
+                                   params=job_dict['params'],
+                                   arguments=job_dict['args'])
         return creator.get_built_workflow_xml()
 
 
@@ -101,14 +134,14 @@ class HiveFactory(BaseFactory):
         return conductor.job_main_name(context.ctx(), job)
 
     def get_workflow_xml(self, execution, input_data, output_data):
-        configs = {'configs': self.get_configs(input_data, output_data),
-                   'params': self.get_params(input_data, output_data)}
-        self.update_configs(configs, execution.job_configs)
+        job_dict = {'configs': self.get_configs(input_data, output_data),
+                    'params': self.get_params(input_data, output_data)}
+        self.update_job_dict(job_dict, execution.job_configs)
         creator = hive_workflow.HiveWorkflowCreator()
         creator.build_workflow_xml(self.name,
                                    self.job_xml,
-                                   configuration=configs['configs'],
-                                   params=configs['params'])
+                                   configuration=job_dict['configs'],
+                                   params=job_dict['params'])
         return creator.get_built_workflow_xml()
 
     def configure_workflow_if_needed(self, cluster, wf_dir):
@@ -128,39 +161,37 @@ class MapReduceFactory(BaseFactory):
         configs['mapred.output.dir'] = output_data.url
         return configs
 
+    def _get_streaming(self, job_dict):
+        prefix = 'edp.streaming.'
+        return dict((k[len(prefix):], v) for (k, v) in six.iteritems(
+            job_dict['edp_configs']) if k.startswith(prefix))
+
     def get_workflow_xml(self, execution, input_data, output_data):
-        configs = {'configs': self.get_configs(input_data, output_data)}
-        self.update_configs(configs, execution.job_configs)
+        job_dict = {'configs': self.get_configs(input_data, output_data)}
+        self.update_job_dict(job_dict, execution.job_configs)
         creator = mapreduce_workflow.MapReduceWorkFlowCreator()
-        creator.build_workflow_xml(configuration=configs['configs'])
+        creator.build_workflow_xml(configuration=job_dict['configs'],
+                                   streaming=self._get_streaming(job_dict))
         return creator.get_built_workflow_xml()
 
 
 class JavaFactory(BaseFactory):
 
+    def _get_java_configs(self, job_dict):
+        main_class = job_dict['edp_configs']['edp.java.main_class']
+        java_opts = job_dict['edp_configs'].get('edp.java.java_opts', None)
+        return main_class, java_opts
+
     def get_workflow_xml(self, execution, *args, **kwargs):
-        # input and output will be handled as args, so we don't really
-        # know whether or not to include the swift configs.  Hmmm.
-        configs = {'configs': {},
-                   'args': []}
-        self.update_configs(configs, execution.job_configs)
-
-        # Update is not supported for list types, and besides
-        # since args are listed (not named) update doesn't make
-        # sense, just replacement of any default args
-        if execution.job_configs:
-            configs['args'] = execution.job_configs.get('args', [])
-
-        if hasattr(execution, 'java_opts'):
-            java_opts = execution.java_opts
-        else:
-            java_opts = ""
-
+        job_dict = {'configs': {},
+                    'args': []}
+        self.update_job_dict(job_dict, execution.job_configs)
+        main_class, java_opts = self._get_java_configs(job_dict)
         creator = java_workflow.JavaWorkflowCreator()
-        creator.build_workflow_xml(execution.main_class,
-                                   configuration=configs['configs'],
+        creator.build_workflow_xml(main_class,
+                                   configuration=job_dict['configs'],
                                    java_opts=java_opts,
-                                   arguments=configs['args'])
+                                   arguments=job_dict['args'])
         return creator.get_built_workflow_xml()
 
 
@@ -174,11 +205,10 @@ def get_creator(job):
 
     factories = [
         MapReduceFactory,
+        MapReduceFactory,
         make_HiveFactory,
         make_PigFactory,
-        JavaFactory,
-        # Keep 'Jar' as a synonym for 'MapReduce'
-        MapReduceFactory,
+        JavaFactory
     ]
     type_map = dict(zip(get_possible_job_types(), factories))
 
@@ -186,20 +216,20 @@ def get_creator(job):
 
 
 def get_possible_job_config(job_type):
-    if job_type not in get_possible_job_types():
+    if not edp.compare_job_type(job_type, *get_possible_job_types()):
         return None
 
-    if job_type == "Java":
+    if edp.compare_job_type(job_type, 'Java'):
         return {'job_config': {'configs': [], 'args': []}}
 
-    if job_type in ['MapReduce', 'Pig', 'Jar']:
+    if edp.compare_job_type(job_type, 'MapReduce', 'Pig'):
         #TODO(nmakhotkin) Savanna should return config based on specific plugin
         cfg = xmlutils.load_hadoop_xml_defaults(
             'plugins/vanilla/resources/mapred-default.xml')
-        if job_type in ['MapReduce', 'Jar']:
+        if edp.compare_job_type(job_type, 'MapReduce'):
             cfg += xmlutils.load_hadoop_xml_defaults(
                 'service/edp/resources/mapred-job-config.xml')
-    elif job_type == 'Hive':
+    elif edp.compare_job_type(job_type, 'Hive'):
         #TODO(nmakhotkin) Savanna should return config based on specific plugin
         cfg = xmlutils.load_hadoop_xml_defaults(
             'plugins/vanilla/resources/hive-default.xml')
@@ -207,7 +237,7 @@ def get_possible_job_config(job_type):
     # TODO(tmckay): args should be a list when bug #269968
     # is fixed on the UI side
     config = {'configs': cfg, "args": {}}
-    if job_type not in ['MapReduce', 'Jar', 'Java']:
+    if not edp.compare_job_type('MapReduce', 'Java'):
         config.update({'params': {}})
     return {'job_config': config}
 
@@ -215,8 +245,8 @@ def get_possible_job_config(job_type):
 def get_possible_job_types():
     return [
         'MapReduce',
+        'MapReduce.Streaming',
         'Hive',
         'Pig',
-        'Java',
-        'Jar',
+        'Java'
     ]

@@ -13,13 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+
 import mock
 
 from savanna import conductor as cond
-from savanna.conductor import resource as r
 from savanna.service.edp import job_manager
 from savanna.service.edp.workflow_creator import workflow_factory
-from savanna.tests.unit import base as models_test_base
+from savanna.tests.unit import base
+from savanna.utils import edp
 from savanna.utils import patches as p
 
 
@@ -29,20 +31,15 @@ _java_main_class = "org.apache.hadoop.examples.WordCount"
 _java_opts = "-Dparam1=val1 -Dparam2=val2"
 
 
-def _resource_passthrough(*args, **kwargs):
-    return True
-
-
-class TestJobManager(models_test_base.DbTestCase):
+class TestJobManager(base.SavannaWithDbTestCase):
     def setUp(self):
-        r.Resource._is_passthrough_type = _resource_passthrough
-        p.patch_minidom_writexml()
         super(TestJobManager, self).setUp()
+        p.patch_minidom_writexml()
 
     @mock.patch('savanna.utils.remote.get_remote')
     @mock.patch('savanna.service.edp.hdfs_helper.create_dir')
-    @mock.patch('savanna.utils.remote.InstanceInteropHelper')
-    def test_create_job_dir(self, remote_class, helper, remote):
+    def test_create_job_dir(self, helper, remote):
+        remote_class = mock.MagicMock()
         remote_class.__exit__.return_value = 'closed'
         remote.return_value = remote_class
         helper.return_value = 'ok'
@@ -57,10 +54,9 @@ class TestJobManager(models_test_base.DbTestCase):
 
     @mock.patch('savanna.utils.remote.get_remote')
     @mock.patch('savanna.service.edp.hdfs_helper.put_file_to_hdfs')
-    @mock.patch('savanna.utils.remote.InstanceInteropHelper')
     @mock.patch('savanna.conductor.API.job_binary_internal_get_raw_data')
-    def test_upload_job_files(self, conductor_raw_data, remote_class,
-                              helper, remote):
+    def test_upload_job_files(self, conductor_raw_data, helper, remote):
+        remote_class = mock.MagicMock()
         remote_class.__exit__.return_value = 'closed'
         remote.return_value = remote_class
         helper.return_value = 'ok'
@@ -76,26 +72,18 @@ class TestJobManager(models_test_base.DbTestCase):
                                            job, 'hadoop')
         self.assertEqual(['job_prefix/lib/main.jar'], res)
 
-        job, _ = _create_all_stack('Jar')
-        res = job_manager.upload_job_files(mock.Mock(), 'job_prefix',
-                                           job, 'hadoop')
-        self.assertEqual(['job_prefix/lib/main.jar'], res)
-
         remote.reset_mock()
         remote_class.reset_mock()
         helper.reset_mock()
 
-    @mock.patch('oslo.config.cfg.CONF.job_workflow_postfix')
-    def test_add_postfix(self, conf):
-        conf.__str__.return_value = 'caba'
+    def test_add_postfix(self):
+        self.override_config("job_workflow_postfix", 'caba')
         res = job_manager._add_postfix('aba')
         self.assertEqual("aba/caba/", res)
 
-        conf.__str__.return_value = ''
+        self.override_config("job_workflow_postfix", '')
         res = job_manager._add_postfix('aba')
         self.assertEqual("aba/", res)
-
-        conf.reset_mock()
 
     @mock.patch('savanna.conductor.API.job_binary_get')
     def test_build_workflow_for_job_pig(self, job_binary):
@@ -193,8 +181,15 @@ class TestJobManager(models_test_base.DbTestCase):
         </property>
       </configuration>""", res)
 
-    def _build_workflow_common(self, job_type):
-        job, job_exec = _create_all_stack(job_type)
+    def _build_workflow_common(self, job_type, streaming=False):
+        if streaming:
+            configs = {'edp.streaming.mapper': '/usr/bin/cat',
+                       'edp.streaming.reducer': '/usr/bin/wc'}
+            configs = {'configs': configs}
+        else:
+            configs = {}
+
+        job, job_exec = _create_all_stack(job_type, configs)
 
         input_data = _create_data_source('swift://ex.savanna/i')
         output_data = _create_data_source('swift://ex.savanna/o')
@@ -203,6 +198,13 @@ class TestJobManager(models_test_base.DbTestCase):
 
         res = creator.get_workflow_xml(job_exec,
                                        input_data, output_data)
+
+        if streaming:
+            self.assertIn("""
+      <streaming>
+        <mapper>/usr/bin/cat</mapper>
+        <reducer>/usr/bin/wc</reducer>
+      </streaming>""", res)
 
         self.assertIn("""
         <property>
@@ -230,9 +232,7 @@ class TestJobManager(models_test_base.DbTestCase):
 
     def test_build_workflow_for_job_mapreduce(self):
         self._build_workflow_common('MapReduce')
-
-    def test_build_workflow_for_job_jar(self):
-        self._build_workflow_common('Jar')
+        self._build_workflow_common('MapReduce', streaming=True)
 
     def test_build_workflow_for_job_java(self):
         # If args include swift paths, user and password values
@@ -332,15 +332,37 @@ class TestJobManager(models_test_base.DbTestCase):
     def test_build_workflow_for_job_mapreduce_with_conf(self):
         self._build_workflow_with_conf_common('MapReduce')
 
-    def test_build_workflow_for_job_jar_with_conf(self):
-        self._build_workflow_with_conf_common('Jar')
+    def test_update_job_dict(self):
+        w = workflow_factory.BaseFactory()
 
-    def test_jar_creator_is_mapreduce(self):
-        # Ensure that we get the MapReduce workflow factory for 'Jar' jobs
-        job, _ = _create_all_stack('Jar')
+        job_dict = {'configs': {'default1': 'value1',
+                                'default2': 'value2'},
+                    'params': {'param1': 'value1',
+                               'param2': 'value2'},
+                    'args': ['replace this', 'and this']}
 
-        creator = workflow_factory.get_creator(job)
-        self.assertEqual(type(creator), workflow_factory.MapReduceFactory)
+        edp_configs = {'edp.streaming.mapper': '/usr/bin/cat',
+                       'edp.streaming.reducer': '/usr/bin/wc'}
+        configs = {'default2': 'changed'}
+        configs.update(edp_configs)
+
+        params = {'param1': 'changed'}
+
+        exec_job_dict = {'configs': configs,
+                         'params': params,
+                         'args': ['replaced']}
+
+        orig_exec_job_dict = copy.deepcopy(exec_job_dict)
+        w.update_job_dict(job_dict, exec_job_dict)
+        self.assertEqual(job_dict,
+                         {'edp_configs': edp_configs,
+                          'configs':  {'default1': 'value1',
+                                       'default2': 'changed'},
+                          'params': {'param1': 'changed',
+                                     'param2': 'value2'},
+                          'args': ['replaced']})
+
+        self.assertEqual(orig_exec_job_dict, exec_job_dict)
 
 
 def _create_all_stack(type, configs=None):
@@ -355,10 +377,10 @@ def _create_job(id, job_binary, type):
     job.id = id
     job.type = type
     job.name = 'special_name'
-    if type == 'Pig' or type == 'Hive':
+    if edp.compare_job_type(type, 'Pig', 'Hive'):
         job.mains = [job_binary]
         job.libs = None
-    if type in ['MapReduce', 'Jar', 'Java']:
+    else:
         job.libs = [job_binary]
         job.mains = None
     return job
@@ -368,11 +390,11 @@ def _create_job_binary(id, type):
     binary = mock.Mock()
     binary.id = id
     binary.url = "savanna-db://42"
-    if type == "Pig":
+    if edp.compare_job_type(type, 'Pig'):
         binary.name = "script.pig"
-    if type in ['MapReduce', 'Jar', 'Java']:
+    elif edp.compare_job_type(type, 'MapReduce', 'Java'):
         binary.name = "main.jar"
-    if type == "Hive":
+    else:
         binary.name = "script.q"
     return binary
 
@@ -393,7 +415,7 @@ def _create_job_exec(job_id, type, configs=None):
     j_exec = mock.Mock()
     j_exec.job_id = job_id
     j_exec.job_configs = configs
-    if type == "Java":
-        j_exec.main_class = _java_main_class
-        j_exec.java_opts = _java_opts
+    if edp.compare_job_type(type, "Java"):
+        j_exec.job_configs['configs']['edp.java.main_class'] = _java_main_class
+        j_exec.job_configs['configs']['edp.java.java_opts'] = _java_opts
     return j_exec

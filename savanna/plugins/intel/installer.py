@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import six
 import telnetlib
+
+import six
 
 from savanna import conductor
 from savanna import context
@@ -164,9 +165,11 @@ def configure_os_from_instances(cluster, instances):
                 hadoop_swiftfs_jar_url = c_helper.get_config_value(
                     cluster.cluster_configs.get('general'),
                     c_helper.HADOOP_SWIFTFS_JAR_URL)
-                swift_lib_path = '/usr/lib/hadoop/lib/hadoop-swift-latest.jar'
-                cmd = ('sudo curl \'%s\' -o %s --create-dirs'
-                       % (hadoop_swiftfs_jar_url, swift_lib_path))
+                swift_lib_dir = '/usr/lib/hadoop/lib'
+                swift_lib_path = swift_lib_dir + '/hadoop-swift-latest.jar'
+                cmd = ('sudo mkdir -p %s && sudo curl \'%s\' -o %s'
+                       % (swift_lib_dir, hadoop_swiftfs_jar_url,
+                          swift_lib_path))
                 remote.execute_command(cmd)
 
 
@@ -174,7 +177,8 @@ def _configure_services(client, cluster):
     nn_host = u.get_namenode(cluster).fqdn()
     snn = u.get_secondarynamenodes(cluster)
     snn_host = snn[0].fqdn() if snn else None
-    jt_host = u.get_jobtracker(cluster).fqdn()
+    jt_host = u.get_jobtracker(cluster).fqdn() if u.get_jobtracker(
+        cluster) else None
     dn_hosts = [dn.fqdn() for dn in u.get_datanodes(cluster)]
     tt_hosts = [tt.fqdn() for tt in u.get_tasktrackers(cluster)]
 
@@ -213,8 +217,9 @@ def _configure_services(client, cluster):
     if hive_host:
         client.services.hive.add_nodes('HiveServer', [hive_host])
 
-    client.services.mapred.add_nodes('JobTracker', [jt_host])
-    client.services.mapred.add_nodes('TaskTracker', tt_hosts)
+    if jt_host:
+        client.services.mapred.add_nodes('JobTracker', [jt_host])
+        client.services.mapred.add_nodes('TaskTracker', tt_hosts)
 
 
 def _configure_storage(client, cluster):
@@ -328,7 +333,9 @@ def start_cluster(cluster):
     LOG.debug("Starting hadoop services")
     client.services.hdfs.start()
 
-    client.services.mapred.start()
+    if u.get_jobtracker(cluster):
+        client.services.mapred.start()
+
     if u.get_hiveserver(cluster):
         client.services.hive.start()
 

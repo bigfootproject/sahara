@@ -207,7 +207,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 #----------------------------CLUSTER CONFIG TESTING----------------------------
 
         try:
-            self._cluster_config_testing(cluster_info)
+            self.cluster_config_testing(cluster_info)
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -227,24 +227,38 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 
         # This is a modified version of WordCount that takes swift configs
         java_lib_data = open(path + 'edp-java.jar').read()
-        java_exec_data = {'main_class': 'org.apache.hadoop.examples.WordCount'}
+        java_configs = {
+            "configs": {
+            "edp.java.main_class": "org.apache.hadoop.examples.WordCount"
+            }
+        }
 
-        configs = {
+        mapreduce_configs = {
             "configs": {
             "mapred.mapper.class": "org.apache.oozie.example.SampleMapper",
             "mapred.reducer.class": "org.apache.oozie.example.SampleReducer"
             }
         }
+        mapreduce_streaming_configs = {
+            "configs": {
+            "edp.streaming.mapper": "/bin/cat",
+            "edp.streaming.reducer": "/usr/bin/wc"
+            }
+        }
         try:
-            self._edp_testing('Pig', [{'pig': pig_job_data}],
-                              [{'jar': pig_lib_data}])
-            self._edp_testing(
-                'MapReduce', [], [{'jar': mapreduce_jar_data}], configs
+            self.edp_testing('Pig', [{'pig': pig_job_data}],
+                             [{'jar': pig_lib_data}])
+            self.edp_testing(
+                'MapReduce', [], [{'jar': mapreduce_jar_data}],
+                mapreduce_configs
             )
-            self._edp_testing('Java', [],
-                              lib_data_list=[{'jar': java_lib_data}],
-                              pass_input_output_args=True,
-                              job_exec_data=java_exec_data)
+            self.edp_testing(
+                'MapReduce.Streaming', [], [], mapreduce_streaming_configs
+            )
+            self.edp_testing('Java', [],
+                             lib_data_list=[{'jar': java_lib_data}],
+                             configs=java_configs,
+                             pass_input_output_args=True)
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -258,7 +272,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 #------------------------------MAP REDUCE TESTING------------------------------
 
         try:
-            self._map_reduce_testing(cluster_info)
+            self.map_reduce_testing(cluster_info)
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -272,7 +286,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 #---------------------------CHECK SWIFT AVAILABILITY---------------------------
 
         try:
-            self._check_swift_availability(cluster_info)
+            self.check_swift_availability(cluster_info)
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -312,7 +326,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
             }
         ]
         try:
-            new_cluster_info = self._cluster_scaling(cluster_info, change_list)
+            new_cluster_info = self.cluster_scaling(cluster_info, change_list)
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -328,7 +342,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 #---------------------CLUSTER CONFIG TESTING AFTER SCALING---------------------
 
             try:
-                self._cluster_config_testing(new_cluster_info)
+                self.cluster_config_testing(new_cluster_info)
 
             except Exception as e:
                 with excutils.save_and_reraise_exception():
@@ -343,7 +357,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 #-----------------------MAP REDUCE TESTING AFTER SCALING-----------------------
 
             try:
-                self._map_reduce_testing(new_cluster_info)
+                self.map_reduce_testing(new_cluster_info)
 
             except Exception as e:
                 with excutils.save_and_reraise_exception():
@@ -358,7 +372,7 @@ class VanillaGatingTest(cluster_configs.ClusterConfigTest, edp.EDPTest,
 #--------------------CHECK SWIFT AVAILABILITY AFTER SCALING--------------------
 
             try:
-                self._check_swift_availability(new_cluster_info)
+                self.check_swift_availability(new_cluster_info)
 
             except Exception as e:
                 with excutils.save_and_reraise_exception():

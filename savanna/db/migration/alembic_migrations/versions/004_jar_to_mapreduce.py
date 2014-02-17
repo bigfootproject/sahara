@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Mirantis Inc.
+# Copyright 2014 Openstack Foundation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest2
+"""jar_to_mapreduce
 
-from savanna.utils import remote
+Revision ID: 004
+Revises: 003
+Create Date: 2014-02-11 13:31:00
+
+"""
+
+# revision identifiers, used by Alembic.
+revision = '004'
+down_revision = '003'
+
+from alembic import op
 
 
-class TestEscapeQuotes(unittest2.TestCase):
-    def test_escape_quotes(self):
-        s = remote._escape_quotes('echo "\\"Hello, world!\\""')
-        self.assertEqual(s, r'echo \"\\\"Hello, world!\\\"\"')
+def upgrade():
+    op.execute("UPDATE jobs SET type='MapReduce' where type='Jar'")
+
+
+def downgrade():
+    op.execute("UPDATE jobs SET type='Jar' where type='MapReduce'")

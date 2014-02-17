@@ -6,7 +6,7 @@ discover
 docutils==0.9.1
 fixtures>=0.3.14
 mock>=1.0
-oslo.sphinx
+oslosphinx
 psycopg2
 pylint==0.25.2
 sphinx>=1.1.2,<1.2
@@ -14,7 +14,7 @@ sphinxcontrib-httpdomain
 sqlalchemy-migrate>=0.8.2
 testrepository>=0.0.17
 testscenarios>=0.4
-testtools>=0.9.32
+testtools>=0.9.34
 unittest2
 
 python-savannaclient>=0.4.1

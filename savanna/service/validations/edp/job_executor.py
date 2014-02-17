@@ -17,9 +17,9 @@ import savanna.exceptions as ex
 from savanna.service.edp import api
 import savanna.service.validations.base as main_base
 import savanna.service.validations.edp.base as b
+from savanna.utils import edp
 
-
-MR_EXEC_SCHEMA = {
+JOB_EXEC_SCHEMA = {
     "type": "object",
     "properties": {
         "input_id": {
@@ -38,52 +38,47 @@ MR_EXEC_SCHEMA = {
     },
     "additionalProperties": False,
     "required": [
-        "input_id",
-        "output_id",
         "cluster_id"
     ]
 }
 
 
-JAVA_EXEC_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "main_class": {
-            "type": "string",
-        },
-        "java_opts": {
-            "type": "string",
-        },
-        "cluster_id": {
-            "type": "string",
-            "format": "uuid",
-        },
-        "job_configs": b.job_configs,
-    },
-    "additionalProperties": False,
-    "required": [
-        "cluster_id",
-        "main_class",
-    ]
-}
+def _is_main_class_present(data):
+    return data and 'edp.java.main_class' in data.get('job_configs',
+                                                      {}).get('configs', {})
 
 
-JOB_EXEC_SCHEMA = {
-    "oneOf": [MR_EXEC_SCHEMA, JAVA_EXEC_SCHEMA]
-}
+def _streaming_present(data):
+    try:
+        streaming = set(('edp.streaming.mapper',
+                         'edp.streaming.reducer'))
+        configs = set(data['job_configs']['configs'])
+        return streaming.intersection(configs) == streaming
+    except Exception:
+        return False
 
 
 def check_job_executor(data, job_id):
     job = api.get_job(job_id)
+    job_type, subtype = edp.split_job_type(job.type)
 
-    # Make sure we have the right schema for the job type
-    # We can identify the Java action schema by looking for 'main_class'
-    if ('main_class' in data) ^ (job.type == 'Java'):
-        raise ex.InvalidException("Schema is not valid for job type %s"
-                                  % job.type)
+    # All types except Java require input and output objects
+    if job_type == 'Java':
+        if not _is_main_class_present(data):
+            raise ex.InvalidDataException('Java job must '
+                                          'specify edp.java.main_class')
+    else:
+        if not ('input_id' in data and 'output_id' in data):
+            raise ex.InvalidDataException("%s job requires 'input_id' "
+                                          "and 'output_id'" % job.type)
 
-    if 'input_id' in data:
         b.check_data_source_exists(data['input_id'])
         b.check_data_source_exists(data['output_id'])
+
+        if job_type == 'MapReduce' and (
+                subtype == 'Streaming' and not _streaming_present(data)):
+            raise ex.InvalidDataException("%s job "
+                                          "must specify streaming mapper "
+                                          "and reducer" % job.type)
 
     main_base.check_cluster_exists(data['cluster_id'])
