@@ -209,6 +209,7 @@ class ClusterResource(Resource, objects.Cluster):
 
 class DataSource(Resource, objects.DataSource):
     _resource_name = "data_source"
+    _filter_fields = ['credentials']
 
 
 class JobExecution(Resource, objects.JobExecution):
@@ -221,6 +222,7 @@ class Job(Resource, objects.Job):
 
 class JobBinary(Resource, objects.JobBinary):
     _resource_name = "job_binary"
+    _filter_fields = ['extra']
 
 
 class JobBinaryInternal(Resource, objects.JobBinaryInternal):

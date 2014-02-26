@@ -102,6 +102,9 @@ class VersionHandler(avm.AbstractVersionHandler):
     def get_services_processor(self):
         return services
 
+    def get_resource_manager_uri(self, cluster):
+        return cluster['info']['MapReduce']['JobTracker']
+
 
 class AmbariClient():
 
@@ -163,6 +166,8 @@ class AmbariClient():
         existing_configs = json_result['Clusters']['desired_configs']
 
         configs = cluster_spec.get_deployed_configurations()
+        if 'ambari' in configs:
+            configs.remove('ambari')
         if len(configs) == len(existing_configs):
             # nothing to do
             return
@@ -175,9 +180,6 @@ class AmbariClient():
         version = 1
         body['Clusters'] = clusters
         for config_name in configs:
-            if config_name == 'ambari':
-                # ambari configs are currently internal to the plugin
-                continue
             if config_name in existing_configs:
                 if config_name == 'core-site' or config_name == 'global':
                     existing_version = existing_configs[config_name]['tag']\

@@ -56,6 +56,33 @@ SAMPLE_CLUSTER_DICT = {
 }
 
 
+SAMPLE_JOB_BINARY_DICT = {
+    "created_at": "2014-02-14 16:26:08.895897",
+    "description": "a job",
+    "extra": {
+        "password": "password",
+        "user": "user"
+    },
+    "id": "c0caf119-f380-4fab-a46e-0f28ebd23b5c",
+    "name": "bob",
+    "tenant_id": "6b859fb8d1f44e8eafdfb91f21309b5f",
+    "updated_at": "null",
+    "url": "swift-internal://bob.savanna/job"
+}
+
+
+SAMPLE_DATA_SOURCE = {
+    'name': 'input',
+    'description': 'some input',
+    'type': 'swift',
+    'url': 'swift://tmckay.savanna',
+    'credentials': {
+        'username': 'me',
+        'password': 'password'
+    }
+}
+
+
 class TestResource(unittest2.TestCase):
     def setUp(self):
         self.maxDiff = None
@@ -119,3 +146,13 @@ class TestResource(unittest2.TestCase):
         wrapped_dict = cluster.to_wrapped_dict()
         self.assertEqual(len(wrapped_dict), 1)
         self.assertEqual(wrapped_dict['cluster'], SAMPLE_CLUSTER_DICT)
+
+    def test_job_binary_filter_extra(self):
+        job_binary = r.JobBinary(SAMPLE_JOB_BINARY_DICT)
+        wrapped_dict = job_binary.to_wrapped_dict()
+        self.assertNotIn('extra', wrapped_dict)
+
+    def test_data_source_filter_credentials(self):
+        data_source = r.DataSource(SAMPLE_DATA_SOURCE)
+        wrapped_dict = data_source.to_wrapped_dict()
+        self.assertNotIn('credentials', wrapped_dict)

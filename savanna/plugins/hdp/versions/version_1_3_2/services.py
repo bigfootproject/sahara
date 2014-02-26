@@ -242,8 +242,8 @@ class MapReduceService(Service):
         if tt_node_groups:
             global_config = cluster_spec.configurations['global']
             common_paths = self._get_common_paths(tt_node_groups)
-            mapred_site_config['mapred.local.dir'] = \
-                self._generate_storage_path(common_paths, '/hadoop/mapred')
+            mapred_site_config['mapred.local.dir'] = (
+                self._generate_storage_path(common_paths, '/hadoop/mapred'))
             global_config['mapred_local_dir'] = self._generate_storage_path(
                 common_paths, '/hadoop/mapred')
 

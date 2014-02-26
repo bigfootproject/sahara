@@ -21,7 +21,7 @@ import uuid
 
 from neutronclient.v2_0 import client as neutron_client
 from novaclient.v1_1 import client as nova_client
-import savannaclient.api.client as savanna_client
+import savannaclient.client as savanna_client
 from swiftclient import client as swift_client
 import unittest2
 
@@ -58,20 +58,24 @@ class ITestCase(unittest2.TestCase):
         self.vanilla_config = cfg.ITConfig().vanilla_config
         self.hdp_config = cfg.ITConfig().hdp_config
         self.spark_config = cfg.ITConfig().spark_config
+        self.idh_config = cfg.ITConfig().idh_config
 
         telnetlib.Telnet(
             self.common_config.SAVANNA_HOST, self.common_config.SAVANNA_PORT
         )
 
         self.savanna = savanna_client.Client(
+            self.common_config.SAVANNA_API_VERSION,
             username=self.common_config.OS_USERNAME,
             api_key=self.common_config.OS_PASSWORD,
             project_name=self.common_config.OS_TENANT_NAME,
             auth_url=self.common_config.OS_AUTH_URL,
-            savanna_url='http://%s:%s/%s' % (
+            savanna_url='http://%s:%s/v%s/%s' % (
                 self.common_config.SAVANNA_HOST,
                 self.common_config.SAVANNA_PORT,
-                self.common_config.SAVANNA_API_VERSION))
+                self.common_config.SAVANNA_API_VERSION,
+                self.common_config.OS_TENANT_ID
+            ))
 
         self.nova = nova_client.Client(
             username=self.common_config.OS_USERNAME,
@@ -107,8 +111,8 @@ class ITestCase(unittest2.TestCase):
 #-------------------------Methods for object creation--------------------------
 
     def create_node_group_template(self, name, plugin_config, description,
-                                   volumes_per_node, volume_size,
                                    node_processes, node_configs,
+                                   volumes_per_node=0, volume_size=0,
                                    floating_ip_pool=None):
         data = self.savanna.node_group_templates.create(
             name, plugin_config.PLUGIN_NAME, plugin_config.HADOOP_VERSION,
@@ -295,11 +299,11 @@ class ITestCase(unittest2.TestCase):
         for i in range(self.common_config.HDFS_INITIALIZATION_TIMEOUT * 6):
             time.sleep(10)
             active_tasktracker_count = self.execute_command(
-                'sudo su -c "hadoop job -list-active-trackers" %s'
+                'sudo -u %s bash -c "hadoop job -list-active-trackers"'
                 % plugin_config.HADOOP_USER)[1]
             active_datanode_count = int(
                 self.execute_command(
-                    'sudo su -c "hadoop dfsadmin -report" %s \
+                    'sudo -u %s bash -c "hadoop dfsadmin -report" \
                     | grep "Datanodes available:.*" | awk \'{print $3}\''
                     % plugin_config.HADOOP_USER)[1]
             )

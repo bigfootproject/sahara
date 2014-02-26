@@ -21,13 +21,27 @@ from neutronclient.neutron import client as neutron_cli
 import requests
 from requests import adapters
 
+from savanna import context
 from savanna.openstack.common import log as logging
+from savanna.utils.openstack import base
 
 
 LOG = logging.getLogger(__name__)
 
 
-class Client():
+def client():
+    ctx = context.ctx()
+    args = {
+        'username': ctx.username,
+        'tenant_name': ctx.tenant_name,
+        'tenant_id': ctx.tenant_id,
+        'token': ctx.token,
+        'endpoint_url': base.url_for(ctx.service_catalog, 'network')
+    }
+    return neutron_cli.Client('2.0', **args)
+
+
+class NeutronClientRemoteWrapper():
     neutron = None
     adapters = {}
     routers = {}
@@ -40,7 +54,8 @@ class Client():
         self.network = network
 
     def get_router(self):
-        matching_router = Client.routers.get(self.network, None)
+        matching_router = NeutronClientRemoteWrapper.routers.get(self.network,
+                                                                 None)
         if matching_router:
             LOG.debug('Returning cached qrouter')
             return matching_router['id']
@@ -53,7 +68,8 @@ class Client():
                          if port['network_id'] == self.network), None)
             if port:
                 matching_router = router
-                Client.routers[self.network] = matching_router
+                NeutronClientRemoteWrapper.routers[
+                    self.network] = matching_router
                 break
 
         if not matching_router:
@@ -62,15 +78,15 @@ class Client():
 
         return matching_router['id']
 
-    def get_http_session(self, host, port=None):
+    def get_http_session(self, host, port=None, *args, **kwargs):
         session = requests.Session()
-        adapters = self._get_adapters(host, port=port)
+        adapters = self._get_adapters(host, port=port, *args, **kwargs)
         for adapter in adapters:
             session.mount('http://{0}:{1}'.format(host, adapter.port), adapter)
 
         return session
 
-    def _get_adapters(self, host, port=None):
+    def _get_adapters(self, host, port=None, *args, **kwargs):
         LOG.debug('Retrieving neutron adapters for {0}:{1}'.format(host, port))
         adapters = []
         if not port:
@@ -79,7 +95,7 @@ class Client():
                         if adapter.host == host]
         else:
             # need to retrieve or create specific adapter
-            adapter = self.adapters.get((host, port), None)
+            adapter = self.adapters.get((host, port), None, *args, **kwargs)
             if not adapter:
                 LOG.debug('Creating neutron adapter for {0}:{1}'
                           .format(host, port))
@@ -96,8 +112,8 @@ class NeutronHttpAdapter(adapters.HTTPAdapter):
     port = None
     host = None
 
-    def __init__(self, qrouter, host, port):
-        super(NeutronHttpAdapter, self).__init__()
+    def __init__(self, qrouter, host, port, *args, **kwargs):
+        super(NeutronHttpAdapter, self).__init__(*args, **kwargs)
         command = 'ip netns exec qrouter-{0} nc {1} {2}'.format(qrouter,
                                                                 host, port)
         LOG.debug('Neutron adapter created with cmd {0}'.format(command))
