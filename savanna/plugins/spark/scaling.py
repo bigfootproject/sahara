@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Mirantis Inc.
+# Copyright (c) 2014 Hoang Do, Phuc Vo, P. Michiardi, D. Venzano
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     slave_content = c_helper.generate_spark_slaves_configs(config_slaves)
 
     # write new slave file to master
-    files = {'/opt/spark/conf/slaves': slave_content}
+    files = {'/home/ubuntu/spark/conf/slaves': slave_content}
     with remote.get_remote(master) as r_master:
         r_master.write_files_to(files)
         # restart spark in master node

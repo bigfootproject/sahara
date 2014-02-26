@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Mirantis Inc.
+# Copyright (c) 2014 Hoang Do, Phuc Vo, P. Michiardi, D. Venzano
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ class SparkProvider(p.ProvisioningPluginBase):
 
     def get_description(self):
         return (
-            "This plugin provides an ability to launch Spark 0.8.0 on Hadoop "
+            "This plugin provides an ability to launch Spark 0.8.1 on Hadoop "
             "2.0.0-cdh4.5.0 cluster without any management consoles.")
 
     def get_versions(self):
@@ -114,7 +114,8 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         with remote.get_remote(nn_instance) as r:
             r.execute_command("sudo -u hdfs hdfs dfs -mkdir -p /user/ubuntu/")
-            r.execute_command("sudo -u hdfs hdfs dfs -chown ubuntu /user/ubuntu/")
+            r.execute_command("sudo -u hdfs hdfs dfs -chown ubuntu \
+                              /user/ubuntu/")
 
         # start spark nodes
         if sm_instance:
@@ -217,14 +218,14 @@ class SparkProvider(p.ProvisioningPluginBase):
         self._start_slave_datanode_processes(instances)
 
     def _start_slave_datanode_processes(self, dn_instances):
-            with context.ThreadGroup() as tg:
-                for i in dn_instances:
-                    tg.spawn('spark-start-dn-%s' % i.instance_name,
-                             self._start_datanode, i)
+        with context.ThreadGroup() as tg:
+            for i in dn_instances:
+                tg.spawn('spark-start-dn-%s' % i.instance_name,
+                         self._start_datanode, i)
 
     def _start_datanode(self, instance):
-            with instance.remote() as r:
-                run.start_processes(r, "datanode")
+        with instance.remote() as r:
+            run.start_processes(r, "datanode")
 
     def _setup_instances(self, cluster, instances):
         extra = self._extract_configs_to_extra(cluster)
@@ -252,8 +253,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         }
 
         files_spark = {
-            '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
-            '/opt/spark/conf/slaves': ng_extra['sp_slaves']
+            '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
+            '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves']
         }
 
         files_init = {
@@ -284,7 +285,6 @@ class SparkProvider(p.ProvisioningPluginBase):
                    nn_path, dn_path)
 
         with remote.get_remote(instance) as r:
-            # TODO(aignatov): sudo chown is wrong solution. But it works.
             r.execute_command(
                 'sudo chown -R $USER:$USER /etc/hadoop'
             )
@@ -326,8 +326,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         if need_update_spark:
             ng_extra = extra[instance.node_group.id]
             files = {
-                '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
-                '/opt/spark/conf/slaves': ng_extra['sp_slaves'],
+                '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
+                '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
             }
             r = remote.get_remote(instance)
             r.write_files_to(files)
@@ -347,7 +347,6 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         if 'namenode' in node_processes:
             self._push_namenode_configs(cluster, r)
-        #need to do anything with spark here?
 
     def _push_namenode_configs(self, cluster, r):
         r.write_file_to('/etc/hadoop/dn.incl',

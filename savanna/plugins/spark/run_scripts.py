@@ -1,5 +1,4 @@
-
-# Copyright (c) 2013 Mirantis Inc.
+# Copyright (c) 2014 Hoang Do, Phuc Vo, P. Michiardi, D. Venzano
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +30,7 @@ def start_processes(remote, *processes):
 
 
 def refresh_nodes(remote, service):
-    remote.execute_command("screen -d -m sudo hadoop %s -refreshNodes"
+    remote.execute_command("sudo hadoop %s -refreshNodes"
                            % service)
 
 
@@ -40,16 +39,19 @@ def format_namenode(nn_remote):
 
 
 def clean_port_hadoop(nn_remote):
-    nn_remote.execute_command("sudo netstat -tlnp | awk '/:8020 */ {split($NF,a,\"/\"); print a[1]}' | xargs sudo kill -9")
+    nn_remote.execute_command("sudo netstat -tlnp \
+                              | awk '/:8020 */ \
+                              {split($NF,a,\"/\"); print a[1]}' \
+                              | xargs sudo kill -9")
 
 
 def start_spark_master(nn_remote):
-    nn_remote.execute_command("bash /opt/spark/bin/start-all.sh")
+    nn_remote.execute_command("bash /home/ubuntu/spark/bin/start-all.sh")
 
 
 def start_spark_slaves(nn_remote):
-    nn_remote.execute_command("bash /opt/spark/bin/start-slaves.sh")
+    nn_remote.execute_command("bash /home/ubuntu/spark/bin/start-slaves.sh")
 
 
 def stop_spark(nn_remote):
-    nn_remote.execute_command("bash /opt/spark/bin/stop-all.sh")
+    nn_remote.execute_command("bash /home/ubuntu/bin/stop-all.sh")

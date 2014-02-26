@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Mirantis Inc.
+# Copyright (c) 2014 Hoang Do, Phuc Vo, P. Michiardi, D. Venzano
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ SPARK_CONFS = {
     }
 }
 
-# TODO(aignatov): Environmental configs could be more complex
 ENV_CONFS = {
     "HDFS": {
         'Name Node Heap Size': 'HADOOP_NAMENODE_OPTS=\\"-Xmx%sm\\"',
@@ -199,10 +198,7 @@ def get_hadoop_ssh_keys(cluster):
     return private_key, public_key
 
 
-def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port
-                         ):
-    # inserting common configs depends on provisioned VMs and HDFS placement
-    # TODO(aignatov): should be moved to cluster context
+def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port):
     """dfs.name.dir': extract_hadoop_path(storage_path,
                                             '/lib/hadoop/hdfs/namenode'),
     'dfs.data.dir': extract_hadoop_path(storage_path,
@@ -265,19 +261,15 @@ def generate_spark_env_configs(mastername, masterport, masterwebport=None,
                                workercores=None, workermemory=None,
                                workerport=None, workerwebport=None,
                                workerinstances=None):
-    # Load configs template file
-    #f = open('savanna/plugins/spark/resources/spark-env.sh.template', 'r')
-    #default_config = f.read()
-    # Write new configs
-    #configs = [default_config]
     configs = []
+    # master configuration
     configs.append('SPARK_MASTER_IP=' + mastername)
     if masterport is None or masterport == '':
         masterport = 7077
     configs.append('SPARK_MASTER_PORT=' + str(masterport))
     if masterwebport is not None and masterwebport != '':
         configs.append('SPARK_MASTER_WEBUI_PORT=' + str(masterwebport))
-    # configure for workers
+    # configuration for workers
     if workercores is not None and workercores != '':
         configs.append('SPARK_WORKER_CORES=' + str(workercores))
     if workermemory is not None and workermemory != '':
@@ -386,7 +378,7 @@ def _is_general_option_enabled(cluster, option):
     for ng in cluster.node_groups:
         conf = ng.configuration()
         if 'general' in conf and option.name in conf['general']:
-                return conf['general'][option.name]
+            return conf['general'][option.name]
     return option.default_value
 
 
