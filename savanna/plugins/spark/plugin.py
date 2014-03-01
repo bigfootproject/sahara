@@ -253,8 +253,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         }
 
         files_spark = {
-            '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
-            '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves']
+            '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
+            '/opt/spark/conf/slaves': ng_extra['sp_slaves']
         }
 
         files_init = {
@@ -326,8 +326,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         if need_update_spark:
             ng_extra = extra[instance.node_group.id]
             files = {
-                '/home/ubuntu/spark/conf/spark-env.sh': ng_extra['sp_master'],
-                '/home/ubuntu/spark/conf/slaves': ng_extra['sp_slaves'],
+                '/opt/spark/conf/spark-env.sh': ng_extra['sp_master'],
+                '/opt/spark/conf/slaves': ng_extra['sp_slaves'],
             }
             r = remote.get_remote(instance)
             r.write_files_to(files)
