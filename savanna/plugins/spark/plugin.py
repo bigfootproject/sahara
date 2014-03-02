@@ -47,10 +47,10 @@ class SparkProvider(p.ProvisioningPluginBase):
     def get_description(self):
         return (
             "This plugin provides an ability to launch Spark 0.9.0 on Hadoop "
-            "2.0.0-cdh4.5.0 cluster without any management consoles.")
+            "cdh4 cluster without any management consoles.")
 
     def get_versions(self):
-        return ['2.0.0_cdh4.5.0']
+        return ['cdh4']
 
     def get_configs(self, hadoop_version):
         return c_helper.get_plugin_configs()
