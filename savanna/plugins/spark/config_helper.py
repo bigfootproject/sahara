@@ -263,6 +263,7 @@ def generate_spark_env_configs(mastername, masterport, masterwebport=None,
                                workerinstances=None):
     configs = []
     # master configuration
+    configs.append('JAVA_HOME=/usr/java/jdk1.7.0_25/')
     configs.append('SPARK_MASTER_IP=' + mastername)
     if masterport is None or masterport == '':
         masterport = 7077
