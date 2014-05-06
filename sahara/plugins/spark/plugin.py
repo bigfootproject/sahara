@@ -15,18 +15,18 @@
 
 from oslo.config import cfg
 
-from savanna import conductor
-from savanna import context
-from savanna.openstack.common import log as logging
-from savanna.plugins.general import exceptions as ex
-from savanna.plugins.general import utils
-from savanna.plugins import provisioning as p
-from savanna.plugins.spark import config_helper as c_helper
-from savanna.plugins.spark import run_scripts as run
-from savanna.plugins.spark import scaling as sc
-from savanna.topology import topology_helper as th
-from savanna.utils import files as f
-from savanna.utils import remote
+from sahara import conductor
+from sahara import context
+from sahara.openstack.common import log as logging
+from sahara.plugins.general import exceptions as ex
+from sahara.plugins.general import utils
+from sahara.plugins import provisioning as p
+from sahara.plugins.spark import config_helper as c_helper
+from sahara.plugins.spark import run_scripts as run
+from sahara.plugins.spark import scaling as sc
+from sahara.topology import topology_helper as th
+from sahara.utils import files as f
+from sahara.utils import remote
 
 
 conductor = conductor.API
@@ -258,7 +258,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         }
 
         files_init = {
-            '/tmp/savanna-hadoop-init.sh': ng_extra['setup_script'],
+            '/tmp/sahara-hadoop-init.sh': ng_extra['setup_script'],
             'id_rsa': cluster.management_private_key,
             'authorized_keys': cluster.management_public_key
         }
@@ -292,11 +292,11 @@ class SparkProvider(p.ProvisioningPluginBase):
             r.write_files_to(files_spark)
             r.write_files_to(files_init)
             r.execute_command(
-                'sudo chmod 0500 /tmp/savanna-hadoop-init.sh'
+                'sudo chmod 0500 /tmp/sahara-hadoop-init.sh'
             )
             r.execute_command(
-                'sudo /tmp/savanna-hadoop-init.sh '
-                '>> /tmp/savanna-hadoop-init.log 2>&1')
+                'sudo /tmp/sahara-hadoop-init.sh '
+                '>> /tmp/sahara-hadoop-init.log 2>&1')
 
             r.execute_command(hdfs_dir_cmd)
             r.execute_command(key_cmd)

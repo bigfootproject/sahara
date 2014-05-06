@@ -15,15 +15,15 @@
 
 from oslo.config import cfg
 
-from savanna import conductor as c
-from savanna import context
-from savanna.openstack.common import log as logging
-from savanna.plugins.general import utils
-from savanna.plugins import provisioning as p
-from savanna.topology import topology_helper as topology
-from savanna.utils import crypto
-from savanna.utils import types as types
-from savanna.utils import xmlutils as x
+from sahara import conductor as c
+from sahara import context
+from sahara.openstack.common import log as logging
+from sahara.plugins.general import utils
+from sahara.plugins import provisioning as p
+from sahara.topology import topology_helper as topology
+from sahara.utils import crypto
+from sahara.utils import types as types
+from sahara.utils import xmlutils as x
 
 
 conductor = c.API
