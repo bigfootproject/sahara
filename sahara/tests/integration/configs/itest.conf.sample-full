@@ -169,31 +169,6 @@
 #SKIP_TRANSIENT_CLUSTER_TEST = False
 #ONLY_TRANSIENT_CLUSTER_TEST = False
 
-[SPARK]
-
-# Name of plugin
-PLUGIN_NAME = 'spark'
-# Version of Hadoop
-HADOOP_VERSION = '2.0.0-cdh4.4.0'
-# Username which is used for access to Hadoop services
-HADOOP_USER = 'hdfs'
-# Directory where are located Hadoop jar files
-HADOOP_DIRECTORY = '/usr/lib/hadoop'
-# Directory where is located log info about completed jobs
-HADOOP_LOG_DIRECTORY = '/hadoop/mapred/userlogs'
-
-HADOOP_PROCESSES_WITH_PORTS = namenode: 50070, datanode: 50075, secondarynamenode: 50090
-
-PROCESS_NAMES = nn: namenode, dn: datanode
-# Directory where is located spark
-SPARK_DIRECTORY = '/home/ubuntu/spark/'
-
-SPARK_MASTER_PORT = 8080
-SKIP_ALL_TESTS_FOR_PLUGIN = False
-SKIP_CLUSTER_CONFIG_TEST = False
-SKIP_SPARK_TEST = False
-SKIP_SCALING_TEST = False
-
 [HDP]
 
 # Name of plugin (string value)

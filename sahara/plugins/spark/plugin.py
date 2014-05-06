@@ -42,15 +42,15 @@ class SparkProvider(p.ProvisioningPluginBase):
         }
 
     def get_title(self):
-        return "Spark Apache Hadoop"
+        return "Apache Spark"
 
     def get_description(self):
         return (
-            "This plugin provides an ability to launch Spark 0.9.0 on Hadoop "
-            "cdh4 cluster without any management consoles.")
+            "This plugin provides an ability to launch Spark on Hadoop "
+            "CDH cluster without any management consoles.")
 
     def get_versions(self):
-        return ['cdh4']
+        return ['0.9.1']
 
     def get_configs(self, hadoop_version):
         return c_helper.get_plugin_configs()
@@ -84,7 +84,6 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         if sl_count < 1:
             raise ex.NotSlaveNodeException(sl_count)
-        # --------------------------------------------------
 
     def update_infra(self, cluster):
         pass
@@ -95,14 +94,12 @@ class SparkProvider(p.ProvisioningPluginBase):
         self._setup_instances(cluster, instances)
 
     def start_cluster(self, cluster):
-#        instances = utils.get_instances(cluster)
-        nn_instance = utils.get_namenode(cluster)
-        sm_instance = utils.get_masternode(cluster)
-        dn_instances = utils.get_datanodes(cluster)
+        nn_instance = utils.get_instance(cluster, "namenode")
+        sm_instance = utils.get_instance(cluster, "master")
+        dn_instances = utils.get_instances(cluster, "datanode")
 
         # Start the name node
         with remote.get_remote(nn_instance) as r:
-            #run.clean_port_hadoop(r)
             run.format_namenode(r)
             run.start_processes(r, "namenode")
 
@@ -129,9 +126,9 @@ class SparkProvider(p.ProvisioningPluginBase):
         self._set_cluster_info(cluster)
 
     def _extract_configs_to_extra(self, cluster):
-        nn = utils.get_namenode(cluster)
-        sp_master = utils.get_masternode(cluster)
-        sp_slaves = utils.get_slavenodes(cluster)
+        nn = utils.get_instance(cluster, "namenode")
+        sp_master = utils.get_instance(cluster, "master")
+        sp_slaves = utils.get_instances(cluster, "slave")
 
         extra = dict()
 
@@ -184,8 +181,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         return extra
 
     def decommission_nodes(self, cluster, instances):
-        sls = utils.get_slavenodes(cluster)
-        dns = utils.get_datanodes(cluster)
+        sls = utils.get_instances(cluster, "slave")
+        dns = utils.get_instances(cluster, "datanode")
         decommission_dns = False
         decommission_sls = False
 
@@ -197,8 +194,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                 sls.remove(i)
                 decommission_sls = True
 
-        nn = utils.get_namenode(cluster)
-        spark_master = utils.get_masternode(cluster)
+        nn = utils.get_instance(cluster, "namenode")
+        spark_master = utils.get_instance(cluster, "master")
 
         if decommission_sls:
             sc.decommission_sl(spark_master, instances, sls)
@@ -213,7 +210,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         self._setup_instances(cluster, instances)
 
         run.refresh_nodes(remote.get_remote(
-            utils.get_namenode(cluster)), "dfsadmin")
+            utils.get_instance(cluster, "namenode")), "dfsadmin")
 
         self._start_slave_datanode_processes(instances)
 
@@ -268,9 +265,6 @@ class SparkProvider(p.ProvisioningPluginBase):
         key_cmd = 'sudo cp /home/ubuntu/id_rsa /home/ubuntu/.ssh/; '\
             'sudo chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa; '\
             'sudo chmod 600 /home/ubuntu/.ssh/id_rsa'
-            #'sudo mkdir -p /home/ubuntu/.ssh/; ' \
-            #'sudo chown -R hadoop:hadoop /home/ubuntu/.ssh; ' \
-            #'sudo chmod 600 /home/ubuntu/.ssh/{id_rsa,authorized_keys}'
 
         for ng in cluster.node_groups:
             dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
@@ -300,7 +294,6 @@ class SparkProvider(p.ProvisioningPluginBase):
 
             r.execute_command(hdfs_dir_cmd)
             r.execute_command(key_cmd)
-#            LOG.info("Cluster %s: configuring ssh" % cluster.name)
 
             if c_helper.is_data_locality_enabled(cluster):
                 r.write_file_to(
@@ -342,7 +335,6 @@ class SparkProvider(p.ProvisioningPluginBase):
             r.write_file_to('/etc/hadoop/topology.data', topology_data)
 
     def _push_master_configs(self, r, cluster, extra, instance):
-#        ng_extra = extra[instance.node_group.id]
         node_processes = instance.node_group.node_processes
 
         if 'namenode' in node_processes:
@@ -351,11 +343,11 @@ class SparkProvider(p.ProvisioningPluginBase):
     def _push_namenode_configs(self, cluster, r):
         r.write_file_to('/etc/hadoop/dn.incl',
                         utils.generate_fqdn_host_names(
-                            utils.get_datanodes(cluster)))
+                            utils.get_instances(cluster, "datanode")))
 
     def _set_cluster_info(self, cluster):
-        nn = utils.get_namenode(cluster)
-        sp_master = utils.get_masternode(cluster)
+        nn = utils.get_instance(cluster, "namenode")
+        sp_master = utils.get_instance(cluster, "master")
         info = {}
 
         if nn:
@@ -370,7 +362,6 @@ class SparkProvider(p.ProvisioningPluginBase):
         if sp_master:
             port = c_helper.get_config_value(
                 'SPARK', 'SPARK_MASTER_WEBUI_PORT', cluster)
-            #port = address[address.rfind(':') + 1:]
             if (port is not None):
                 info['SPARK'] = {
                     'Web UI': 'http://%s:%s' % (sp_master.management_ip, port)
@@ -388,7 +379,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         return None
 
     def _validate_additional_ng_scaling(self, cluster, additional):
-        master = utils.get_masternode(cluster)
+        master = utils.get_instance(cluster, "master")
         scalable_processes = self._get_scalable_processes()
 
         for ng_id in additional:
@@ -418,12 +409,12 @@ class SparkProvider(p.ProvisioningPluginBase):
                                  " with processes: " +
                                  ' '.join(ng.node_processes))
 
-        dn_amount = len(utils.get_datanodes(cluster))
+        dn_amount = len(utils.get_instances(cluster, "datanode"))
         rep_factor = c_helper.determine_cluster_config(cluster, 'HDFS',
                                                        "dfs.replication")
 
         if dn_to_delete > 0 and dn_amount - dn_to_delete < rep_factor:
             raise ex.ClusterCannotBeScaled(
                 cluster.name, "Spark plugin cannot shrink cluster because "
-                              "it would be not enough nodes for replicas "
+                              "there would be not enough nodes for replicas "
                               "(replication factor is %s)" % rep_factor)

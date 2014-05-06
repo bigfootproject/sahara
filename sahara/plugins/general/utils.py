@@ -42,14 +42,8 @@ def get_instance(cluster, node_process):
     return instances[0] if instances else None
 
 
-# ---------------SPARK------------------------
-def get_masternode(cluster):
-    return get_instance(cluster, "master")
-
-
-def get_slavenodes(cluster):
-    return get_instances(cluster, "slave")
-#---------------------------------------------
+def generate_host_names(nodes):
+    return "\n".join([n.hostname() for n in nodes])
 
 
 def generate_fqdn_host_names(nodes):

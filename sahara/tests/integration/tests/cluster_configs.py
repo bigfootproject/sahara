@@ -28,13 +28,6 @@ OOZIE_CONFIG = {'Oozie Heap Size': 520,
                 'oozie.notification.url.connection.timeout': 10001}
 
 CLUSTER_HDFS_CONFIG = {'dfs.replication': 2}
-CLUSTER_SPARK_CONFIG = {'SPARK_MASTER_PORT': 7077,
-                    'SPARK_MASTER_WEBUI_PORT': 8080,
-                    'SPARK_WORKER_CORES': 1,
-                    'SPARK_WORKER_MEMORY': 1024,
-                    'SPARK_WORKER_PORT': 9999,
-                    'SPARK_WORKER_WEBUI_PORT': 8080,
-                    'SPARK_WORKER_INSTANCES': ''}
 CLUSTER_MR_CONFIG = {'mapred.map.tasks.speculative.execution': False,
                      'mapred.child.java.opts': '-Xmx500m'}
 
@@ -55,14 +48,6 @@ CONFIG_MAP = {
     'tasktracker': {
         'service': 'MapReduce',
         'config': TT_CONFIG
-    },
-    'slave': {
-        'service': 'Spark',
-        'config': ''
-    },
-    'master': {
-        'service': 'Spark',
-        'config': ''
     },
     'oozie': {
         'service': 'JobFlow',
