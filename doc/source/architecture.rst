@@ -1,27 +1,27 @@
 Architecture
 ============
 
-.. image:: images/savanna-architecture.png
+.. image:: images/sahara-architecture.png
     :width: 800 px
     :scale: 99 %
     :align: left
 
 
-The Savanna architecture consists of several components:
+The Sahara architecture consists of several components:
 
-* Cluster Configuration Manager  - all the business logic resides here
-
-* Auth component - responsible for client authentication & authorization
+* Auth component - responsible for client authentication & authorization, communicates with Keystone
 
 * DAL - Data Access Layer, persists internal models in DB
 
-* VM Provisioning - component responsible for communication with Nova and Glance
+* Provisioning Engine - component responsible for communication with Nova, Heat, Cinder and Glance
 
-* Deployment Engine - pluggable mechanism responsible for deploying Hadoop on provisioned VMs;
+* Vendor Plugins - pluggable mechanism responsible for configuring and launching Hadoop on provisioned VMs;
   existing management solutions like Apache Ambari and Cloudera Management Console could be utilized for that matter
 
-* REST API - exposes Savanna functionality via REST
+* EDP - :doc:`../userdoc/edp` responsible for scheduling and managing Hadoop jobs on clusters provisioned by Sahara
 
-* Python Savanna Client - similar to other OpenStack components Savanna has its own python client
+* REST API - exposes Sahara functionality via REST
 
-* Savanna pages - GUI for the Savanna is located on Horizon
+* Python Sahara Client - similar to other OpenStack components Sahara has its own python client
+
+* Sahara pages - GUI for the Sahara is located on Horizon

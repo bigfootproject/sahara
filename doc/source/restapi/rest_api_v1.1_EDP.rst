@@ -1,15 +1,15 @@
-Savanna REST API v1.1 (EDP)
-***************************
+Sahara REST API v1.1 (EDP)
+**************************
 
 .. note::
 
-    REST API v1.1 corresponds to Savanna v0.3.X
+    REST API v1.1 corresponds to Sahara v0.3.X and Sahara Icehouse release
 
 1. General information
 ======================
 
 REST API v1.1 enhances the :doc:`rest_api_v1.0` and includes all requests from v1.0.
-REST API V1.1 is :doc:`edp` REST API. It covers the majority of new functions related to creating job binaries and job objects on running Hadoop clusters.
+REST API V1.1 is :doc:`../userdoc/edp` REST API. It covers the majority of new functions related to creating job binaries and job objects on running Hadoop clusters.
 
 2. Data Sources
 ===============
@@ -17,7 +17,7 @@ REST API V1.1 is :doc:`edp` REST API. It covers the majority of new functions re
 **Description**
 
 A Data Source object provides the location of input or output for MapReduce jobs and may reference different types of storage.
-Savanna doesn't perform any validation checks for data source locations.
+Sahara doesn't perform any validation checks for data source locations.
 
 **Data Source ops**
 
@@ -53,7 +53,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources
 
     **response**
 
@@ -68,28 +68,20 @@ This operation does not require a request body.
             "data_sources": [
                 {
                     "description": "This is input",
-                    "url": "swift://container.savanna/text",
+                    "url": "swift://container.sahara/text",
                     "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                     "created_at": "2013-10-09 12:37:19.295701",
                     "updated_at": null,
-                    "credentials": {
-                        "password": "swordfish",
-                        "user": "admin"
-                    },
                     "type": "swift",
                     "id": "151d0c0c-464f-4724-96a6-4732d0ca62e1",
                     "name": "input"
                 },
                 {
                     "description": "This is output",
-                    "url": "swift://container.savanna/result",
+                    "url": "swift://container.sahara/result",
                     "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                     "created_at": "2013-10-09 12:37:58.155911",
                     "updated_at": null,
-                    "credentials": {
-                        "password": "swordfish",
-                        "user": "admin"
-                    },
                     "type": "swift",
                     "id": "577e8bd8-b105-46f0-ace7-baee61e0adda",
                     "name": "output"
@@ -100,7 +92,6 @@ This operation does not require a request body.
                     "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                     "created_at": "2014-01-23 12:37:24.720387",
                     "updated_at": null,
-                    "credentials": {},
                     "type": "hdfs",
                     "id": "63e3d1e6-52d0-4d27-ab8a-f8e236ded200",
                     "name": "hdfs_input"
@@ -126,7 +117,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources/151d0c0c-464f-4724-96a6-4732d0ca62e1
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources/151d0c0c-464f-4724-96a6-4732d0ca62e1
 
     **response**
 
@@ -140,14 +131,10 @@ This operation does not require a request body.
         {
             "data_source": {
                 "description": "",
-                "url": "swift://container.savanna/text",
+                "url": "swift://container.sahara/text",
                 "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                 "created_at": "2013-10-09 12:37:19.295701",
                 "updated_at": null,
-                "credentials": {
-                    "password": "swordfish",
-                    "user": "admin"
-                },
                 "type": "swift",
                 "id": "151d0c0c-464f-4724-96a6-4732d0ca62e1",
                 "name": "input"
@@ -170,13 +157,13 @@ This operation returns the created Data Source.
 
     .. sourcecode:: http
 
-        POST http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources
+        POST http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources
 
     .. sourcecode:: json
 
         {
             "description": "This is input",
-            "url": "swift://container.savanna/text",
+            "url": "swift://container.sahara/text",
             "credentials": {
                 "password": "swordfish",
                 "user": "admin"
@@ -197,13 +184,9 @@ This operation returns the created Data Source.
         {
             "data_source": {
                 "description": "This is input",
-                "url": "swift://container.savanna/text",
+                "url": "swift://container.sahara/text",
                 "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                 "created_at": "2013-10-15 11:15:25.971886",
-                "credentials": {
-                    "password": "swordfish",
-                    "user": "admin"
-                },
                 "type": "swift",
                 "id": "af7dc864-6331-4c30-80f5-63d74b667eaf",
                 "name": "text"
@@ -218,7 +201,7 @@ This operation returns the created Data Source.
 
     .. sourcecode:: http
 
-        POST http://savanna:8386/v1.1/e262c255a7de4a0ab0434bafd75660cd/data-sources
+        POST http://sahara:8386/v1.1/e262c255a7de4a0ab0434bafd75660cd/data-sources
 
     .. sourcecode:: json
 
@@ -244,7 +227,6 @@ This operation returns the created Data Source.
                 "url": "hdfs://test-master-node:8020/user/hadoop/input",
                 "tenant_id": "e262c255a7de4a0ab0434bafd75660cd",
                 "created_at": "2014-01-23 12:37:24.720387",
-                "credentials": {},
                 "type": "hdfs",
                 "id": "63e3d1e6-52d0-4d27-ab8a-f8e236ded200",
                 "name": "hdfs_input"
@@ -272,7 +254,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        DELETE http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources/af7dc864-6331-4c30-80f5-63d74b667eaf
+        DELETE http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/data-sources/af7dc864-6331-4c30-80f5-63d74b667eaf
 
     **response**
 
@@ -286,7 +268,7 @@ This operation does not require a request body.
 
 **Description**
 
-Job Binary Internals are objects for storing job binaries in the Savanna internal database.
+Job Binary Internals are objects for storing job binaries in the Sahara internal database.
 A Job Binary Internal contains raw data of executable Jar files, Pig or Hive scripts.
 
 **Job Binary Internal ops**
@@ -325,7 +307,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals
 
     **response**
 
@@ -375,7 +357,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/d2498cbf-4589-484a-a814-81436c18beb3
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/d2498cbf-4589-484a-a814-81436c18beb3
 
     **response**
 
@@ -415,7 +397,7 @@ The request body should contain raw data (file) or script text.
 
     .. sourcecode:: http
 
-        PUT http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/script.pig
+        PUT http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/script.pig
 
     **response**
 
@@ -446,7 +428,7 @@ Normal Response Code: 204 (NO CONTENT)
 
 Errors: none
 
-Removes Job Binary Internal object from Savanna's db
+Removes Job Binary Internal object from Sahara's db
 
 This operation returns nothing.
 
@@ -457,7 +439,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        DELETE http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/4833dc4b-8682-4d5b-8a9f-2036b47a0996
+        DELETE http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/4833dc4b-8682-4d5b-8a9f-2036b47a0996
 
     **response**
 
@@ -486,7 +468,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/4248975-3c82-4206-a58d-6e7fb3a563fd/data
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binary-internals/4248975-3c82-4206-a58d-6e7fb3a563fd/data
 
     **response**
 
@@ -501,7 +483,7 @@ This operation does not require a request body.
 
 **Description**
 
-Job Binaries objects are designed to create links to certain binaries stored either in Savanna internal db or in Swift.
+Job Binaries objects are designed to create links to certain binaries stored either in the Sahara internal database or in Swift.
 
 **Job Binaries ops**
 
@@ -539,7 +521,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries
 
     **response**
 
@@ -554,8 +536,7 @@ This operation does not require a request body.
             "binaries": [
                 {
                     "description": "",
-                    "extra": {},
-                    "url": "savanna-db://d2498cbf-4589-484a-a814-81436c18beb3",
+                    "url": "internal-db://d2498cbf-4589-484a-a814-81436c18beb3",
                     "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                     "created_at": "2013-10-15 12:36:59.375060",
                     "updated_at": null,
@@ -564,8 +545,7 @@ This operation does not require a request body.
                 },
                 {
                     "description": "",
-                    "extra": {},
-                    "url": "savanna-db://22f1d87a-23c8-483e-a0dd-cb4a16dde5f9",
+                    "url": "internal-db://22f1d87a-23c8-483e-a0dd-cb4a16dde5f9",
                     "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                     "created_at": "2013-10-15 12:43:52.265899",
                     "updated_at": null,
@@ -574,10 +554,6 @@ This operation does not require a request body.
                 },
                 {
                     "description": "",
-                    "extra": {
-                        "password": "swordfish",
-                        "user": "admin"
-                    },
                     "url": "swift://container/jar-example.jar",
                     "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                     "created_at": "2013-10-15 14:25:04.970513",
@@ -606,7 +582,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries/a716a9cd-9add-4b12-b1b6-cdb71aaef350
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries/a716a9cd-9add-4b12-b1b6-cdb71aaef350
 
     **response**
 
@@ -620,10 +596,6 @@ This operation does not require a request body.
         {
             "job_binary": {
                 "description": "",
-                "extra": {
-                    "password": "swordfish",
-                    "user": "admin"
-                },
                 "url": "swift://container/jar-example.jar",
                 "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                 "created_at": "2013-10-15 14:25:04.970513",
@@ -649,7 +621,7 @@ This operation shows information about the created Job Binary.
 
     .. sourcecode:: http
 
-        POST http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries
+        POST http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries
 
     .. sourcecode:: json
 
@@ -675,10 +647,6 @@ This operation shows information about the created Job Binary.
         {
             "job_binary": {
                 "description": "This is job binary",
-                "extra": {
-                    "password": "swordfish",
-                    "user": "admin"
-                },
                 "url": "swift://container/jar-example.jar",
                 "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                 "created_at": "2013-10-15 14:49:20.106452",
@@ -707,7 +675,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        DELETE http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries/07f86352-ee8a-4b08-b737-d705ded5ff9c
+        DELETE http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries/07f86352-ee8a-4b08-b737-d705ded5ff9c
 
     **response**
 
@@ -736,7 +704,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries/84248975-3c82-4206-a58d-6e7fb3a563fd/data
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/job-binaries/84248975-3c82-4206-a58d-6e7fb3a563fd/data
 
     **response**
 
@@ -794,7 +762,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs
 
     **response**
 
@@ -814,8 +782,7 @@ This operation does not require a request body.
                     "mains": [
                         {
                             "description": "",
-                            "extra": {},
-                            "url": "savanna-db://d2498cbf-4589-484a-a814-81436c18beb3",
+                            "url": "internal-db://d2498cbf-4589-484a-a814-81436c18beb3",
                             "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                             "created_at": "2013-10-15 12:36:59.375060",
                             "updated_at": null,
@@ -827,8 +794,7 @@ This operation does not require a request body.
                     "libs": [
                         {
                             "description": "",
-                            "extra": {},
-                            "url": "savanna-db://22f1d87a-23c8-483e-a0dd-cb4a16dde5f9",
+                            "url": "internal-db://22f1d87a-23c8-483e-a0dd-cb4a16dde5f9",
                             "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                             "created_at": "2013-10-15 12:43:52.265899",
                             "updated_at": null,
@@ -849,10 +815,6 @@ This operation does not require a request body.
                     "libs": [
                         {
                             "description": "This is job binary",
-                            "extra": {
-                                "password": "swordfish",
-                                "user": "admin"
-                            },
                             "url": "swift://container/jar-example.jar",
                             "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                             "created_at": "2013-10-15 16:03:37.979630",
@@ -886,7 +848,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/7600373c-d262-45c6-845f-77f339f3e503
+        GET http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/7600373c-d262-45c6-845f-77f339f3e503
 
     **response**
 
@@ -907,10 +869,6 @@ This operation does not require a request body.
                 "libs": [
                     {
                         "description": "This is job binary",
-                        "extra": {
-                            "password": "swordfish",
-                            "user": "admin"
-                        },
                         "url": "swift://container/jar-example.jar",
                         "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                         "created_at": "2013-10-15 16:03:37.979630",
@@ -941,7 +899,7 @@ This operation shows information about the created Job object.
 
     .. sourcecode:: http
 
-        POST http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs
+        POST http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs
 
     .. sourcecode:: json
 
@@ -970,8 +928,7 @@ This operation shows information about the created Job object.
                 "mains": [
                     {
                         "description": "",
-                        "extra": {},
-                        "url": "savanna-db://d2498cbf-4589-484a-a814-81436c18beb3",
+                        "url": "internal-db://d2498cbf-4589-484a-a814-81436c18beb3",
                         "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                         "created_at": "2013-10-15 12:36:59.375060",
                         "updated_at": null,
@@ -982,8 +939,7 @@ This operation shows information about the created Job object.
                 "libs": [
                     {
                         "description": "",
-                        "extra": {},
-                        "url": "savanna-db://22f1d87a-23c8-483e-a0dd-cb4a16dde5f9",
+                        "url": "internal-db://22f1d87a-23c8-483e-a0dd-cb4a16dde5f9",
                         "tenant_id": "11587919cc534bcbb1027a161c82cf58",
                         "created_at": "2013-10-15 12:43:52.265899",
                         "updated_at": null,
@@ -1017,7 +973,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        DELETE http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/07f86352-ee8a-4b08-b737-d705ded5ff9c
+        DELETE http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/07f86352-ee8a-4b08-b737-d705ded5ff9c
 
     **response**
 
@@ -1047,7 +1003,7 @@ This REST call is used just for hints and doesn't force the user to apply any of
 
     .. sourcecode:: http
 
-        GET http://savanna/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/config-hints/Jar
+        GET http://sahara/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/config-hints/MapReduce
 
     **response**
 
@@ -1135,14 +1091,14 @@ Normal Response Code: 202 (ACCEPTED)
 
 Errors: none
 
-This operation returns the created Job Execution object. Note that different job types support different combinations of ``configs``, ``args``, and ``params``.  The :doc:`edp` document discusses these differences.
+This operation returns the created Job Execution object. Note that different job types support different combinations of ``configs``, ``args``, and ``params``.  The :doc:`../userdoc/edp` document discusses these differences.
 
 **Example execution of a Pig job**:
     **request**
 
     .. sourcecode:: http
 
-        POST http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/65afed9c-dad7-4658-9554-b7b4e1ca908f/execute
+        POST http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/65afed9c-dad7-4658-9554-b7b4e1ca908f/execute
 
     .. sourcecode:: json
 
@@ -1206,7 +1162,7 @@ This operation returns the created Job Execution object. Note that different job
 
     .. sourcecode:: http
 
-        POST http://savanna:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/65afed9c-dad7-4658-9554-b7b4e1ca908f/execute
+        POST http://sahara:8386/v1.1/11587919cc534bcbb1027a161c82cf58/jobs/65afed9c-dad7-4658-9554-b7b4e1ca908f/execute
 
     .. sourcecode:: json
 
@@ -1214,11 +1170,11 @@ This operation returns the created Job Execution object. Note that different job
             "cluster_id": "776e441b-5816-4d47-9e07-7ded58f9a5f6",
             "job_configs": {
                 "configs": {
-                    "fs.swift.service.savanna.username": "myname",
-                    "fs.swift.service.savanna.password": "mypassword",
+                    "fs.swift.service.sahara.username": "myname",
+                    "fs.swift.service.sahara.password": "mypassword",
                     "edp.java.main_class": "org.apache.hadoop.examples.WordCount"
                 },
-                "args": ["swift://integration.savanna/demo/make_job.sh", "swift://integration.savanna/friday"]
+                "args": ["swift://integration.sahara/demo/make_job.sh", "swift://integration.sahara/friday"]
             }
         }
 
@@ -1245,12 +1201,12 @@ This operation returns the created Job Execution object. Note that different job
                 "job_configs": {
                     "configs": {
                         "edp.java.main_class": "org.apache.hadoop.examples.WordCount",
-                        "fs.swift.service.savanna.password": "myname",
-                        "fs.swift.service.savanna.username": "mypassword"
+                        "fs.swift.service.sahara.password": "myname",
+                        "fs.swift.service.sahara.username": "mypassword"
                     },
                     "args": [
-                        "swift://integration.savanna/demo/make_job.sh",
-                        "swift://integration.savanna/friday"
+                        "swift://integration.sahara/demo/make_job.sh",
+                        "swift://integration.sahara/friday"
                     ]
                 },
                 "id": "724709bf-2268-46ed-8daf-47898b4630b4"
@@ -1263,9 +1219,9 @@ This operation returns the created Job Execution object. Note that different job
 
 **Description**
 
-Job Execution object represents a Hadoop Job executing on specified cluster.
-Job Execution polls status of running Job from Oozie service and reports it to user.
-Also user has the ability to cancel the running job.
+A Job Execution object represents a Hadoop Job executing on specified cluster.
+A Job Execution polls the status of a running Job and reports it to the user.
+Also a user has the ability to cancel a running job.
 
 **Job Executions ops**
 
@@ -1303,7 +1259,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions
+        GET http://sahara/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions
 
     **response**
 
@@ -1361,7 +1317,7 @@ This operation does not require a request body.
                                 "consoleUrl": "http://edp-master-001:50030/jobdetails.jsp?jobid=job_201310171352_0001",
                                 "toString": "Action name[job-node] status[RUNNING]",
                                 "externalStatus": "RUNNING",
-                                "conf": "<pig xmlns=\"uri:oozie:workflow:0.2\">\r\n  <job-tracker>edp-master-001:8021</job-tracker>\r\n  <name-node>hdfs://edp-master-001:8020</name-node>\r\n  <configuration>\r\n    <property>\r\n      <name>fs.swift.service.savanna.password</name>\r\n      <value>swordfish</value>\r\n    </property>\r\n    <property>\r\n      <name>fs.swift.service.savanna.username</name>\r\n      <value>admin</value>\r\n    </property>\r\n  </configuration>\r\n  <script>example.pig</script>\r\n  <param>INPUT=swift://container.savanna/text</param>\r\n  <param>OUTPUT=swift://container.savanna/output</param>\r\n</pig>",
+                                "conf": "<pig xmlns=\"uri:oozie:workflow:0.2\">\r\n  <job-tracker>edp-master-001:8021</job-tracker>\r\n  <name-node>hdfs://edp-master-001:8020</name-node>\r\n  <configuration>\r\n    <property>\r\n      <name>fs.swift.service.sahara.password</name>\r\n      <value>swordfish</value>\r\n    </property>\r\n    <property>\r\n      <name>fs.swift.service.sahara.username</name>\r\n      <value>admin</value>\r\n    </property>\r\n  </configuration>\r\n  <script>example.pig</script>\r\n  <param>INPUT=swift://container.sahara/text</param>\r\n  <param>OUTPUT=swift://container.sahara/output</param>\r\n</pig>",
                                 "type": "pig",
                                 "trackerUri": "edp-master-001:8021",
                                 "externalChildIDs": null,
@@ -1437,7 +1393,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions/e63bdc21-0126-4fd2-90c6-5163d16f31df
+        GET http://sahara/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions/e63bdc21-0126-4fd2-90c6-5163d16f31df
 
     **response**
 
@@ -1458,7 +1414,7 @@ Normal Response Code: 200 (OK)
 
 Errors: none
 
-This operation refreshes status of specified Job Execution and shows its information.
+This operation refreshes the status of the specified Job Execution and shows its information.
 
 This operation does not require a request body.
 
@@ -1467,7 +1423,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions/4a911624-1e25-4650-bd1d-382d19695708/refresh-status
+        GET http://sahara/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions/4a911624-1e25-4650-bd1d-382d19695708/refresh-status
 
     **response**
 
@@ -1497,7 +1453,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        GET http://savanna/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions/4a911624-1e25-4650-bd1d-382d19695708/refresh-status
+        GET http://sahara/v1.1/11587919cc534bcbb1027a161c82cf58/job-executions/4a911624-1e25-4650-bd1d-382d19695708/refresh-status
 
     **response**
 
@@ -1518,7 +1474,7 @@ Normal Response Code: 204 (NO CONTENT)
 
 Errors: none
 
-Remove existing Job Execution.
+Remove an existing Job Execution.
 
 This operation returns nothing.
 
@@ -1529,7 +1485,7 @@ This operation does not require a request body.
 
     .. sourcecode:: http
 
-        DELETE http://savanna/v1.1/job-executions/<job-execution-id>/d7g51a-8123-424e-sdsr3-eb222ec989b1
+        DELETE http://sahara/v1.1/job-executions/<job-execution-id>/d7g51a-8123-424e-sdsr3-eb222ec989b1
 
     **response**
 
@@ -1543,7 +1499,7 @@ This operation does not require a request body.
 Job Execution object
 ====================
 
-The following json response represents Job Execution object returned from Savanna
+The following json response represents a Job Execution object returned from Sahara
 
 .. sourcecode:: json
 
@@ -1592,7 +1548,7 @@ The following json response represents Job Execution object returned from Savann
                     "consoleUrl": "http://edp-master-001:50030/jobdetails.jsp?jobid=job_201310171352_0001",
                     "toString": "Action name[job-node] status[RUNNING]",
                     "externalStatus": "RUNNING",
-                    "conf": "<pig xmlns=\"uri:oozie:workflow:0.2\">\r\n  <job-tracker>edp-master-001:8021</job-tracker>\r\n  <name-node>hdfs://edp-master-001:8020</name-node>\r\n  <configuration>\r\n    <property>\r\n      <name>fs.swift.service.savanna.password</name>\r\n      <value>swordfish</value>\r\n    </property>\r\n    <property>\r\n      <name>fs.swift.service.savanna.username</name>\r\n      <value>admin</value>\r\n    </property>\r\n  </configuration>\r\n  <script>example.pig</script>\r\n  <param>INPUT=swift://container.savanna/text</param>\r\n  <param>OUTPUT=swift://container.savanna/output</param>\r\n</pig>",
+                    "conf": "<pig xmlns=\"uri:oozie:workflow:0.2\">\r\n  <job-tracker>edp-master-001:8021</job-tracker>\r\n  <name-node>hdfs://edp-master-001:8020</name-node>\r\n  <configuration>\r\n    <property>\r\n      <name>fs.swift.service.sahara.password</name>\r\n      <value>swordfish</value>\r\n    </property>\r\n    <property>\r\n      <name>fs.swift.service.sahara.username</name>\r\n      <value>admin</value>\r\n    </property>\r\n  </configuration>\r\n  <script>example.pig</script>\r\n  <param>INPUT=swift://container.sahara/text</param>\r\n  <param>OUTPUT=swift://container.sahara/output</param>\r\n</pig>",
                     "type": "pig",
                     "trackerUri": "edp-master-001:8021",
                     "externalChildIDs": null,

@@ -2,13 +2,13 @@ Quickstart guide
 ================
 
 This guide will help you to setup vanilla Hadoop cluster using
-:doc:`../userdoc/rest_api_v1.0`.
+:doc:`../restapi/rest_api_v1.0`.
 
-1. Install Savanna
-------------------
+1. Install Sahara
+-----------------
 
 * If you want to hack the code follow :doc:`development.environment`.
-* If you just want to install and use Savanna follow :doc:`../userdoc/installation.guide`.
+* If you just want to install and use Sahara follow :doc:`../userdoc/installation.guide`.
 
 
 2. Keystone endpoints setup
@@ -17,7 +17,7 @@ This guide will help you to setup vanilla Hadoop cluster using
 To use CLI tools, such as OpenStack's python clients, we should specify
 environment variables with addresses and credentials. Let's mind that we have
 keystone at ``127.0.0.1:5000`` with tenant ``admin``, credentials ``admin:nova``
-and Savanna API at ``127.0.0.1:8386``. Here is a list of commands to set env:
+and Sahara API at ``127.0.0.1:8386``. Here is a list of commands to set env:
 
 .. sourcecode:: console
 
@@ -28,7 +28,7 @@ and Savanna API at ``127.0.0.1:8386``. Here is a list of commands to set env:
 
 
 You can append these lines to the ``.bashrc`` and execute ``source .bashrc``.
-Now you can get authentification token from OpenStack Keystone service.
+Now you can get authentication token from OpenStack Keystone service.
 
 .. sourcecode:: console
 
@@ -63,24 +63,24 @@ authentication token (X-Auth-Token):
 You can download pre-built images with vanilla Apache Hadoop or build this
 images yourself:
 
-* Download and install pre-built image with Ubuntu 13.04
+* Download and install pre-built image with Ubuntu 13.10
 
 .. sourcecode:: console
 
     $ ssh user@hostname
-    $ wget http://savanna-files.mirantis.com/savanna-0.3-vanilla-1.2.1-ubuntu-13.04.qcow2
-    $ glance image-create --name=savanna-0.3-vanilla-1.2.1-ubuntu-13.04 \
-      --disk-format=qcow2 --container-format=bare < ./savanna-0.3-vanilla-1.2.1-ubuntu-13.04.qcow2
+    $ wget http://sahara-files.mirantis.com/sahara-icehouse-vanilla-1.2.1-ubuntu-13.10.qcow2
+    $ glance image-create --name=sahara-icehouse-vanilla-1.2.1-ubuntu-13.10 \
+      --disk-format=qcow2 --container-format=bare < ./sahara-icehouse-vanilla-1.2.1-ubuntu-13.10.qcow2
 
 
-* OR with Fedora 19
+* OR with Fedora 20
 
 .. sourcecode:: console
 
     $ ssh user@hostname
-    $ wget http://savanna-files.mirantis.com/savanna-0.3-vanilla-1.2.1-fedora-19.qcow2
-    $ glance image-create --name=savanna-0.3-vanilla-1.2.1-fedora-19 \
-      --disk-format=qcow2 --container-format=bare < ./savanna-0.3-vanilla-1.2.1-fedora-19.qcow2
+    $ wget http://sahara-files.mirantis.com/sahara-icehouse-vanilla-1.2.1-fedora-20.qcow2
+    $ glance image-create --name=sahara-icehouse-vanilla-1.2.1-fedora-20 \
+      --disk-format=qcow2 --container-format=bare < ./sahara-icehouse-vanilla-1.2.1-fedora-20.qcow2
 
 
 * OR build image using :doc:`../userdoc/diskimagebuilder`.
@@ -90,12 +90,12 @@ Save image id. You can get image id from command ``glance image-list``:
 
 .. sourcecode:: console
 
-    $ glance image-list --name savanna-0.3-vanilla-1.2.1-ubuntu-13.04
-    +--------------------------------------+-----------------------------------------+
-    | ID                                   | Name                                    |
-    +--------------------------------------+-----------------------------------------+
-    | 3f9fc974-b484-4756-82a4-bff9e116919b | savanna-0.3-vanilla-1.2.1-ubuntu-13.04  |
-    +--------------------------------------+-----------------------------------------+
+    $ glance image-list --name sahara-icehouse-vanilla-1.2.1-ubuntu-13.10
+    +--------------------------------------+---------------------------------------------+
+    | ID                                   | Name                                        |
+    +--------------------------------------+---------------------------------------------+
+    | 3f9fc974-b484-4756-82a4-bff9e116919b | sahara-icehouse-vanilla-1.2.1-ubuntu-13.10  |
+    +--------------------------------------+---------------------------------------------+
 
     $ export IMAGE_ID="3f9fc974-b484-4756-82a4-bff9e116919b"
 
@@ -103,11 +103,11 @@ Save image id. You can get image id from command ``glance image-list``:
 4. Register image in Image Registry
 -----------------------------------
 
-* Now we will actually start to interact with Savanna.
+* Now we will actually start to interact with Sahara.
 
 .. sourcecode:: console
 
-    $ export SAVANNA_URL="http://localhost:8386/v1.0/$TENANT_ID"
+    $ export SAHARA_URL="http://localhost:8386/v1.0/$TENANT_ID"
 
 * Install ``httpie`` REST client
 
@@ -115,11 +115,11 @@ Save image id. You can get image id from command ``glance image-list``:
 
     $ sudo pip install httpie
 
-* Send POST request to Savanna API to register image with username ``ubuntu``.
+* Send POST request to Sahara API to register image with username ``ubuntu``.
 
 .. sourcecode:: console
 
-    $ http POST $SAVANNA_URL/images/$IMAGE_ID X-Auth-Token:$AUTH_TOKEN \
+    $ http POST $SAHARA_URL/images/$IMAGE_ID X-Auth-Token:$AUTH_TOKEN \
      username=ubuntu
 
 
@@ -127,14 +127,14 @@ Save image id. You can get image id from command ``glance image-list``:
 
 .. sourcecode:: console
 
-    $ http $SAVANNA_URL/images/$IMAGE_ID/tag X-Auth-Token:$AUTH_TOKEN \
+    $ http $SAHARA_URL/images/$IMAGE_ID/tag X-Auth-Token:$AUTH_TOKEN \
      tags:='["vanilla", "1.2.1", "ubuntu"]'
 
 * Make sure that image is registered correctly:
 
 .. sourcecode:: console
 
-    $ http $SAVANNA_URL/images X-Auth-Token:$AUTH_TOKEN
+    $ http $SAHARA_URL/images X-Auth-Token:$AUTH_TOKEN
 
 * Output should look like:
 
@@ -148,15 +148,15 @@ Save image id. You can get image id from command ``glance image-list``:
                 "description": "None",
                 "id": "3f9fc974-b484-4756-82a4-bff9e116919b",
                 "metadata": {
-                    "_savanna_description": "None",
-                    "_savanna_tag_1.2.1": "True",
-                    "_savanna_tag_ubuntu": "True",
-                    "_savanna_tag_vanilla": "True",
-                    "_savanna_username": "ubuntu"
+                    "_sahara_description": "None",
+                    "_sahara_tag_1.2.1": "True",
+                    "_sahara_tag_ubuntu": "True",
+                    "_sahara_tag_vanilla": "True",
+                    "_sahara_username": "ubuntu"
                 },
                 "minDisk": 0,
                 "minRam": 0,
-                "name": "savanna-0.3-vanilla-1.2.1-ubuntu-13.04",
+                "name": "sahara-icehouse-vanilla-1.2.1-ubuntu-13.10",
                 "progress": 100,
                 "status": "ACTIVE",
                 "tags": [
@@ -200,23 +200,23 @@ following content:
         "node_processes": ["tasktracker", "datanode"]
     }
 
-Send POST requests to Savanna API to upload NodeGroup templates:
+Send POST requests to Sahara API to upload NodeGroup templates:
 
 .. sourcecode:: console
 
-    $ http $SAVANNA_URL/node-group-templates X-Auth-Token:$AUTH_TOKEN \
+    $ http $SAHARA_URL/node-group-templates X-Auth-Token:$AUTH_TOKEN \
      < ng_master_template_create.json
 
-    $ http $SAVANNA_URL/node-group-templates X-Auth-Token:$AUTH_TOKEN \
+    $ http $SAHARA_URL/node-group-templates X-Auth-Token:$AUTH_TOKEN \
      < ng_worker_template_create.json
 
 
 You can list available NodeGroup templates by sending the following request to
-Savanna API:
+Sahara API:
 
 .. sourcecode:: console
 
-    $ http $SAVANNA_URL/node-group-templates X-Auth-Token:$AUTH_TOKEN
+    $ http $SAHARA_URL/node-group-templates X-Auth-Token:$AUTH_TOKEN
 
 Output should look like:
 
@@ -294,11 +294,11 @@ following content:
         ]
     }
 
-Send POST request to Savanna API to upload Cluster template:
+Send POST request to Sahara API to upload Cluster template:
 
 .. sourcecode:: console
 
-    $ http $SAVANNA_URL/cluster-templates X-Auth-Token:$AUTH_TOKEN \
+    $ http $SAHARA_URL/cluster-templates X-Auth-Token:$AUTH_TOKEN \
      < cluster_template_create.json
 
 Save template id. For example ``ce897df2-1610-4caa-bdb8-408ef90561cf``.
@@ -328,11 +328,11 @@ your own keypair in in Horizon UI, or using the command line client:
     nova keypair-add stack --pub-key $PATH_TO_PUBLIC_KEY
 
 
-Send POST request to Savanna API to create and start the cluster:
+Send POST request to Sahara API to create and start the cluster:
 
 .. sourcecode:: console
 
-    $ http $SAVANNA_URL/clusters X-Auth-Token:$AUTH_TOKEN \
+    $ http $SAHARA_URL/clusters X-Auth-Token:$AUTH_TOKEN \
      < cluster_create.json
 
 

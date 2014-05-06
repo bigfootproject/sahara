@@ -6,7 +6,7 @@ marriage. There were two steps to achieve this:
 * Hadoop side: https://issues.apache.org/jira/browse/HADOOP-8545
     This patch is not merged yet and is still being developed, so that's why
     there is an ability to get the latest-version jar file from CDN:
-    http://savanna-files.mirantis.com/hadoop-swift/hadoop-swift-latest.jar
+    http://sahara-files.mirantis.com/hadoop-swift/hadoop-swift-latest.jar
 * Swift side: https://review.openstack.org/#/c/21015
     This patch is merged into Grizzly. If you want to make it work in Folsom
     see the instructions in the section below.
@@ -69,7 +69,7 @@ Hadoop patching
 ---------------
 You may build jar file by yourself choosing the latest patch from
 https://issues.apache.org/jira/browse/HADOOP-8545. Or you may get the latest
-one from CDN http://savanna-files.mirantis.com/hadoop-swift/hadoop-swift-latest.jar
+one from CDN http://sahara-files.mirantis.com/hadoop-swift/hadoop-swift-latest.jar
 You need to put this file to hadoop libraries (e.g. /usr/lib/share/hadoop/lib)
 into each job-tracker and task-tracker node in cluster. The main step in this
 section is to configure core-site.xml file on each of this node.
@@ -126,12 +126,12 @@ Example
 -------
 By this point Swift and Hadoop is ready for use. All configs in hadoop is ok.
 
-In example below provider's name is ``savanna``. So let's copy one object
+In example below provider's name is ``sahara``. So let's copy one object
 to another in one swift container and account. E.g. /dev/integration/temp
 to /dev/integration/temp1. Will use distcp for this purpose:
 http://hadoop.apache.org/docs/r0.19.0/distcp.html
 
-How to write swift path? In our case it will look as follows: ``swift://integration.savanna/temp``.
+How to write swift path? In our case it will look as follows: ``swift://integration.sahara/temp``.
 So the template is: ``swift://${container}.${provider}/${object}``.
 We don't need to point out the account because it will be automatically
 determined from tenant name from configs. Actually, account=tenant.
@@ -140,9 +140,9 @@ Let's run the job:
 
 .. sourcecode:: console
 
-    $ hadoop distcp -D fs.swift.service.savanna.username=admin \
-     -D fs.swift.service.savanna.password=swordfish \
-     swift://integration.savanna/temp swift://integration.savanna/temp1
+    $ hadoop distcp -D fs.swift.service.sahara.username=admin \
+     -D fs.swift.service.sahara.password=swordfish \
+     swift://integration.sahara/temp swift://integration.sahara/temp1
 
 After that just check if temp1 is created.
 

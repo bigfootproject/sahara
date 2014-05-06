@@ -1,7 +1,7 @@
-Welcome to Savanna!
+Welcome to Sahara!
 ===================
 
-Savanna project aims to provide users with simple means to provision a Hadoop
+Sahara project aims to provide users with simple means to provision a Hadoop
 cluster at OpenStack by specifying several parameters like Hadoop version,
 cluster topology, nodes hardware details and a few more.
 
@@ -13,7 +13,7 @@ Overview
 
     overview
     architecture
-    Roadmap <https://wiki.openstack.org/wiki/Savanna/Roadmap>
+    Roadmap <https://wiki.openstack.org/wiki/Sahara/Roadmap>
 
 
 User guide
@@ -25,7 +25,9 @@ User guide
    :maxdepth: 1
 
    userdoc/installation.guide
+   userdoc/configuration.guide
    horizon/installation.guide
+   userdoc/upgrade.guide
 
 **How To**
 
@@ -83,9 +85,10 @@ Developer Guide
     devref/quickstart
     devref/how_to_participate
     devref/how_to_build_oozie
+    devref/adding_database_migrations
+    devref/testing
 
-
-**Background Concepts for Savanna**
+**Background Concepts for Sahara**
 
 .. toctree::
     :maxdepth: 1

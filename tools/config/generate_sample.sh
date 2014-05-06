@@ -95,11 +95,11 @@ then
     source "$RC_FILE"
 fi
 
-for mod in ${SAVANNA_CONFIG_GENERATOR_EXTRA_MODULES}; do
+for mod in ${SAHARA_CONFIG_GENERATOR_EXTRA_MODULES}; do
     MODULES="$MODULES -m $mod"
 done
 
-for lib in ${SAVANNA_CONFIG_GENERATOR_EXTRA_LIBRARIES}; do
+for lib in ${SAHARA_CONFIG_GENERATOR_EXTRA_LIBRARIES}; do
     LIBRARIES="$LIBRARIES -l $lib"
 done
 
@@ -107,7 +107,7 @@ export EVENTLET_NO_GREENDNS=yes
 
 OS_VARS=$(set | sed -n '/^OS_/s/=[^=]*$//gp' | xargs)
 [ "$OS_VARS" ] && eval "unset \$OS_VARS"
-DEFAULT_MODULEPATH=savanna.openstack.common.config.generator
+DEFAULT_MODULEPATH=sahara.openstack.common.config.generator
 MODULEPATH=${MODULEPATH:-$DEFAULT_MODULEPATH}
 OUTPUTFILE=$OUTPUTDIR/$PACKAGENAME.conf.sample
 python -m $MODULEPATH $MODULES $LIBRARIES $FILES > $OUTPUTFILE
