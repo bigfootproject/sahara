@@ -16,20 +16,6 @@
 import sahara.exceptions as e
 
 
-class NotSingleMasterNodeException(e.SaharaException):
-    def __init__(self, nn_count):
-        self.message = ("Spark cluster should contain only 1 master node "
-                        "instance. Actual master node count is %s" % nn_count)
-        self.code = "NOT_SINGLE_MASTER_NODE"
-
-
-class NotSlaveNodeException(e.SaharaException):
-    def __init__(self, nn_count):
-        self.message = ("Spark cluster should contain at least 1 slave node "
-                        "instance. Actual slave node count is %s" % nn_count)
-        self.code = "NOT_SINGLE_SLAVE_NODE"
-
-
 class NodeGroupCannotBeScaled(e.SaharaException):
     def __init__(self, ng_name, reason):
         self.message = ("Chosen node group %s cannot be scaled : "

@@ -65,25 +65,27 @@ class SparkProvider(p.ProvisioningPluginBase):
         nn_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "namenode")])
         if nn_count != 1:
-            raise ex.NotSingleNameNodeException(nn_count)
+            raise ex.InvalidComponentCountException("namenode", 1, nn_count)
 
         dn_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "datanode")])
         if dn_count < 1:
-            raise ex.NotSingleDataNodeException(nn_count)
+            raise ex.InvalidComponentCountException("datanode", "1 or more",
+                                                    nn_count)
 
         # validate Spark Master Node and Spark Slaves
         sm_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "master")])
 
         if sm_count != 1:
-            raise ex.NotSingleMasterNodeException(sm_count)
+            raise ex.RequiredServiceMissingException("Spark master")
 
         sl_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "slave")])
 
         if sl_count < 1:
-            raise ex.NotSlaveNodeException(sl_count)
+            raise ex.InvalidComponentCountException("Spark slave", "1 or more",
+                                                    sl_count)
 
     def update_infra(self, cluster):
         pass
