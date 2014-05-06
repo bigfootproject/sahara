@@ -230,17 +230,7 @@
 
 # List of plugins to be loaded. Sahara preserves the order of
 # the list when returning it. (list value)
-plugins=vanilla,hdp,spark
-
-
-[plugin:vanilla]
-plugin_class=savanna.plugins.vanilla.plugin:VanillaProvider
-
-[plugin:hdp]
-plugin_class=savanna.plugins.hdp.ambariplugin:AmbariPlugin
-
-[plugin:spark]
-plugin_class=savanna.plugins.spark.plugin:SparkProvider
+#plugins=vanilla,hdp
 
 
 #
