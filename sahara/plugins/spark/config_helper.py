@@ -40,11 +40,57 @@ XML_CONFS = {
 
 SPARK_CONFS = {
     'Spark': {
-        "OPTIONS": ['Master port', 'Worker port',
-                    'Master webui port', 'Worker webui port',
-                    'Worker cores', 'Worker memory',
-                    'Worker instances'
-                    ]
+        "OPTIONS": [
+            {
+                'name': 'Master port',
+                'description': 'Start the master on a different port'
+                ' (default: 7077)',
+                'default': '7077',
+                'priority': 2,
+            },
+            {
+                'name': 'Worker port',
+                'description': 'Start the Spark worker on a specific port'
+                ' (default: random)',
+                'default': 'random',
+                'priority': 2,
+            },
+            {
+                'name': 'Master webui port',
+                'description': 'Port for the master web UI (default: 8080)',
+                'default': '8080',
+                'priority': 1,
+            },
+            {
+                'name': 'Worker webui port',
+                'description': 'Port for the worker web UI (default: 8081)',
+                'default': '8081',
+                'priority': 1,
+            },
+            {
+                'name': 'Worker cores',
+                'description': 'Total number of cores to allow Spark'
+                ' applications to use on the machine'
+                ' (default: all available cores)',
+                'default': 'all',
+                'priority': 2,
+            },
+            {
+                'name': 'Worker memory',
+                'description': 'Total amount of memory to allow Spark'
+                ' applications to use on the machine, e.g. 1000m,'
+                ' 2g (default: total memory minus 1 GB)',
+                'default': 'all',
+                'priority': 1,
+            },
+            {
+                'name': 'Worker instances',
+                'description': 'Number of worker instances to run on each'
+                ' machine (default: 1)',
+                'default': '1',
+                'priority': 2,
+            }
+        ]
     }
 }
 
@@ -105,9 +151,13 @@ def _initialise_configs():
                                     config_type="int"))
 
     for service, config_items in SPARK_CONFS.iteritems():
-        for name in config_items['OPTIONS']:
-            cfg = p.Config(name, service, "cluster",
-                           is_optional=True, priority=2)
+        for item in config_items['OPTIONS']:
+            cfg = p.Config(name=item["name"],
+                           description=item["description"],
+                           default_value=item["default"],
+                           applicable_target=service,
+                           scope="cluster", is_optional=True,
+                           priority=item["priority"])
             configs.append(cfg)
 
     if CONF.enable_data_locality:
@@ -182,7 +232,7 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port):
     }
 
     # inserting user-defined configs
-    for key, value in extract_xml_confs(configs):
+    for key, value in extract_hadoop_xml_confs(configs):
         cfg[key] = value
 
     # invoking applied configs to appropriate xml files
@@ -201,6 +251,13 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port):
     return xml_configs
 
 
+def _get_spark_opt_default(opt_name):
+    for opt in SPARK_CONFS["Spark"]["OPTIONS"]:
+        if opt_name == opt["name"]:
+            return opt["default"]
+    return None
+
+
 def generate_spark_env_configs(cluster):
     configs = []
 
@@ -209,32 +266,32 @@ def generate_spark_env_configs(cluster):
     configs.append('SPARK_MASTER_IP=' + sp_master.hostname())
 
     masterport = get_config_value("Spark", "Master port", cluster)
-    if masterport:
+    if masterport and masterport != _get_spark_opt_default("Master port"):
         configs.append('SPARK_MASTER_PORT=' + str(masterport))
 
     masterwebport = get_config_value("Spark", "Master webui port", cluster)
-    if masterwebport:
+    if masterwebport != _get_spark_opt_default("Master webui port"):
         configs.append('SPARK_MASTER_WEBUI_PORT=' + str(masterwebport))
 
     # configuration for workers
     workercores = get_config_value("Spark", "Worker cores", cluster)
-    if workercores:
+    if workercores != _get_spark_opt_default("Worker cores"):
         configs.append('SPARK_WORKER_CORES=' + str(workercores))
 
     workermemory = get_config_value("Spark", "Worker memory", cluster)
-    if workermemory:
+    if workermemory != _get_spark_opt_default("Worker memory"):
         configs.append('SPARK_WORKER_MEMORY=' + str(workermemory))
 
     workerport = get_config_value("Spark", "Worker port", cluster)
-    if workerport:
+    if workerport != _get_spark_opt_default("Worker port"):
         configs.append('SPARK_WORKER_PORT=' + str(workerport))
 
     workerwebport = get_config_value("Spark", "Worker webui port", cluster)
-    if workerwebport:
+    if workerwebport != _get_spark_opt_default("Worker webui port"):
         configs.append('SPARK_WORKER_WEBUI_PORT=' + str(workerwebport))
 
     workerinstances = get_config_value("Spark", "Worker instances", cluster)
-    if workerinstances:
+    if workerinstances != _get_spark_opt_default("Worker instances"):
         configs.append('SPARK_WORKER_INSTANCES=' + str(workerinstances))
     return '\n'.join(configs)
 
@@ -244,7 +301,7 @@ def generate_spark_slaves_configs(workernames):
     return '\n'.join(workernames)
 
 
-def extract_environment_confs(configs):
+def extract_hadoop_environment_confs(configs):
     """Returns list of Hadoop parameters which should be passed via environment
     """
     lst = []
@@ -254,13 +311,10 @@ def extract_environment_confs(configs):
                 for cfg_name, cfg_format_str in ENV_CONFS[service].items():
                     if param_name == cfg_name and param_value is not None:
                         lst.append(cfg_format_str % param_value)
-        else:
-            LOG.warn("Plugin received wrong applicable target '%s' in "
-                     "environmental configs" % service)
     return lst
 
 
-def extract_xml_confs(configs):
+def extract_hadoop_xml_confs(configs):
     """Returns list of Hadoop parameters which should be passed into general
     configs like core-site.xml
     """
@@ -272,13 +326,10 @@ def extract_xml_confs(configs):
                     names = [cfg['name'] for cfg in cfg_list]
                     if param_name in names and param_value is not None:
                         lst.append((param_name, param_value))
-        else:
-            LOG.warn("Plugin received wrong applicable target '%s' for "
-                     "xml configs" % service)
     return lst
 
 
-def generate_setup_script(storage_paths, env_configs):
+def generate_hadoop_setup_script(storage_paths, env_configs):
     script_lines = ["#!/bin/bash -x"]
     script_lines.append("echo -n > /tmp/hadoop-env.sh")
     for line in env_configs:

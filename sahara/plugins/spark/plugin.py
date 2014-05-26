@@ -37,7 +37,7 @@ class SparkProvider(p.ProvisioningPluginBase):
     def __init__(self):
         self.processes = {
             "HDFS": ["namenode", "datanode"],
-            "SPARK": ["master", "slave"]
+            "Spark": ["master", "slave"]
         }
 
     def get_title(self):
@@ -147,9 +147,10 @@ class SparkProvider(p.ProvisioningPluginBase):
                     ng.storage_paths(),
                     nn.hostname(), None,
                 ),
-                'setup_script': c_helper.generate_setup_script(
+                'setup_script': c_helper.generate_hadoop_setup_script(
                     ng.storage_paths(),
-                    c_helper.extract_environment_confs(ng.configuration())
+                    c_helper.extract_hadoop_environment_confs(
+                        ng.configuration())
                 ),
                 'sp_master': config_master,
                 'sp_slaves': config_slaves
@@ -327,7 +328,7 @@ class SparkProvider(p.ProvisioningPluginBase):
             port = c_helper.get_config_value(
                 'Spark', 'Master webui port', cluster)
             if (port is not None):
-                info['SPARK'] = {
+                info['Spark'] = {
                     'Web UI': 'http://%s:%s' % (sp_master.management_ip, port)
                 }
         ctx = context.ctx()
