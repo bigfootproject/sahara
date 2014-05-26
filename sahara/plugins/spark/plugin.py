@@ -325,7 +325,7 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         if sp_master:
             port = c_helper.get_config_value(
-                'SPARK', 'SPARK_MASTER_WEBUI_PORT', cluster)
+                'Spark', 'Master webui port', cluster)
             if (port is not None):
                 info['SPARK'] = {
                     'Web UI': 'http://%s:%s' % (sp_master.management_ip, port)

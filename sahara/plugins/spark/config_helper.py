@@ -40,7 +40,7 @@ XML_CONFS = {
 
 SPARK_CONFS = {
     'Spark': {
-        "Options": ['Master port', 'Worker port',
+        "OPTIONS": ['Master port', 'Worker port',
                     'Master webui port', 'Worker webui port',
                     'Worker cores', 'Worker memory',
                     'Worker instances'
