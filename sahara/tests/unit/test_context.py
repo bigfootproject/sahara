@@ -15,15 +15,14 @@
 
 import random
 
-import eventlet
 import mock
+import six
 import unittest2
 
 from sahara import context
 from sahara import exceptions
 
 
-eventlet.monkey_patch()
 rnd = random.Random()
 
 
@@ -87,8 +86,8 @@ class ContextTest(unittest2.TestCase):
             with context.ThreadGroup() as tg:
                 tg.spawn('raiser1', self._raise_test_exc, 'exc1')
         except exceptions.ThreadException as te:
-            self.assertIn('exc1', te.message)
-            self.assertIn('raiser1', te.message)
+            self.assertIn('exc1', six.text_type(te))
+            self.assertIn('raiser1', six.text_type(te))
 
     def test_thread_group_prefers_spawning_exception(self):
         with self.assertRaises(RuntimeError):

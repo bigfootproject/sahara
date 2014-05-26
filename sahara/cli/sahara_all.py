@@ -48,11 +48,12 @@ LOG = logging.getLogger(__name__)
 
 
 def main():
-    server.setup_common(possible_topdir, 'API')
+    server.setup_common(possible_topdir, 'all-in-one')
 
     app = server.make_app()
 
-    server.setup_sahara_api('distributed')
+    server.setup_sahara_api('all-in-one')
+    server.setup_sahara_engine()
 
     wsgi.server(eventlet.listen((cfg.CONF.host, cfg.CONF.port), backlog=500),
                 app, log=logging.WritableLogger(LOG), debug=False)
