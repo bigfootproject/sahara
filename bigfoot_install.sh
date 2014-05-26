@@ -1,12 +1,12 @@
 #!/bin/bash
 
-source /opt/savanna-venv/bin/activate
+source /opt/sahara-venv/bin/activate
 
-python /opt/savanna/setup.py install
+python /opt/sahara/setup.py install
 
 echo
-echo "restarting savanna"
-service savanna_git restart
+echo "restarting sahara"
+service sahara_git restart
 
-echo "Check /var/log/upstart/savanna_git.log to see startup errors"
+echo "Check /var/log/upstart/sahara_git.log to see startup errors"
 
