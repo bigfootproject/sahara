@@ -16,12 +16,10 @@
 from oslo.config import cfg
 
 from sahara import conductor as c
-from sahara import context
 from sahara.openstack.common import log as logging
 from sahara.plugins.general import utils
 from sahara.plugins import provisioning as p
 from sahara.topology import topology_helper as topology
-from sahara.utils import crypto
 from sahara.utils import types as types
 from sahara.utils import xmlutils as x
 
@@ -41,11 +39,11 @@ XML_CONFS = {
 }
 
 SPARK_CONFS = {
-    'SPARK': {
-        "OPTIONS": ['SPARK_MASTER_PORT',
-                    'SPARK_MASTER_WEBUI_PORT', 'SPARK_WORKER_CORES',
-                    'SPARK_WORKER_MEMORY', 'SPARK_WORKER_PORT',
-                    'SPARK_WORKER_WEBUI_PORT', 'SPARK_WORKER_INSTANCES'
+    'Spark': {
+        "Options": ['Master port', 'Worker port',
+                    'Master webui port', 'Worker webui port',
+                    'Worker cores', 'Worker memory',
+                    'Worker instances'
                     ]
     }
 }
@@ -62,30 +60,16 @@ ENABLE_DATA_LOCALITY = p.Config('Enable Data Locality', 'general', 'cluster',
                                 default_value=True, is_optional=True)
 
 HIDDEN_CONFS = ['fs.defaultFS', 'dfs.namenode.name.dir',
-                'dfs.datanode.data.dir', 'mapred.job.tracker',
-                'mapred.system.dir', 'mapred.local.dir',
-                'hadoop.proxyuser.hadoop.hosts',
-                'hadoop.proxyuser.hadoop.groups']
+                'dfs.datanode.data.dir']
 
 CLUSTER_WIDE_CONFS = ['dfs.block.size', 'dfs.permissions', 'dfs.replication',
                       'dfs.replication.min', 'dfs.replication.max',
-                      'io.file.buffer.size', 'mapreduce.job.counters.max',
-                      'mapred.output.compress', 'io.compression.codecs',
-                      'mapred.output.compression.codec',
-                      'mapred.output.compression.type',
-                      'mapred.compress.map.output',
-                      'mapred.map.output.compression.codec']
+                      'io.file.buffer.size']
 
 PRIORITY_1_CONFS = ['dfs.datanode.du.reserved',
                     'dfs.datanode.failed.volumes.tolerated',
                     'dfs.datanode.max.xcievers', 'dfs.datanode.handler.count',
-                    'dfs.namenode.handler.count', 'mapred.child.java.opts',
-                    'mapred.jobtracker.maxtasks.per.job',
-                    'mapred.job.tracker.handler.count',
-                    'mapred.map.child.java.opts',
-                    'mapred.reduce.child.java.opts',
-                    'io.sort.mb', 'mapred.tasktracker.map.tasks.maximum',
-                    'mapred.tasktracker.reduce.tasks.maximum']
+                    'dfs.namenode.handler.count']
 
 # for now we have not so many cluster-wide configs
 # lets consider all of them having high priority
@@ -139,18 +123,6 @@ def get_plugin_configs():
     return PLUGIN_CONFIGS
 
 
-def get_general_configs(hive_hostname, passwd_hive_mysql):
-    config = {}
-    if CONF.enable_data_locality:
-        config.update({
-            ENABLE_DATA_LOCALITY.name: {
-                'default_value': ENABLE_DATA_LOCALITY.default_value,
-                'conf': extract_name_values(topology.vm_awareness_all_config())
-            }
-        })
-    return config
-
-
 def get_config_value(service, name, cluster=None):
     if cluster:
         for ng in cluster.node_groups:
@@ -162,7 +134,7 @@ def get_config_value(service, name, cluster=None):
         if c.applicable_target == service and c.name == name:
             return c.default_value
 
-    raise RuntimeError("Unable get parameter '%s' from service %s",
+    raise RuntimeError("Unable to get parameter '%s' from service %s",
                        name, service)
 
 
@@ -183,19 +155,6 @@ def generate_cfg_from_general(cfg, configs, general_config,
 
 def _get_hostname(service):
     return service.hostname() if service else None
-
-
-def get_hadoop_ssh_keys(cluster):
-    extra = cluster.extra or {}
-    private_key = extra.get('hadoop_private_ssh_key')
-    public_key = extra.get('hadoop_public_ssh_key')
-    if not private_key or not public_key:
-        private_key, public_key = crypto.generate_key_pair()
-        extra['hadoop_private_ssh_key'] = private_key
-        extra['hadoop_public_ssh_key'] = public_key
-        conductor.cluster_update(context.ctx(), cluster, {'extra': extra})
-
-    return private_key, public_key
 
 
 def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port):
@@ -242,59 +201,47 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port):
     return xml_configs
 
 
-def write_hadoop_configs_xml_file(xml_configs):
-    f_core = open('core-site.xml', 'w')
-    f_hdfs = open('hdfs-site.xml', 'w')
-
-    f_core.writelines(xml_configs['core-site'])
-    f_hdfs.writelines(xml_configs['hdfs-site'])
-
-    f_hdfs.flush()
-    f_core.flush()
-    f_hdfs.close()
-    f_core.close()
-
-    return True
-
-
-def generate_spark_env_configs(mastername, masterport, masterwebport=None,
-                               workercores=None, workermemory=None,
-                               workerport=None, workerwebport=None,
-                               workerinstances=None):
+def generate_spark_env_configs(cluster):
     configs = []
+
     # master configuration
-    configs.append('SPARK_MASTER_IP=' + mastername)
-    if masterport is None or masterport == '':
-        masterport = 7077
-    configs.append('SPARK_MASTER_PORT=' + str(masterport))
-    if masterwebport is not None and masterwebport != '':
+    sp_master = utils.get_instance(cluster, "master")
+    configs.append('SPARK_MASTER_IP=' + sp_master.hostname())
+
+    masterport = get_config_value("Spark", "Master port", cluster)
+    if masterport:
+        configs.append('SPARK_MASTER_PORT=' + str(masterport))
+
+    masterwebport = get_config_value("Spark", "Master webui port", cluster)
+    if masterwebport:
         configs.append('SPARK_MASTER_WEBUI_PORT=' + str(masterwebport))
+
     # configuration for workers
-    if workercores is not None and workercores != '':
+    workercores = get_config_value("Spark", "Worker cores", cluster)
+    if workercores:
         configs.append('SPARK_WORKER_CORES=' + str(workercores))
-    if workermemory is not None and workermemory != '':
+
+    workermemory = get_config_value("Spark", "Worker memory", cluster)
+    if workermemory:
         configs.append('SPARK_WORKER_MEMORY=' + str(workermemory))
-    if workerport is not None and workerport != '':
+
+    workerport = get_config_value("Spark", "Worker port", cluster)
+    if workerport:
         configs.append('SPARK_WORKER_PORT=' + str(workerport))
-    if workerwebport is not None and workerwebport != '':
+
+    workerwebport = get_config_value("Spark", "Worker webui port", cluster)
+    if workerwebport:
         configs.append('SPARK_WORKER_WEBUI_PORT=' + str(workerwebport))
-    if workerinstances is not None and workerinstances != '':
+
+    workerinstances = get_config_value("Spark", "Worker instances", cluster)
+    if workerinstances:
         configs.append('SPARK_WORKER_INSTANCES=' + str(workerinstances))
     return '\n'.join(configs)
 
 
-    #workernames need to be a list of woker names
+# workernames need to be a list of woker names
 def generate_spark_slaves_configs(workernames):
-    #slaves = [str(worker) for worker in workernames]
     return '\n'.join(workernames)
-
-
-def write_spark_configs(configs, filename):
-    f = open(str(filename), 'w')
-    f.write(configs)
-    f.flush()
-    f.close()
-    return
 
 
 def extract_environment_confs(configs):
