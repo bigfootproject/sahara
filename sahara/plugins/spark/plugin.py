@@ -113,7 +113,6 @@ class SparkProvider(p.ProvisioningPluginBase):
         # start spark nodes
         if sm_instance:
             with remote.get_remote(sm_instance) as r:
-                #run.stop_spark(r)
                 run.start_spark_master(r)
                 LOG.info("Spark service at '%s' has been started",
                          sm_instance.hostname())
@@ -327,7 +326,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         if sp_master:
             port = c_helper.get_config_value(
                 'Spark', 'Master webui port', cluster)
-            if (port is not None):
+            if port is not None:
                 info['Spark'] = {
                     'Web UI': 'http://%s:%s' % (sp_master.management_ip, port)
                 }

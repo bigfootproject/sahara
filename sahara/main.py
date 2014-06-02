@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import os
-import sys
 
 import flask
 from keystoneclient.middleware import auth_token
@@ -65,7 +64,6 @@ opts = [
                default='admin',
                help='Name of tenant where the user is admin.'),
     cfg.StrOpt('os_region_name',
-               default=None,
                help='Region name used to get services endpoints.'),
     cfg.StrOpt('infrastructure_engine',
                default='direct',
@@ -90,7 +88,7 @@ def setup_common(possible_topdir, service_name):
     if os.path.exists(dev_conf):
         config_files = [dev_conf]
 
-    config.parse_configs(sys.argv[1:], config_files)
+    config.parse_configs(config_files)
     log.setup("sahara")
 
     LOG.info('Starting Sahara %s' % service_name)
