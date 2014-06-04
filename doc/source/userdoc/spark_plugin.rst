@@ -19,8 +19,6 @@ two tags: 'spark' and '<Spark version>' (e.g. '0.9.1').
 Also you should specify the username of the default cloud-user used in the image. For
 images generated with the DIB it is 'ubuntu'.
 
-For now scaling and EDP are not supported.
-
 Note that the Spark cluster is deployed using the scripts available in the
 Spark distribution, which allow to start all services (master and slaves), stop
 all services and so on. As such (and as opposed to CDH HDFS daemons), Spark is
@@ -55,3 +53,11 @@ Currently there are the following limitations in cluster topology for the Spark 
 
 The tested configuration puts the NameNode co-located with the master and a DataNode
 with each slave to maximize data locality.
+
+Limitations
+-----------
+
+For now scaling and EDP are not supported.
+
+Swift support is not available in Spark. Once it is developed there, it will be
+possible to add it to this plugin.
