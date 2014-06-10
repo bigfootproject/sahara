@@ -31,7 +31,7 @@ def create_trust(cluster):
 
     ctx = context.current()
 
-    trustee_id = keystone.client_for_admin(ctx.tenant_id).user_id
+    trustee_id = keystone.client_for_admin().user_id
 
     trust = client.trusts.create(trustor_user=client.user_id,
                                  trustee_user=trustee_id,
@@ -46,7 +46,7 @@ def create_trust(cluster):
 def use_os_admin_auth_token(cluster):
     if cluster.trust_id:
         ctx = context.current()
-        ctx.username = CONF.os_admin_username
+        ctx.username = CONF.keystone_authtoken.admin_user
         ctx.tenant_id = cluster.tenant_id
         client = keystone.client_for_trusts(cluster.trust_id)
         ctx.token = client.auth_token

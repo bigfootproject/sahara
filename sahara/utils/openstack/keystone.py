@@ -52,23 +52,26 @@ def client():
     return keystone
 
 
-def _admin_client(tenant_id=None, trust_id=None):
+def _admin_client(project_name=None, trust_id=None):
     if not CONF.use_identity_api_v3:
         raise Exception('Trusts aren\'t implemented in keystone api'
                         ' less than v3')
 
     auth_url = base.retrieve_auth_url()
-    keystone = keystone_client_v3.Client(username=CONF.os_admin_username,
-                                         password=CONF.os_admin_password,
-                                         tenant_id=tenant_id,
+    username = CONF.keystone_authtoken.admin_user
+    password = CONF.keystone_authtoken.admin_password
+    keystone = keystone_client_v3.Client(username=username,
+                                         password=password,
+                                         project_name=project_name,
                                          auth_url=auth_url,
                                          trust_id=trust_id)
     keystone.management_url = auth_url
     return keystone
 
 
-def client_for_admin(tenant_id):
-    return _admin_client(tenant_id=tenant_id)
+def client_for_admin():
+    project_name = CONF.keystone_authtoken.admin_tenant_name
+    return _admin_client(project_name=project_name)
 
 
 def client_for_trusts(trust_id):
