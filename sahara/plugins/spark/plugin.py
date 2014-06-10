@@ -23,6 +23,7 @@ from sahara.plugins.general import utils
 from sahara.plugins import provisioning as p
 from sahara.plugins.spark import config_helper as c_helper
 from sahara.plugins.spark import run_scripts as run
+from sahara.plugins.spark import scaling as sc
 from sahara.topology import topology_helper as th
 from sahara.utils import files as f
 from sahara.utils import remote
@@ -163,16 +164,6 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         return extra
 
-    def validate_scaling(self, cluster, existing, additional):
-        raise ex.ClusterCannotBeScaled("Scaling Spark clusters has not been"
-                                       "implemented yet")
-
-    def decommission_nodes(self, cluster, instances):
-        pass
-
-    def scale_cluster(self, cluster, instances):
-        pass
-
     def _start_slave_datanode_processes(self, dn_instances):
         with context.ThreadGroup() as tg:
             for i in dn_instances:
@@ -183,10 +174,12 @@ class SparkProvider(p.ProvisioningPluginBase):
         with instance.remote() as r:
             run.start_processes(r, "datanode")
 
-    def _setup_instances(self, cluster):
+    def _setup_instances(self, cluster, instances=None):
         extra = self._extract_configs_to_extra(cluster)
 
-        instances = utils.get_instances(cluster)
+        if instances is None:
+            instances = utils.get_instances(cluster)
+
         self._push_configs_to_nodes(cluster, extra, instances)
 
     def _push_configs_to_nodes(self, cluster, extra, new_instances):
@@ -332,3 +325,82 @@ class SparkProvider(p.ProvisioningPluginBase):
                 }
         ctx = context.ctx()
         conductor.cluster_update(ctx, cluster, {'info': info})
+
+    ### Scaling ###
+
+    def validate_scaling(self, cluster, existing, additional):
+        self._validate_existing_ng_scaling(cluster, existing)
+        self._validate_additional_ng_scaling(cluster, additional)
+
+    def decommission_nodes(self, cluster, instances):
+        sls = utils.get_instances(cluster, "slave")
+        dns = utils.get_instances(cluster, "datanode")
+        decommission_dns = False
+        decommission_sls = False
+
+        for i in instances:
+            if 'datanode' in i.node_group.node_processes:
+                dns.remove(i)
+                decommission_dns = True
+            if 'slave' in i.node_group.node_processes:
+                sls.remove(i)
+                decommission_sls = True
+
+        nn = utils.get_instance(cluster, "namenode")
+        spark_master = utils.get_instance(cluster, "master")
+
+        if decommission_sls:
+            sc.decommission_sl(spark_master, instances, sls)
+        if decommission_dns:
+            sc.decommission_dn(nn, instances, dns)
+
+    def scale_cluster(self, cluster, instances):
+        self._setup_instances(cluster, instances)
+        nn = utils.get_instance(cluster, "namenode")
+        run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
+        self._start_slave_datanode_processes(instances)
+
+    def _get_scalable_processes(self):
+        return ["datanode", "slave"]
+
+    def _validate_additional_ng_scaling(self, cluster, additional):
+        master = utils.get_instance(cluster, "master")
+        scalable_processes = self._get_scalable_processes()
+
+        for ng_id in additional:
+            ng = self._get_by_id(cluster.node_groups, ng_id)
+            if not set(ng.node_processes).issubset(scalable_processes):
+                raise ex.NodeGroupCannotBeScaled(
+                    ng.name, "Spark plugin cannot scale nodegroup"
+                             " with processes: " +
+                             ' '.join(ng.node_processes))
+            if not master and 'slave' in ng.node_processes:
+                raise ex.NodeGroupCannotBeScaled(
+                    ng.name, "Spark plugin cannot scale node group with "
+                             "processes which have no master-processes run "
+                             "in cluster")
+
+    def _validate_existing_ng_scaling(self, cluster, existing):
+        scalable_processes = self._get_scalable_processes()
+        dn_to_delete = 0
+        for ng in cluster.node_groups:
+            if ng.id in existing:
+                if ng.count > existing[ng.id] and "datanode" in \
+                        ng.node_processes:
+                    dn_to_delete += ng.count - existing[ng.id]
+                if not set(ng.node_processes).issubset(scalable_processes):
+                    raise ex.NodeGroupCannotBeScaled(
+                        ng.name, "Spark plugin cannot scale nodegroup"
+                                 " with processes: " +
+                                 ' '.join(ng.node_processes))
+
+        dn_amount = len(utils.get_instances(cluster, "datanode"))
+        rep_factor = c_helper.determine_cluster_config(cluster, 'HDFS',
+                                                       "dfs.replication")
+
+        if dn_to_delete > 0 and dn_amount - dn_to_delete < rep_factor:
+            raise ex.ClusterCannotBeScaled(
+                cluster.name, "Spark plugin cannot shrink cluster because "
+                              "there would be not enough nodes for HDFS "
+                              "replicas (replication factor is %s)" %
+                              rep_factor)
