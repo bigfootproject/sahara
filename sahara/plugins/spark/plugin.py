@@ -355,10 +355,19 @@ class SparkProvider(p.ProvisioningPluginBase):
             sc.decommission_dn(nn, instances, dns)
 
     def scale_cluster(self, cluster, instances):
+        master = utils.get_instance(cluster, "master")
+        r_master = remote.get_remote(master)
+
+        run.stop_spark(r_master)
+
         self._setup_instances(cluster, instances)
         nn = utils.get_instance(cluster, "namenode")
         run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
         self._start_slave_datanode_processes(instances)
+
+        run.start_spark_master(r_master)
+        LOG.info("Spark master service at '%s' has been restarted",
+                 master.hostname())
 
     def _get_scalable_processes(self):
         return ["datanode", "slave"]

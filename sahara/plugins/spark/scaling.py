@@ -15,7 +15,11 @@
 
 import os
 
+import six
+
 from sahara import context
+from sahara.openstack.common import timeutils
+from sahara.plugins.general import exceptions as ex
 from sahara.plugins.general import utils
 from sahara.plugins.spark import config_helper as c_helper
 from sahara.plugins.spark import run_scripts as run
@@ -23,8 +27,6 @@ from sahara.utils import remote
 
 
 def decommission_sl(master, inst_to_be_deleted, survived_inst):
-    # Modify slaves file in all cluster nodes
-    # Restart all Spark nodes with the new slaves file
     if survived_inst is not None:
         slavenames = []
         for slave in survived_inst:
@@ -33,19 +35,19 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     else:
         slaves_content = "\n"
 
+    r_master = remote.get_remote(master)
+    run.stop_spark(r_master)
+
     # write new slave file to master
     files = {'/opt/spark/conf/slaves': slaves_content}
-    with remote.get_remote(master) as r_master:
-        r_master.write_files_to(files)
-        # restart spark master
-        run.stop_spark(r_master)
-        run.start_spark_master(r_master)
-    context.sleep(3)
+    r_master.write_files_to(files)
 
     # write new slaves file to each survived slave as well
     for i in survived_inst:
         with remote.get_remote(i) as r:
             r.write_files_to(files)
+
+    run.start_spark_master(r_master)
 
 
 def decommission_dn(nn, inst_to_be_deleted, survived_inst):
@@ -56,10 +58,14 @@ def decommission_dn(nn, inst_to_be_deleted, survived_inst):
         run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
         context.sleep(3)
 
-        att_amount = 100
-        while att_amount:
+        timeout = c_helper.get_decommissioning_timeout(
+            nn.node_group.cluster)
+        s_time = timeutils.utcnow()
+        all_found = False
+
+        while timeutils.delta_seconds(s_time, timeutils.utcnow()) < timeout:
             cmd = r.execute_command(
-                "sudo su -c 'hadoop dfsadmin -report' hadoop")
+                "sudo -u hdfs hadoop dfsadmin -report")
             all_found = True
             datanodes_info = parse_dfs_report(cmd[1])
             for i in inst_to_be_deleted:
@@ -77,10 +83,11 @@ def decommission_dn(nn, inst_to_be_deleted, survived_inst):
                                   })
                 break
             context.sleep(3)
-            att_amount -= 1
 
-        if not att_amount:
-            raise Exception("Cannot finish decommission")
+        if not all_found:
+            ex.DecommissionError(
+                "Cannot finish decommission of cluster %s in %d seconds" %
+                (nn.node_group.cluster, timeout))
 
 
 def parse_dfs_report(cmd_output):
@@ -95,7 +102,7 @@ def parse_dfs_report(cmd_output):
 
     res = []
     datanode_info = {}
-    for i in xrange(0, len(array)):
+    for i in six.moves.xrange(0, len(array)):
         if array[i]:
             idx = str.find(array[i], ':')
             name = array[i][0:idx]
