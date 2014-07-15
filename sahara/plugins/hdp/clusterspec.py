@@ -150,7 +150,7 @@ class ClusterSpec():
         return config_names
 
     def _process_node_groups(self, template_json=None, cluster=None):
-    # get node_groups from config
+        # get node_groups from config
         if template_json and not cluster:
             for group in template_json['host_role_mappings']:
                 node_group = NodeGroup(group['name'].lower())
@@ -175,10 +175,7 @@ class ClusterSpec():
                 node_group.components = ng.node_processes[:]
                 node_group.ng_storage_paths = ng.storage_paths()
                 for instance in ng.instances:
-                    node_group.instances.add(Instance(instance.fqdn(),
-                                                      instance.management_ip,
-                                                      instance.internal_ip,
-                                                      instance.remote()))
+                    node_group.instances.add(Instance(instance))
                 self.node_groups[node_group.name] = node_group
 
     def _determine_deployed_services(self, cluster):
@@ -249,17 +246,17 @@ class User():
 
 
 class Instance():
-    def __init__(self, fqdn, management_ip, internal_ip, remote):
-        self.inst_fqdn = fqdn
-        self.management_ip = management_ip
-        self.internal_ip = internal_ip
-        self.inst_remote = remote
+    def __init__(self, sahara_instance):
+        self.inst_fqdn = sahara_instance.fqdn()
+        self.management_ip = sahara_instance.management_ip
+        self.internal_ip = sahara_instance.internal_ip
+        self.sahara_instance = sahara_instance
 
     def fqdn(self):
         return self.inst_fqdn
 
     def remote(self):
-        return self.inst_remote
+        return self.sahara_instance.remote()
 
     def __hash__(self):
         return hash(self.fqdn())
@@ -273,8 +270,8 @@ class NormalizedClusterConfig():
         self.hadoop_version = cluster_spec.version
         self.cluster_configs = []
         self.node_groups = []
-        self.handler = vhf.VersionHandlerFactory.get_instance().\
-            get_version_handler(self.hadoop_version)
+        self.handler = (vhf.VersionHandlerFactory.get_instance().
+                        get_version_handler(self.hadoop_version))
 
         self._parse_configurations(cluster_spec.configurations)
         self._parse_node_groups(cluster_spec.node_groups)
@@ -285,7 +282,7 @@ class NormalizedClusterConfig():
                 target = self._get_property_target(prop)
                 if target:
                     prop_type = self._get_property_type(prop, value)
-                    #todo: should we supply a scope?
+                    # TODO(sdpeidel): should we supply a scope?
                     self.cluster_configs.append(
                         NormalizedConfigEntry(NormalizedConfig(
                             prop, prop_type, value, target, 'cluster'),
@@ -299,14 +296,14 @@ class NormalizedClusterConfig():
         return self.handler.get_applicable_target(prop)
 
     def _get_property_type(self, prop, value):
-        #TODO(jspeidel): seems that all numeric prop values in default config
+        # TODO(jspeidel): seems that all numeric prop values in default config
         # are encoded as strings.  This may be incorrect.
-        #TODO(jspeidel): should probably analyze string value to determine if
+        # TODO(jspeidel): should probably analyze string value to determine if
         # it is numeric
-        #TODO(jspeidel): would then need to know whether Ambari expects a
+        # TODO(jspeidel): would then need to know whether Ambari expects a
         # string or a numeric value
         prop_type = type(value).__name__
-        #print 'Type: {0}'.format(prop_type)
+        # print 'Type: {0}'.format(prop_type)
         if prop_type == 'str' or prop_type == 'unicode' or value == '':
             return 'string'
         elif prop_type == 'int':
@@ -342,7 +339,7 @@ class NormalizedNodeGroup():
         self.name = node_group.name
         self.node_processes = node_group.components
         self.node_configs = None
-        #TODO(jpseidel): should not have to specify img/flavor
+        # TODO(jpseidel): should not have to specify img/flavor
         self.img = None
         # TODO(jmaron) the flavor will be set via an ambari blueprint setting,
         # but that setting doesn't exist yet.  It will be addressed by a bug

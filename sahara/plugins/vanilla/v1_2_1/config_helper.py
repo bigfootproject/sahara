@@ -47,7 +47,7 @@ MAPRED_DEFAULT = x.load_hadoop_xml_defaults(
 HIVE_DEFAULT = x.load_hadoop_xml_defaults(
     'plugins/vanilla/v1_2_1/resources/hive-default.xml')
 
-## Append Oozie configs fore core-site.xml
+# Append Oozie configs fore core-site.xml
 CORE_DEFAULT += o_h.OOZIE_CORE_DEFAULT
 
 XML_CONFS = {
@@ -57,7 +57,6 @@ XML_CONFS = {
     "Hive": [HIVE_DEFAULT]
 }
 
-# TODO(aignatov): Environmental configs could be more complex
 ENV_CONFS = {
     "MapReduce": {
         'Job Tracker Heap Size': 'HADOOP_JOBTRACKER_OPTS=\\"-Xmx%sm\\"',
@@ -65,6 +64,8 @@ ENV_CONFS = {
     },
     "HDFS": {
         'Name Node Heap Size': 'HADOOP_NAMENODE_OPTS=\\"-Xmx%sm\\"',
+        'Secondary Name Node Heap Size': 'HADOOP_SECONDARYNAMENODE_OPTS='
+                                         '\\"-Xmx%sm\\"',
         'Data Node Heap Size': 'HADOOP_DATANODE_OPTS=\\"-Xmx%sm\\"'
     },
     "JobFlow": {
@@ -202,9 +203,9 @@ def get_config_value(service, name, cluster=None):
                     ng.configuration()[service].get(name)):
                 return ng.configuration()[service][name]
 
-    for c in PLUGIN_CONFIGS:
-        if c.applicable_target == service and c.name == name:
-            return c.default_value
+    for configs in PLUGIN_CONFIGS:
+        if configs.applicable_target == service and configs.name == name:
+            return configs.default_value
 
     raise ex.ConfigurationError("Unable get parameter '%s' from service %s" %
                                 (name, service))
@@ -226,7 +227,7 @@ def generate_cfg_from_general(cfg, configs, general_config,
 
 
 def get_hadoop_ssh_keys(cluster):
-    extra = cluster.extra or {}
+    extra = cluster.extra.to_dict() if cluster.extra else {}
     private_key = extra.get('hadoop_private_ssh_key')
     public_key = extra.get('hadoop_public_ssh_key')
     if not private_key or not public_key:
@@ -342,8 +343,11 @@ def generate_xml_configs(cluster, node_group, hive_mysql_passwd):
 
 
 def extract_environment_confs(configs):
-    """Returns list of Hadoop parameters which should be passed via environment
+    """Returns environment specific Hadoop configurations.
+
+    :returns list of Hadoop parameters which should be passed via environment
     """
+
     lst = []
     for service, srv_confs in configs.items():
         if ENV_CONFS.get(service):
@@ -358,9 +362,12 @@ def extract_environment_confs(configs):
 
 
 def extract_xml_confs(configs):
-    """Returns list of Hadoop parameters which should be passed into general
+    """Returns xml specific Hadoop configurations.
+
+    :returns list of Hadoop parameters which should be passed into general
     configs like core-site.xml
     """
+
     lst = []
     for service, srv_confs in configs.items():
         if XML_CONFS.get(service):

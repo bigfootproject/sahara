@@ -25,6 +25,7 @@ import sahara.topology.topology_helper as th
 
 class TopologyTestCase(base.SaharaTestCase):
     def setUp(self):
+        super(TopologyTestCase, self).setUp()
         context.set_ctx(context.Context(None, None, None, None))
 
     def test_core_config(self):
@@ -39,8 +40,8 @@ class TopologyTestCase(base.SaharaTestCase):
         self.assertIn({'name': "net.topology.nodegroup.aware",
                        'value': 'true'},
                       result)
-        className = 'org.apache.hadoop.hdfs.server.namenode.' \
-                    'BlockPlacementPolicyWithNodeGroup'
+        className = ('org.apache.hadoop.hdfs.server.namenode.'
+                     'BlockPlacementPolicyWithNodeGroup')
         self.assertIn({'name': "dfs.block.replicator.classname",
                        'value': className},
                       result)

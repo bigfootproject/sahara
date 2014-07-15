@@ -15,12 +15,13 @@
 
 import json
 import logging
-import requests
 
 from oslo.config import cfg
 import pkg_resources as pkg
+import requests
 
 from sahara import context
+from sahara import exceptions as exc
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.hdp import clusterspec as cs
 from sahara.plugins.hdp import configprovider as cfgprov
@@ -43,7 +44,8 @@ class VersionHandler(avm.AbstractVersionHandler):
     def _get_config_provider(self):
         if self.config_provider is None:
             self.config_provider = cfgprov.ConfigurationProvider(
-                json.load(pkg.resource_stream(version.version_info.package,
+                json.load(pkg.resource_stream(
+                          version.version_info.package,
                           'plugins/hdp/versions/version_2_0_6/resources/'
                           'ambari-config-resource.json')))
 
@@ -157,7 +159,7 @@ class AmbariClient():
 
         existing_config_url = ('http://{0}/api/v1/clusters/{1}?fields='
                                'Clusters/desired_configs'.format(
-                               ambari_info.get_address(), name))
+                                   ambari_info.get_address(), name))
 
         result = self._get(existing_config_url, ambari_info)
 
@@ -206,7 +208,8 @@ class AmbariClient():
         services = cluster_spec.services
         add_service_url = 'http://{0}/api/v1/clusters/{1}/services/{2}'
         for service in services:
-            if service.deployed and service.name != 'AMBARI':
+            # Make sure the service is deployed and is managed by Ambari
+            if service.deployed and service.ambari_managed:
                 result = self._post(add_service_url.format(
                     ambari_info.get_address(), name, service.name),
                     ambari_info)
@@ -221,7 +224,8 @@ class AmbariClient():
         add_component_url = ('http://{0}/api/v1/clusters/{1}/services/{'
                              '2}/components/{3}')
         for service in cluster_spec.services:
-            if service.deployed and service.name != 'AMBARI':
+            # Make sure the service is deployed and is managed by Ambari
+            if service.deployed and service.ambari_managed:
                 for component in service.components:
                     result = self._post(add_component_url.format(
                         ambari_info.get_address(), name, service.name,
@@ -253,11 +257,14 @@ class AmbariClient():
                     'Failed to add host: %s' % result.text)
 
             node_group_name = host.node_group.name
-            #TODO(jspeidel): ensure that node group exists
+            # TODO(jspeidel): ensure that node group exists
             node_group = cluster_spec.node_groups[node_group_name]
             for component in node_group.components:
-                # don't add any AMBARI components
-                if component.find('AMBARI') != 0:
+                # Don't add any AMBARI or HUE components
+                # TODO(rlevas): Pragmatically determine if component is
+                #   managed by Ambari
+                if (component.find('AMBARI') != 0
+                        and component.find('HUE') != 0):
                     result = self._post(add_host_component_url.format(
                         ambari_info.get_address(), name, hostname, component),
                         ambari_info)
@@ -274,7 +281,7 @@ class AmbariClient():
         ambari_address = ambari_info.get_address()
         install_url = ('http://{0}/api/v1/clusters/{'
                        '1}/services?ServiceInfo/state=INIT'.format(
-                       ambari_address, cluster_name))
+                           ambari_address, cluster_name))
         body = ('{"RequestInfo" : { "context" : "Install all services" },'
                 '"Body" : {"ServiceInfo": {"state" : "INSTALLED"}}}')
 
@@ -302,8 +309,13 @@ class AmbariClient():
     def _get_async_request_uri(self, ambari_info, cluster_name, request_id):
         return ('http://{0}/api/v1/clusters/{1}/requests/{'
                 '2}/tasks?fields=Tasks/status'.format(
-                ambari_info.get_address(), cluster_name,
-                request_id))
+                    ambari_info.get_address(), cluster_name,
+                    request_id))
+
+    # Returns the top-level requests API URI
+    def _get_command_request_uri(self, ambari_info, cluster_name):
+        return ('http://{0}/api/v1/clusters/{1}/requests'.format(
+            ambari_info.get_address(), cluster_name))
 
     def _wait_for_async_request(self, request_url, ambari_info):
         started = False
@@ -346,7 +358,7 @@ class AmbariClient():
                  .format(cluster_name, ambari_info.get_address()))
         start_url = ('http://{0}/api/v1/clusters/{1}/services?ServiceInfo/'
                      'state=INSTALLED'.format(
-                     ambari_info.get_address(), cluster_name))
+                         ambari_info.get_address(), cluster_name))
         body = ('{"RequestInfo" : { "context" : "Start all services" },'
                 '"Body" : {"ServiceInfo": {"state" : "STARTED"}}}')
 
@@ -419,13 +431,13 @@ class AmbariClient():
                  .format(cluster_name, ambari_info.get_address()))
         # query for the host components on the given hosts that are in the
         # INIT state
-        #TODO(jspeidel): provide request context
+        # TODO(jspeidel): provide request context
         body = '{"HostRoles": {"state" : "INSTALLED"}}'
         install_uri = ('http://{0}/api/v1/clusters/{'
                        '1}/host_components?HostRoles/state=INIT&'
                        'HostRoles/host_name.in({2})'.format(
-                       ambari_info.get_address(), cluster_name,
-                       self._get_host_list(servers)))
+                           ambari_info.get_address(), cluster_name,
+                           self._get_host_list(servers)))
         self._exec_ambari_command(ambari_info, body, install_uri)
 
     def _start_components(self, ambari_info, auth, cluster_name, servers,
@@ -435,8 +447,8 @@ class AmbariClient():
         installed_uri = ('http://{0}/api/v1/clusters/{'
                          '1}/host_components?HostRoles/state=INSTALLED&'
                          'HostRoles/host_name.in({2})'.format(
-                         ambari_info.get_address(), cluster_name,
-                         self._get_host_list(servers)))
+                             ambari_info.get_address(), cluster_name,
+                             self._get_host_list(servers)))
         result = self._get(installed_uri, ambari_info)
         if result.status_code == 200:
             LOG.debug(
@@ -452,15 +464,15 @@ class AmbariClient():
 
             # query and start all non-client components on the given set of
             # hosts
-            #TODO(jspeidel): Provide request context
+            # TODO(jspeidel): Provide request context
             body = '{"HostRoles": {"state" : "STARTED"}}'
             start_uri = ('http://{0}/api/v1/clusters/{'
                          '1}/host_components?HostRoles/state=INSTALLED&'
                          'HostRoles/host_name.in({2})'
                          '&HostRoles/component_name.in({3})'.format(
-                         ambari_info.get_address(), cluster_name,
-                         self._get_host_list(servers),
-                         ",".join(inclusion_list)))
+                             ambari_info.get_address(), cluster_name,
+                             self._get_host_list(servers),
+                             ",".join(inclusion_list)))
             self._exec_ambari_command(ambari_info, body, start_uri)
         else:
             raise ex.HadoopProvisionError(
@@ -476,7 +488,7 @@ class AmbariClient():
         result = None
         json_result = None
 
-        #TODO(jspeidel): timeout
+        # TODO(jspeidel): timeout
         while result is None or len(json_result['items']) < num_hosts:
             context.sleep(5)
             try:
@@ -489,7 +501,7 @@ class AmbariClient():
                     LOG.debug('Registered Host: {0}'.format(
                         hosts['Hosts']['host_name']))
             except requests.ConnectionError:
-                #TODO(jspeidel): max wait time
+                # TODO(jspeidel): max wait time
                 LOG.info('Waiting to connect to ambari server ...')
 
     def update_ambari_admin_user(self, password, ambari_info):
@@ -504,7 +516,7 @@ class AmbariClient():
         if result.status_code != 200:
             raise ex.HadoopProvisionError('Unable to update Ambari admin user'
                                           ' credentials: {0}'.format(
-                                          result.text))
+                                              result.text))
 
     def add_ambari_user(self, user, ambari_info):
         user_url = 'http://{0}/api/v1/users/{1}'.format(
@@ -512,7 +524,7 @@ class AmbariClient():
 
         create_body = ('{{"Users":{{"password":"{0}","roles":"{1}"}} }}'.
                        format(user.password, '%s' % ','.
-                       join(map(str, user.groups))))
+                              join(map(str, user.groups))))
 
         result = self._post(user_url, ambari_info, data=create_body)
 
@@ -550,6 +562,116 @@ class AmbariClient():
         self._install_and_start_components(
             name, servers, ambari_info, cluster_spec)
 
+    def decommission_cluster_instances(self, cluster, clusterspec, instances,
+                                       ambari_info):
+
+        request_uri = self._get_command_request_uri(ambari_info, cluster.name)
+
+        hosts_to_decommission = []
+        # Decomission HDFS datanodes to avoid loss of data
+        # during decommissioning process
+        for instance in instances:
+            ng_name = instance.node_group.name
+            if "DATANODE" in clusterspec.node_groups[ng_name].components:
+                # determine the instances that include HDFS support
+                hosts_to_decommission.append(instance.fqdn())
+
+        LOG.debug('AmbariClient: hosts_to_decommission = '
+                  + str(hosts_to_decommission))
+
+        # template for request body
+        body_header = ('{"RequestInfo" : { "context": "Decommission DataNode",'
+                       ' "command" : "DECOMMISSION", "service_name" : "HDFS",'
+                       ' "component_name" : "NAMENODE", '
+                       ' "parameters" : { "slave_type" : "DATANODE", ')
+
+        excluded_hosts_request = '"excluded_hosts" : "{0}"'
+
+        # generate comma-separated list of hosts to de-commission
+        list_of_hosts = ",".join(hosts_to_decommission)
+
+        LOG.debug('AmbariClient: list_of_hosts = ' + list_of_hosts)
+
+        # create the request body
+        request_body = (
+            body_header +
+            excluded_hosts_request.format(list_of_hosts)
+            + '}}'
+            + ', "Requests/resource_filters":[{"service_name":"HDFS",'
+            '"component_name":"NAMENODE"}]}')
+
+        LOG.debug('AmbariClient: about to make decommision request, uri = ' +
+                  request_uri)
+        LOG.debug('AmbariClient: about to make decommision request, ' +
+                  'request body  = ' + request_body)
+
+        # ask Ambari to decommission the datanodes
+        result = self._post(request_uri, ambari_info, request_body)
+        if result.status_code != 202:
+            LOG.error('AmbariClient: error while making decommision post ' +
+                      'request.  Error is = ' + result.text)
+            raise exc.InvalidException(
+                'An error occurred while trying to ' +
+                'decommission the DataNode instances that are ' +
+                'being shut down. ' +
+                'Please consult the Ambari server logs on the ' +
+                'master node for ' +
+                'more information about the failure.')
+        else:
+            LOG.info('AmbariClient: decommission post request succeeded!')
+
+        status_template = ('http://{0}/api/v1/clusters/{1}/hosts/{2}/'
+                           'host_components/{3}')
+
+        # find the host that the NameNode is deployed on
+        name_node_host = clusterspec.determine_component_hosts(
+            'NAMENODE').pop()
+        status_request = status_template.format(
+            ambari_info.get_address(),
+            cluster.name, name_node_host.fqdn(),
+            'NAMENODE')
+
+        LOG.debug('AmbariClient: about to make decomission status request,' +
+                  'uri = ' + status_request)
+
+        count = 0
+        while count < 100 and len(hosts_to_decommission) > 0:
+            LOG.info('AmbariClient: number of hosts waiting for ' +
+                     'decommisioning to complete = ' +
+                     str(len(hosts_to_decommission)))
+
+            result = self._get(status_request, ambari_info)
+            if result.status_code != 200:
+                LOG.error('AmbariClient: error in making decomission status ' +
+                          'request, error = ' + result.text)
+            else:
+                LOG.info('AmbariClient: decommission status request ok, ' +
+                         'result = ' + result.text)
+                json_result = json.loads(result.text)
+                live_nodes = (
+                    json_result['metrics']['dfs']['namenode']['LiveNodes'])
+                # parse out the map of live hosts associated with the NameNode
+                json_result_nodes = json.loads(live_nodes)
+                for node in json_result_nodes.keys():
+                    admin_state = json_result_nodes[node]['adminState']
+                    if admin_state == 'Decommissioned':
+                        LOG.info('AmbariClient: node = ' + node +
+                                 ' is now in adminState = ' +
+                                 admin_state)
+                        # remove from list, to track which nodes
+                        # are now in Decommissioned state
+                        hosts_to_decommission.remove(node)
+
+            LOG.info('AmbariClient: sleeping for 5 seconds')
+            context.sleep(5)
+
+            # increment loop counter
+            count += 1
+
+        if len(hosts_to_decommission) > 0:
+            LOG.error('AmbariClient: decommissioning process timed-out ' +
+                      'waiting for nodes to enter "Decommissioned" status.')
+
     def provision_cluster(self, cluster_spec, servers, ambari_info, name):
         self._add_cluster(ambari_info, name)
         self._add_configurations_to_cluster(cluster_spec, ambari_info, name)
@@ -567,7 +689,7 @@ class AmbariClient():
     def _get_services_in_state(self, cluster_name, ambari_info, state):
         services_url = ('http://{0}/api/v1/clusters/{1}/services?'
                         'ServiceInfo/state.in({2})'.format(
-                        ambari_info.get_address(), cluster_name, state))
+                            ambari_info.get_address(), cluster_name, state))
 
         result = self._get(services_url, ambari_info)
 
@@ -583,6 +705,6 @@ class AmbariClient():
         started_services = self._get_services_in_state(
             cluster_name, ambari_info, 'STARTED')
         for service in cluster_spec.services:
-            if service.deployed and not service.name in started_services:
+            if service.deployed and service.name not in started_services:
                 service.pre_service_start(cluster_spec, ambari_info,
                                           started_services)

@@ -111,8 +111,8 @@ class InvalidDataException(SaharaException):
 
 
 class BadJobBinaryInternalException(SaharaException):
-    message = "Job binary internal data must be a string of length " \
-              "greater than zero"
+    message = ("Job binary internal data must be a string of length "
+               "greater than zero")
 
     def __init__(self, message=None):
         if message:
@@ -121,8 +121,8 @@ class BadJobBinaryInternalException(SaharaException):
 
 
 class BadJobBinaryException(SaharaException):
-    message = "To work with JobBinary located in internal swift add 'user'" \
-              " and 'password' to extra"
+    message = ("To work with JobBinary located in internal swift add 'user'"
+               " and 'password' to extra")
 
     def __init__(self, message=None):
         if message:
@@ -213,6 +213,13 @@ class IncorrectStateError(SaharaException):
 
 class SystemError(SaharaException):
     code = "SYSTEM_ERROR"
+
+    def __init__(self, message):
+        self.message = message
+
+
+class EDPError(SaharaException):
+    code = "EDP_ERROR"
 
     def __init__(self, message):
         self.message = message

@@ -40,16 +40,14 @@ class ClusterCannotBeScaled(e.SaharaException):
 
 
 class RequiredServiceMissingException(e.SaharaException):
-    """A validation exception indicating that a required service
-       has not been deployed
-    """
+    """Exception indicating that a required service has not been deployed."""
 
     def __init__(self, service_name, required_by=None):
-        self.message = 'Cluster is missing a service: %s'\
-                       % service_name
+        self.message = ('Cluster is missing a service: %s'
+                        % service_name)
         if required_by:
-            self.message = '%s, required by service: %s'\
-                % (self.message, required_by)
+            self.message = ('%s, required by service: %s'
+                            % (self.message, required_by))
 
         self.code = 'MISSING_SERVICE'
 
@@ -57,14 +55,18 @@ class RequiredServiceMissingException(e.SaharaException):
 
 
 class InvalidComponentCountException(e.SaharaException):
-    """A validation exception indicating that an invalid number of
-       components are being deployed in a cluster
+    """Exception indicating invalid number of components in a cluster.
+
+    A message indicating a number of components cluster should contain and
+    an invalid number of components are being deployed in a cluster.
     """
 
-    def __init__(self, component, expected_count, count):
+    def __init__(self, component, expected_count, count, description=None):
         self.message = ("Hadoop cluster should contain {0} {1} component(s)."
                         " Actual {1} count is {2}".format(
-                        expected_count, component, count))
+                            expected_count, component, count))
+        if description:
+            self.message += '. ' + description
         self.code = "INVALID_COMPONENT_COUNT"
 
         super(InvalidComponentCountException, self).__init__()

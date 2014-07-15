@@ -79,7 +79,7 @@ class OozieClient(object):
 def _check_status_code(resp, expected_code):
     if resp.status_code != expected_code:
         resp_text = resp.text
-        #cleaning tomcat error message
+        # cleaning tomcat error message
         message = resp_text.split("<HR size=\"1\" noshade=\"noshade\">")[1]
         message = message.replace("</p><p>", "\n")
         message = re.sub('<[^<]+?>', ' ', message)
@@ -87,10 +87,8 @@ def _check_status_code(resp, expected_code):
 
 
 def get_json(response):
-    """This method provided backward compatibility with old versions
-    of requests library
+    """Provides backward compatibility for old versions of requests library."""
 
-    """
     json_field_or_function = getattr(response, 'json', None)
     if callable(json_field_or_function):
         return response.json()

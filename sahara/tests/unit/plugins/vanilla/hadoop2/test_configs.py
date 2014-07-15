@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sahara.plugins.vanilla.v2_3_0 import config as c
+from sahara.plugins.vanilla.hadoop2 import config as c
 from sahara.tests.unit import base
 
 
@@ -30,7 +30,7 @@ class VanillaTwoConfigTestCase(base.SaharaTestCase):
             'hadoop_secure_dn_log_dir': '/vol1/hadoop/logs/secure',
             'yarn_log_dir': '/vol1/yarn/logs'
         }
-        self.assertDictEqual(dirs, expected)
+        self.assertEqual(dirs, expected)
 
     def test_merge_configs(self):
         a = {
@@ -60,7 +60,7 @@ class VanillaTwoConfigTestCase(base.SaharaTestCase):
                 'param5': 'value5'
             }
         }
-        self.assertDictEqual(res, expected)
+        self.assertEqual(res, expected)
 
 
 class FakeNG():

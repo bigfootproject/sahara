@@ -33,9 +33,7 @@ from sahara.utils import types
 
 
 def wrap(resource_class):
-    """A decorator which wraps dict returned by a given function into
-    a Resource.
-    """
+    """A decorator wraps dict returned by a given function into a Resource."""
 
     def decorator(func):
         def handle(*args, **kwargs):
@@ -53,8 +51,9 @@ def wrap(resource_class):
 
 
 class Resource(types.FrozenDict):
-    """Represents dictionary as an immutable object, enhancing it with
-    back references and helper methods.
+    """Represents dictionary as an immutable object.
+
+    Enhancing it with back references and helper methods.
 
     For instance, the following dictionary:
     {'first': {'a': 1, 'b': 2}, 'second': [1,2,3]}
@@ -209,7 +208,7 @@ class ClusterResource(Resource, objects.Cluster):
     _filter_fields = ['management_private_key', 'extra']
 
 
-##EDP Resources
+# EDP Resources
 
 class DataSource(Resource, objects.DataSource):
     _resource_name = "data_source"

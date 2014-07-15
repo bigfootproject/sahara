@@ -15,7 +15,7 @@
 
 import mock
 import six
-import unittest2
+import testtools
 
 from sahara import exceptions as ex
 from sahara.plugins.vanilla import plugin
@@ -32,8 +32,9 @@ def _get_plugin(plugin_name):
     return None
 
 
-class TestScalingValidation(unittest2.TestCase):
+class TestScalingValidation(testtools.TestCase):
     def setUp(self):
+        super(TestScalingValidation, self).setUp()
         api.plugin_base.setup_plugins()
         self._create_object_fun = mock.Mock()
 
@@ -48,7 +49,7 @@ class TestScalingValidation(unittest2.TestCase):
         get_cluster_p.return_value = cluster
         get_plugin_p.side_effect = _get_plugin
 
-        with self.assertRaises(ex.InvalidException):
+        with testtools.ExpectedException(ex.InvalidException):
             try:
                 c_s.check_cluster_scaling(data, cluster.id)
             except ex.InvalidException as e:
@@ -60,12 +61,12 @@ class TestScalingValidation(unittest2.TestCase):
         cluster = tu.create_cluster("cluster1", "tenant1", "vanilla", "1.2.1",
                                     [ng1], status='Validating', id='12321')
 
-        self._assert_check_scaling(data={}, cluster=cluster,
-                                   expected_message=
-                                   "Cluster cannot be scaled "
-                                   "not in 'Active' "
-                                   "status. Cluster status: "
-                                   "Validating")
+        self._assert_check_scaling(
+            data={}, cluster=cluster,
+            expected_message="Cluster cannot be scaled "
+                             "not in 'Active' "
+                             "status. Cluster status: "
+                             "Validating")
 
         cluster = tu.create_cluster("cluster1", "tenant1", "vanilla", "1.2.1",
                                     [ng1], status='Active', id='12321')
@@ -78,10 +79,10 @@ class TestScalingValidation(unittest2.TestCase):
                 }
             ],
         }
-        self._assert_check_scaling(data=data, cluster=cluster,
-                                   expected_message=
-                                   "Cluster doesn't contain "
-                                   "node group with name 'a'")
+        self._assert_check_scaling(
+            data=data, cluster=cluster,
+            expected_message="Cluster doesn't contain "
+                             "node group with name 'a'")
         data.update({'resize_node_groups': [
             {
                 'name': 'a',
@@ -94,10 +95,10 @@ class TestScalingValidation(unittest2.TestCase):
                 'node_processes': ['namenode']
             }
         ]})
-        self._assert_check_scaling(data=data, cluster=cluster,
-                                   expected_message=
-                                   'Duplicates in node '
-                                   'group names are detected')
+        self._assert_check_scaling(
+            data=data, cluster=cluster,
+            expected_message='Duplicates in node '
+                             'group names are detected')
 
     def test_check_cluster_scaling_add_ng(self):
         ng1 = tu.make_ng_dict('ng', '42', ['namenode'], 1)
@@ -118,10 +119,10 @@ class TestScalingValidation(unittest2.TestCase):
                 }
             ]
         }
-        self._assert_check_scaling(data=data, cluster=cluster,
-                                   expected_message=
-                                   'Duplicates in node '
-                                   'group names are detected')
+        self._assert_check_scaling(
+            data=data, cluster=cluster,
+            expected_message='Duplicates in node '
+                             'group names are detected')
         data = {
             'add_node_groups': [
                 {
@@ -131,11 +132,11 @@ class TestScalingValidation(unittest2.TestCase):
                 },
             ]
         }
-        self._assert_check_scaling(data=data, cluster=cluster,
-                                   expected_message=
-                                   "Can't add new nodegroup. "
-                                   "Cluster already has nodegroup "
-                                   "with name 'ng'")
+        self._assert_check_scaling(
+            data=data, cluster=cluster,
+            expected_message="Can't add new nodegroup. "
+                             "Cluster already has nodegroup "
+                             "with name 'ng'")
 
         data = {
             'add_node_groups': [
@@ -149,10 +150,11 @@ class TestScalingValidation(unittest2.TestCase):
         }
         patchers = u.start_patch()
         self._assert_check_scaling(
-            data=data, cluster=cluster, expected_message=
-            "Composite hostname test-cluster-very-very-very-very-"
-            "very-very-long-ng-name-010.novalocal in provisioned cluster "
-            "exceeds maximum limit 64 characters")
+            data=data, cluster=cluster,
+            expected_message="Composite hostname test-cluster-very-"
+                             "very-very-very-very-very-long-ng-name-"
+                             "010.novalocal in provisioned cluster exceeds "
+                             "maximum limit 64 characters")
         u.stop_patch(patchers)
 
     def _assert_calls(self, mock, call_info):

@@ -67,7 +67,7 @@ class ConductorManager(db_base.Base):
     def __init__(self):
         super(ConductorManager, self).__init__()
 
-    ## Common helpers
+    # Common helpers
 
     def _populate_node_groups(self, context, cluster):
         node_groups = cluster.get('node_groups')
@@ -110,22 +110,23 @@ class ConductorManager(db_base.Base):
 
         return node_group_merged
 
-    ## Cluster ops
+    # Cluster ops
 
     def cluster_get(self, context, cluster):
         """Return the cluster or None if it does not exist."""
         return self.db.cluster_get(context, cluster)
 
     def cluster_get_all(self, context, **kwargs):
-        """Get all clusters filtered by **kwargs  e.g.
-            cluster_get_all(plugin_name='vanilla', hadoop_version='1.1')
-            """
+        """Get all clusters filtered by **kwargs.
+
+        e.g. cluster_get_all(plugin_name='vanilla', hadoop_version='1.1')
+        """
         return self.db.cluster_get_all(context, **kwargs)
 
     def cluster_create(self, context, values):
         """Create a cluster from the values dictionary."""
 
-        #loading defaults
+        # loading defaults
         merged_values = copy.deepcopy(CLUSTER_DEFAULTS)
         merged_values['tenant_id'] = context.tenant_id
 
@@ -143,10 +144,10 @@ class ConductorManager(db_base.Base):
             del c_tmpl['updated_at']
             del c_tmpl['id']
 
-            #updating with cluster_template values
+            # updating with cluster_template values
             merged_values.update(c_tmpl)
 
-        #updating with values provided in request
+        # updating with values provided in request
         merged_values.update(values)
 
         if c_tmpl:
@@ -154,8 +155,8 @@ class ConductorManager(db_base.Base):
                 c_tmpl.get('cluster_configs'),
                 values.get('cluster_configs'))
 
-        merged_values['node_groups'] = \
-            self._populate_node_groups(context, merged_values)
+        merged_values['node_groups'] = self._populate_node_groups(
+            context, merged_values)
 
         return self.db.cluster_create(context, merged_values)
 
@@ -168,7 +169,7 @@ class ConductorManager(db_base.Base):
         """Destroy the cluster or raise if it does not exist."""
         self.db.cluster_destroy(context, cluster)
 
-    ## Node Group ops
+    # Node Group ops
 
     def node_group_add(self, context, cluster, values):
         """Create a Node Group from the values dictionary."""
@@ -186,7 +187,7 @@ class ConductorManager(db_base.Base):
         """Destroy the node_group or raise if it does not exist."""
         self.db.node_group_remove(context, node_group)
 
-    ## Instance ops
+    # Instance ops
 
     def instance_add(self, context, node_group, values):
         """Create an Instance from the values dictionary."""
@@ -204,7 +205,7 @@ class ConductorManager(db_base.Base):
         """Destroy the Instance or raise if it does not exist."""
         self.db.instance_remove(context, instance)
 
-    ## Volumes ops
+    # Volumes ops
 
     def append_volume(self, context, instance, volume_id):
         """Append volume_id to instance."""
@@ -214,7 +215,7 @@ class ConductorManager(db_base.Base):
         """Remove volume_id in instance."""
         self.db.remove_volume(context, instance, volume_id)
 
-    ## Cluster Template ops
+    # Cluster Template ops
 
     def cluster_template_get(self, context, cluster_template):
         """Return the cluster_template or None if it does not exist."""
@@ -238,7 +239,7 @@ class ConductorManager(db_base.Base):
         """Destroy the cluster_template or raise if it does not exist."""
         self.db.cluster_template_destroy(context, cluster_template)
 
-    ## Node Group Template ops
+    # Node Group Template ops
 
     def node_group_template_get(self, context, node_group_template):
         """Return the Node Group Template or None if it does not exist."""
@@ -260,7 +261,7 @@ class ConductorManager(db_base.Base):
         """Destroy the Node Group Template or raise if it does not exist."""
         self.db.node_group_template_destroy(context, node_group_template)
 
-    ## Data Source ops
+    # Data Source ops
 
     def data_source_get(self, context, data_source):
         """Return the Data Source or None if it does not exist."""
@@ -282,21 +283,23 @@ class ConductorManager(db_base.Base):
         """Destroy the Data Source or raise if it does not exist."""
         return self.db.data_source_destroy(context, data_source)
 
-    ##JobExecution ops
+    # JobExecution ops
 
     def job_execution_get(self, context, job_execution):
         """Return the JobExecution or None if it does not exist."""
         return self.db.job_execution_get(context, job_execution)
 
     def job_execution_get_all(self, context, **kwargs):
-        """Get all JobExecutions filtered by **kwargs  e.g.
-            job_execution_get_all(cluster_id=12, input_id=123)
+        """Get all JobExecutions filtered by **kwargs.
+
+        e.g. job_execution_get_all(cluster_id=12, input_id=123)
         """
         return self.db.job_execution_get_all(context, **kwargs)
 
     def job_execution_count(self, context, **kwargs):
-        """Count number of JobExecutions filtered by **kwargs  e.g.
-            job_execution_count(cluster_id=12, input_id=123)
+        """Count number of JobExecutions filtered by **kwargs.
+
+        e.g. job_execution_count(cluster_id=12, input_id=123)
         """
         return self.db.job_execution_count(context, **kwargs)
 
@@ -314,7 +317,7 @@ class ConductorManager(db_base.Base):
         """Destroy the JobExecution or raise if it does not exist."""
         return self.db.job_execution_destroy(context, job_execution)
 
-    ## Job ops
+    # Job ops
 
     def job_get(self, context, job):
         """Return the Job or None if it does not exist."""
@@ -338,7 +341,7 @@ class ConductorManager(db_base.Base):
         """Destroy the Job or raise if it does not exist."""
         self.db.job_destroy(context, job)
 
-    ## JobBinary ops
+    # JobBinary ops
 
     def job_binary_get_all(self, context):
         """Get all JobBinaries."""
@@ -359,7 +362,7 @@ class ConductorManager(db_base.Base):
         """Destroy the JobBinary or raise if it does not exist."""
         self.db.job_binary_destroy(context, job_binary)
 
-    ## JobBinaryInternal ops
+    # JobBinaryInternal ops
 
     def job_binary_internal_get_all(self, context):
         """Get all JobBinaryInternals

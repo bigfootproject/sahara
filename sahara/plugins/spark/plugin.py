@@ -26,6 +26,7 @@ from sahara.plugins.spark import run_scripts as run
 from sahara.plugins.spark import scaling as sc
 from sahara.topology import topology_helper as th
 from sahara.utils import files as f
+from sahara.utils import general as ug
 from sahara.utils import remote
 
 
@@ -108,8 +109,8 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         with remote.get_remote(nn_instance) as r:
             r.execute_command("sudo -u hdfs hdfs dfs -mkdir -p /user/$USER/")
-            r.execute_command("sudo -u hdfs hdfs dfs -chown $USER \
-                              /user/$USER/")
+            r.execute_command(("sudo -u hdfs hdfs dfs -chown $USER "
+                               "/user/$USER/"))
 
         # start spark nodes
         if sm_instance:
@@ -216,21 +217,21 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         # pietro: This is required because the (secret) key is not stored in
         # .ssh which hinders password-less ssh required by spark scripts
-        key_cmd = 'sudo cp $HOME/id_rsa $HOME/.ssh/; '\
-            'sudo chown $USER $HOME/.ssh/id_rsa; '\
-            'sudo chmod 600 $HOME/.ssh/id_rsa'
+        key_cmd = ('sudo cp $HOME/id_rsa $HOME/.ssh/; '
+                   'sudo chown $USER $HOME/.ssh/id_rsa; '
+                   'sudo chmod 600 $HOME/.ssh/id_rsa')
 
         for ng in cluster.node_groups:
             dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
                                                    '/dfs/dn')
             nn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
                                                    '/dfs/nn')
-            hdfs_dir_cmd = 'sudo mkdir -p %s %s;'\
-                'sudo chown -R hdfs:hadoop %s %s;'\
-                'sudo chmod 755 %s %s;'\
-                % (nn_path, dn_path,
-                   nn_path, dn_path,
-                   nn_path, dn_path)
+            hdfs_dir_cmd = (('sudo mkdir -p %s %s;'
+                             'sudo chown -R hdfs:hadoop %s %s;'
+                             'sudo chmod 755 %s %s;')
+                            % (nn_path, dn_path,
+                               nn_path, dn_path,
+                               nn_path, dn_path))
 
         with remote.get_remote(instance) as r:
             r.execute_command(
@@ -267,9 +268,7 @@ class SparkProvider(p.ProvisioningPluginBase):
     def _push_configs_to_existing_node(self, cluster, extra, instance):
         node_processes = instance.node_group.node_processes
         need_update_hadoop = (c_helper.is_data_locality_enabled(cluster) or
-                              'namenode' in node_processes or
-                              'master' in node_processes or
-                              'slave' in node_processes)
+                              'namenode' in node_processes)
         need_update_spark = ('master' in node_processes or
                              'slave' in node_processes)
 
@@ -326,7 +325,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         ctx = context.ctx()
         conductor.cluster_update(ctx, cluster, {'info': info})
 
-    ### Scaling ###
+    # Scaling
 
     def validate_scaling(self, cluster, existing, additional):
         self._validate_existing_ng_scaling(cluster, existing)
@@ -373,29 +372,23 @@ class SparkProvider(p.ProvisioningPluginBase):
         return ["datanode", "slave"]
 
     def _validate_additional_ng_scaling(self, cluster, additional):
-        master = utils.get_instance(cluster, "master")
         scalable_processes = self._get_scalable_processes()
 
         for ng_id in additional:
-            ng = self._get_by_id(cluster.node_groups, ng_id)
+            ng = ug.get_by_id(cluster.node_groups, ng_id)
             if not set(ng.node_processes).issubset(scalable_processes):
                 raise ex.NodeGroupCannotBeScaled(
                     ng.name, "Spark plugin cannot scale nodegroup"
                              " with processes: " +
                              ' '.join(ng.node_processes))
-            if not master and 'slave' in ng.node_processes:
-                raise ex.NodeGroupCannotBeScaled(
-                    ng.name, "Spark plugin cannot scale node group with "
-                             "processes which have no master-processes run "
-                             "in cluster")
 
     def _validate_existing_ng_scaling(self, cluster, existing):
         scalable_processes = self._get_scalable_processes()
         dn_to_delete = 0
         for ng in cluster.node_groups:
             if ng.id in existing:
-                if ng.count > existing[ng.id] and "datanode" in \
-                        ng.node_processes:
+                if ng.count > existing[ng.id] and ("datanode" in
+                                                   ng.node_processes):
                     dn_to_delete += ng.count - existing[ng.id]
                 if not set(ng.node_processes).issubset(scalable_processes):
                     raise ex.NodeGroupCannotBeScaled(

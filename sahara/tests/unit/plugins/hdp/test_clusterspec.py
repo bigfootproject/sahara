@@ -15,12 +15,13 @@
 
 import mock
 import pkg_resources as pkg
-import unittest2
 
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.hdp import clusterspec as cs
+from sahara.plugins.hdp import hadoopserver
 from sahara.plugins.hdp.versions.version_1_3_2 import services as s
 from sahara.plugins import provisioning
+from sahara.tests.unit import base as sahara_base
 import sahara.tests.unit.plugins.hdp.hdp_test_base as base
 from sahara.topology import topology_helper as th
 from sahara import version
@@ -37,10 +38,26 @@ class TestCONF(object):
 @mock.patch('sahara.plugins.hdp.versions.version_1_3_2.services.HdfsService.'
             '_get_swift_properties',
             return_value=[])
-class ClusterSpecTest(unittest2.TestCase):
+class ClusterSpecTest(sahara_base.SaharaTestCase):
     service_validators = {}
 
-    #TODO(jspeidel): test host manifest
+    def setUp(self):
+        super(ClusterSpecTest, self).setUp()
+        self.service_validators['HDFS'] = self._assert_hdfs
+        self.service_validators['MAPREDUCE'] = self._assert_mr
+        self.service_validators['GANGLIA'] = self._assert_ganglia
+        self.service_validators['NAGIOS'] = self._assert_nagios
+        self.service_validators['AMBARI'] = self._assert_ambari
+        self.service_validators['PIG'] = self._assert_pig
+        self.service_validators['HIVE'] = self._assert_hive
+        self.service_validators['HCATALOG'] = self._assert_hcatalog
+        self.service_validators['ZOOKEEPER'] = self._assert_zookeeper
+        self.service_validators['WEBHCAT'] = self._assert_webhcat
+        self.service_validators['OOZIE'] = self._assert_oozie
+        self.service_validators['SQOOP'] = self._assert_sqoop
+        self.service_validators['HBASE'] = self._assert_hbase
+
+    # TODO(jspeidel): test host manifest
     def test_parse_default_with_cluster(self, patched):
         cluster_config_file = pkg.resource_string(
             version.version_info.package,
@@ -74,7 +91,7 @@ class ClusterSpecTest(unittest2.TestCase):
 
         master_node_group = node_groups['master']
         self.assertEqual('master', master_node_group.name)
-        self.assertEqual(8, len(master_node_group.components))
+        self.assertEqual(9, len(master_node_group.components))
         self.assertIn('NAMENODE', master_node_group.components)
         self.assertIn('JOBTRACKER', master_node_group.components)
         self.assertIn('SECONDARY_NAMENODE', master_node_group.components)
@@ -83,6 +100,7 @@ class ClusterSpecTest(unittest2.TestCase):
         self.assertIn('NAGIOS_SERVER', master_node_group.components)
         self.assertIn('AMBARI_SERVER', master_node_group.components)
         self.assertIn('AMBARI_AGENT', master_node_group.components)
+        self.assertIn('HISTORYSERVER', master_node_group.components)
 
         slave_node_group = node_groups['slave']
         self.assertEqual('slave', slave_node_group.name)
@@ -326,9 +344,10 @@ class ClusterSpecTest(unittest2.TestCase):
             '222.22.6666', '333.22.6666')
 
         master_ng = TestNodeGroup(
-            'master', [master_host], ['GANGLIA_SERVER',
-            'GANGLIA_MONITOR', 'NAGIOS_SERVER',
-            'AMBARI_SERVER', 'AMBARI_AGENT'])
+            'master', [master_host],
+            ['GANGLIA_SERVER',
+             'GANGLIA_MONITOR', 'NAGIOS_SERVER',
+             'AMBARI_SERVER', 'AMBARI_AGENT'])
         jt_ng = TestNodeGroup('jt', [jt_host], ["JOBTRACKER",
                               "GANGLIA_MONITOR", "AMBARI_AGENT"])
         nn_ng = TestNodeGroup('nn', [nn_host], ["NAMENODE",
@@ -336,9 +355,10 @@ class ClusterSpecTest(unittest2.TestCase):
         snn_ng = TestNodeGroup('snn', [snn_host], ["SECONDARY_NAMENODE",
                                "GANGLIA_MONITOR", "AMBARI_AGENT"])
         slave_ng = TestNodeGroup(
-            'slave', [slave_host], ["DATANODE", "TASKTRACKER",
-            "GANGLIA_MONITOR", "HDFS_CLIENT", "MAPREDUCE_CLIENT",
-            "AMBARI_AGENT"])
+            'slave', [slave_host],
+            ["DATANODE", "TASKTRACKER",
+             "GANGLIA_MONITOR", "HDFS_CLIENT", "MAPREDUCE_CLIENT",
+             "AMBARI_AGENT"])
 
         cluster = base.TestCluster([master_ng, jt_ng, nn_ng,
                                    snn_ng, slave_ng])
@@ -363,7 +383,13 @@ class ClusterSpecTest(unittest2.TestCase):
         rpm = ambari_config.get('rpm', None)
         self.assertEqual('http://s3.amazonaws.com/'
                          'public-repo-1.hortonworks.com/ambari/centos6/'
-                         '1.x/updates/1.4.3.38/ambari.repo', rpm)
+                         '1.x/updates/1.6.0/ambari.repo', rpm)
+
+    def test_default_ambari_rpm_path(self, patched):
+        self.assertEqual('http://s3.amazonaws.com/'
+                         'public-repo-1.hortonworks.com/ambari/centos6/'
+                         '1.x/updates/1.6.0/ambari.repo',
+                         hadoopserver.AMBARI_RPM)
 
     def test_parse_default(self, patched):
         cluster_config_file = pkg.resource_string(
@@ -478,8 +504,8 @@ class ClusterSpecTest(unittest2.TestCase):
                 self.assertIn('GANGLIA_SERVER', components)
                 self.assertIn('NAGIOS_SERVER', components)
                 self.assertIn('AMBARI_SERVER', components)
-                #TODO(jspeidel): node configs
-                #TODO(jspeidel): vm_requirements
+                # TODO(jspeidel): node configs
+                # TODO(jspeidel): vm_requirements
             elif node_group.name == 'slave':
                 contains_slave_group = True
                 self.assertEqual(4, len(components))
@@ -487,8 +513,8 @@ class ClusterSpecTest(unittest2.TestCase):
                 self.assertIn('TASKTRACKER', components)
                 self.assertIn('HDFS_CLIENT', components)
                 self.assertIn('MAPREDUCE_CLIENT', components)
-                #TODO(jspeidel): node configs
-                #TODO(jspeidel): vm requirements
+                # TODO(jspeidel): node configs
+                # TODO(jspeidel): vm requirements
             else:
                 self.fail('Unexpected node group: {0}'.format(node_group.name))
         self.assertTrue(contains_master_group)
@@ -541,12 +567,14 @@ class ClusterSpecTest(unittest2.TestCase):
                                   '222.22.2222', '333.22.2222')
 
         node_group1 = TestNodeGroup(
-            'master', [server1], ["NAMENODE", "JOBTRACKER",
-            "SECONDARY_NAMENODE", "GANGLIA_SERVER", "GANGLIA_MONITOR",
-            "NAGIOS_SERVER", "AMBARI_SERVER", "AMBARI_AGENT"])
+            'master', [server1],
+            ["NAMENODE", "JOBTRACKER",
+             "SECONDARY_NAMENODE", "GANGLIA_SERVER", "GANGLIA_MONITOR",
+             "NAGIOS_SERVER", "AMBARI_SERVER", "AMBARI_AGENT"])
         node_group2 = TestNodeGroup(
-            'slave', [server2], ["TASKTRACKER", "DATANODE", "AMBARI_AGENT",
-            "GANGLIA_MONITOR"])
+            'slave', [server2],
+            ["TASKTRACKER", "DATANODE", "AMBARI_AGENT",
+             "GANGLIA_MONITOR"])
 
         cluster = base.TestCluster([node_group1, node_group2])
         cluster_config = cs.ClusterSpec(cluster_config_file)
@@ -676,12 +704,14 @@ class ClusterSpecTest(unittest2.TestCase):
                                   '222.22.2222', '333.22.2222')
 
         node_group1 = TestNodeGroup(
-            'master', [server1], ["NAMENODE", "JOBTRACKER",
-            "SECONDARY_NAMENODE", "GANGLIA_SERVER", "GANGLIA_MONITOR",
-            "NAGIOS_SERVER", "AMBARI_SERVER", "AMBARI_AGENT"])
+            'master', [server1],
+            ["NAMENODE", "JOBTRACKER",
+             "SECONDARY_NAMENODE", "GANGLIA_SERVER", "GANGLIA_MONITOR",
+             "NAGIOS_SERVER", "AMBARI_SERVER", "AMBARI_AGENT"])
         node_group2 = TestNodeGroup(
-            'slave', [server2], ["TASKTRACKER", "DATANODE",
-            "AMBARI_AGENT", "GANGLIA_MONITOR"])
+            'slave', [server2],
+            ["TASKTRACKER", "DATANODE",
+             "AMBARI_AGENT", "GANGLIA_MONITOR"])
 
         cluster = base.TestCluster([node_group1, node_group2])
         cluster_config = cs.ClusterSpec(cluster_config_file)
@@ -708,12 +738,14 @@ class ClusterSpecTest(unittest2.TestCase):
                                   '222.22.2222', '333.22.2222')
 
         node_group1 = TestNodeGroup(
-            'master', [server1], ["NAMENODE", "JOBTRACKER",
-            "SECONDARY_NAMENODE", "GANGLIA_SERVER", "GANGLIA_MONITOR",
-            "NAGIOS_SERVER", "AMBARI_SERVER", "AMBARI_AGENT"])
+            'master', [server1],
+            ["NAMENODE", "JOBTRACKER",
+             "SECONDARY_NAMENODE", "GANGLIA_SERVER", "GANGLIA_MONITOR",
+             "NAGIOS_SERVER", "AMBARI_SERVER", "AMBARI_AGENT"])
         node_group2 = TestNodeGroup(
-            'slave', [server2], ["TASKTRACKER", "DATANODE",
-            "AMBARI_AGENT", "GANGLIA_MONITOR"])
+            'slave', [server2],
+            ["TASKTRACKER", "DATANODE",
+             "AMBARI_AGENT", "GANGLIA_MONITOR"])
 
         cluster = base.TestCluster([node_group1, node_group2])
         cluster_config = cs.ClusterSpec(cluster_config_file)
@@ -830,8 +862,8 @@ class ClusterSpecTest(unittest2.TestCase):
             # expected
             pass
 
-    #TODO(jspeidel): move validate_* to test_services when validate
-    #is called independently of cluspterspec
+    # TODO(jspeidel): move validate_* to test_services when validate
+    # is called independently of cluspterspec
     def test_validate_hdfs(self, patched):
         server = base.TestServer('host1', 'slave', '11111', 3,
                                  '111.11.1111', '222.22.2222')
@@ -928,7 +960,7 @@ class ClusterSpecTest(unittest2.TestCase):
             # expected
             pass
 
-        #should fail due to no TT
+        # should fail due to no TT
         node_group = TestNodeGroup(
             'slave', [server], ["DATANODE", "HDFS_CLIENT",
                                 "MAPREDUCE_CLIENT"])
@@ -1338,7 +1370,7 @@ class ClusterSpecTest(unittest2.TestCase):
                                found_components['SECONDARY_NAMENODE'])
         self._assert_component('HDFS_CLIENT', 'CLIENT', "1+",
                                found_components['HDFS_CLIENT'])
-        #TODO(jspeidel) config
+        # TODO(jspeidel) config
 
     def _assert_mr(self, service):
         self.assertEqual('MAPREDUCE', service.name)
@@ -1347,13 +1379,15 @@ class ClusterSpecTest(unittest2.TestCase):
         for component in service.components:
             found_components[component.name] = component
 
-        self.assertEqual(3, len(found_components))
+        self.assertEqual(4, len(found_components))
         self._assert_component('JOBTRACKER', 'MASTER', "1",
                                found_components['JOBTRACKER'])
         self._assert_component('TASKTRACKER', 'SLAVE', "1+",
                                found_components['TASKTRACKER'])
         self._assert_component('MAPREDUCE_CLIENT', 'CLIENT', "1+",
                                found_components['MAPREDUCE_CLIENT'])
+        self._assert_component('HISTORYSERVER', 'MASTER', "1",
+                               found_components['HISTORYSERVER'])
         # TODO(jspeidel) config
 
     def _assert_nagios(self, service):
@@ -1491,21 +1525,6 @@ class ClusterSpecTest(unittest2.TestCase):
         self.assertIn('hive-site', configurations)
         self.assertIn('oozie-site', configurations)
         self.assertIn('hbase-site', configurations)
-
-    def setUp(self):
-        self.service_validators['HDFS'] = self._assert_hdfs
-        self.service_validators['MAPREDUCE'] = self._assert_mr
-        self.service_validators['GANGLIA'] = self._assert_ganglia
-        self.service_validators['NAGIOS'] = self._assert_nagios
-        self.service_validators['AMBARI'] = self._assert_ambari
-        self.service_validators['PIG'] = self._assert_pig
-        self.service_validators['HIVE'] = self._assert_hive
-        self.service_validators['HCATALOG'] = self._assert_hcatalog
-        self.service_validators['ZOOKEEPER'] = self._assert_zookeeper
-        self.service_validators['WEBHCAT'] = self._assert_webhcat
-        self.service_validators['OOZIE'] = self._assert_oozie
-        self.service_validators['SQOOP'] = self._assert_sqoop
-        self.service_validators['HBASE'] = self._assert_hbase
 
 
 class TestNodeGroup:

@@ -19,10 +19,10 @@ import six.moves.urllib.parse as urlparse
 from sahara import conductor as c
 from sahara import context
 from sahara.plugins import base as plugin_base
-from sahara.service.edp.workflow_creator import hive_workflow
-from sahara.service.edp.workflow_creator import java_workflow
-from sahara.service.edp.workflow_creator import mapreduce_workflow
-from sahara.service.edp.workflow_creator import pig_workflow
+from sahara.service.edp.oozie.workflow_creator import hive_workflow
+from sahara.service.edp.oozie.workflow_creator import java_workflow
+from sahara.service.edp.oozie.workflow_creator import mapreduce_workflow
+from sahara.service.edp.oozie.workflow_creator import pig_workflow
 from sahara.swift import swift_helper as sw
 from sahara.swift import utils as su
 from sahara.utils import edp
@@ -74,7 +74,7 @@ class BaseFactory(object):
             u = urlparse.urlparse(url)
             if not u.netloc.endswith(su.SWIFT_URL_SUFFIX):
                 return url.replace(u.netloc,
-                                   u.netloc+"%s" % su.SWIFT_URL_SUFFIX, 1)
+                                   u.netloc + "%s" % su.SWIFT_URL_SUFFIX, 1)
         return url
 
     def update_job_dict(self, job_dict, exec_dict):
@@ -208,7 +208,7 @@ class JavaFactory(BaseFactory):
         return creator.get_built_workflow_xml()
 
 
-def get_creator(job):
+def _get_creator(job):
 
     def make_PigFactory():
         return PigFactory(job)
@@ -227,6 +227,11 @@ def get_creator(job):
     return type_map[job.type]()
 
 
+def get_workflow_xml(job, cluster, execution, *args, **kwargs):
+    return _get_creator(job).get_workflow_xml(
+        cluster, execution, *args, **kwargs)
+
+
 def get_possible_job_config(job_type):
     if not edp.compare_job_type(job_type, *edp.JOB_TYPES_ALL):
         return None
@@ -236,14 +241,14 @@ def get_possible_job_config(job_type):
 
     if edp.compare_job_type(job_type,
                             edp.JOB_TYPE_MAPREDUCE, edp.JOB_TYPE_PIG):
-        #TODO(nmakhotkin) Here we should return config based on specific plugin
+        # TODO(nmakhotkin): Here we need return config based on specific plugin
         cfg = xmlutils.load_hadoop_xml_defaults(
             'plugins/vanilla/v1_2_1/resources/mapred-default.xml')
         if edp.compare_job_type(job_type, edp.JOB_TYPE_MAPREDUCE):
             cfg += xmlutils.load_hadoop_xml_defaults(
                 'service/edp/resources/mapred-job-config.xml')
     elif edp.compare_job_type(job_type, edp.JOB_TYPE_HIVE):
-        #TODO(nmakhotkin) Here we should return config based on specific plugin
+        # TODO(nmakhotkin): Here we need return config based on specific plugin
         cfg = xmlutils.load_hadoop_xml_defaults(
             'plugins/vanilla/v1_2_1/resources/hive-default.xml')
 

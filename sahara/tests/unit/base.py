@@ -13,24 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tempfile
-
+import fixtures
 import mock
-import unittest2
+import testtools
 
 from sahara import context
 from sahara.db import api as db_api
 from sahara import main
-from sahara.openstack.common.db import options
 
 
-class SaharaTestCase(unittest2.TestCase):
+class SaharaTestCase(testtools.TestCase):
 
     def setUp(self):
         super(SaharaTestCase, self).setUp()
 
-        self.maxDiff = None
+        self.useFixture(fixtures.FakeLogger('sahara'))
         self.setup_context()
 
     def setup_context(self, username="test_user", tenant_id="tenant_1",
@@ -51,18 +48,10 @@ class SaharaTestCase(unittest2.TestCase):
 class SaharaWithDbTestCase(SaharaTestCase):
     def setUp(self):
         super(SaharaWithDbTestCase, self).setUp()
-        self.setup_db()
 
-    def setup_db(self):
-        self.db_fd, self.db_path = tempfile.mkstemp()
-        options.set_defaults('sqlite:///' + self.db_path, self.db_path)
+        self.override_config('connection', "sqlite://", group='database')
         db_api.setup_db()
-        self.addCleanup(self._drop_db)
-
-    def _drop_db(self):
-        db_api.drop_db()
-        os.close(self.db_fd)
-        os.unlink(self.db_path)
+        self.addCleanup(db_api.drop_db)
 
 
 class _ConsecutiveThreadGroup(context.ThreadGroup):

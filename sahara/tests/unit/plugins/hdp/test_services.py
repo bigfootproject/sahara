@@ -14,18 +14,18 @@
 # limitations under the License.
 
 import mock
-import unittest2
 
 from sahara import exceptions as e
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.hdp.versions import versionhandlerfactory as vhf
+from sahara.tests.unit import base
 from sahara.tests.unit.plugins.hdp import hdp_test_base
 
 versions = ['1.3.2', '2.0.6']
 
 
-class ServicesTest(unittest2.TestCase):
-    #TODO(jspeidel): test remaining service functionality which isn't
+class ServicesTest(base.SaharaTestCase):
+    # TODO(jspeidel): test remaining service functionality which isn't
     # tested by coarser grained unit tests.
 
     def get_services_processor(self, version='1.3.2'):
@@ -116,6 +116,8 @@ class ServicesTest(unittest2.TestCase):
             'mapred-site': {
                 'mapred.job.tracker': 'hdfs://not_expected.com:10300',
                 'mapred.job.tracker.http.address':
+                'http://not_expected.com:10030',
+                'mapreduce.jobhistory.webapp.address':
                 'http://not_expected.com:10030'
             }
         }
@@ -252,8 +254,14 @@ class ServicesTest(unittest2.TestCase):
             'master.novalocal', 'master', '11111', 3,
             '111.11.1111', '222.11.1111')
         master_ng = hdp_test_base.TestNodeGroup(
-            'master', [master_host], ["NAMENODE", "JOBTRACKER",
-            "SECONDARY_NAMENODE", "TASKTRACKER", "DATANODE", "AMBARI_SERVER"])
+            'master',
+            [master_host],
+            ["NAMENODE",
+             "JOBTRACKER",
+             "SECONDARY_NAMENODE",
+             "TASKTRACKER",
+             "DATANODE",
+             "AMBARI_SERVER"])
         sqoop_host = hdp_test_base.TestServer(
             'sqoop.novalocal', 'sqoop', '11111', 3,
             '111.11.1111', '222.11.1111')
@@ -438,11 +446,11 @@ class ServicesTest(unittest2.TestCase):
             self.assertEqual(
                 "111",
                 cluster_spec.configurations['hbase-site'][
-                'hbase.regionserver.global.memstore.upperLimit'])
+                    'hbase.regionserver.global.memstore.upperLimit'])
             self.assertEqual(
                 "111",
                 cluster_spec.configurations['global'][
-                'regionserver_memstore_upperlimit'])
+                    'regionserver_memstore_upperlimit'])
             ui_handlers[
                 'hbase-site/hbase.hstore.blockingStoreFiles'](
                     hdp_test_base.TestUserInput(
@@ -825,10 +833,10 @@ class ServicesTest(unittest2.TestCase):
 
             self.assertEqual("hdfs://master.novalocal:8020/apps/hbase/data",
                              cluster_spec.configurations['hbase-site'][
-                             'hbase.rootdir'])
+                                 'hbase.rootdir'])
             self.assertEqual("master.novalocal",
                              cluster_spec.configurations['hbase-site'][
-                             'hbase.zookeeper.quorum'])
+                                 'hbase.zookeeper.quorum'])
 
     def test_get_storage_paths(self):
         for version in versions:

@@ -56,7 +56,7 @@ class Engine:
 
         ips_assigned = set()
         while len(ips_assigned) != len(instances):
-            if not g.check_cluster_exists(instances[0].node_group.cluster):
+            if not g.check_cluster_exists(cluster):
                 return
             for instance in instances:
                 if instance.id not in ips_assigned:
@@ -67,8 +67,7 @@ class Engine:
 
         LOG.info("Cluster '%s': all instances have IPs assigned" % cluster.id)
 
-        ctx = context.ctx()
-        cluster = conductor.cluster_get(ctx, instances[0].node_group.cluster)
+        cluster = conductor.cluster_get(context.ctx(), cluster)
         instances = g.get_instances(cluster, ips_assigned)
 
         with context.ThreadGroup() as tg:
@@ -148,8 +147,12 @@ echo "${public_key}" >> ${user_home}/.ssh/authorized_keys\n
     def _clean_job_executions(self, cluster):
         ctx = context.ctx()
         for je in conductor.job_execution_get_all(ctx, cluster_id=cluster.id):
-            update = {"cluster_id": None,
-                      "end_time": datetime.datetime.now()}
+            update = {"cluster_id": None}
+            if not je.end_time:
+                info = je.info.copy() if je.info else {}
+                info['status'] = 'KILLED'
+                update.update({"info": info,
+                               "end_time": datetime.datetime.now()})
             conductor.job_execution_update(ctx, je, update)
 
     def _log_operation_exception(self, message, cluster, ex):

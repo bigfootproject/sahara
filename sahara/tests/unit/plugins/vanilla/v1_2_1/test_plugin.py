@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import mock
+import testtools
 
 from sahara import conductor as cond
 from sahara import context
@@ -44,19 +45,19 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
 
         self._validate_case(1, 1, 10, 1)
 
-        with self.assertRaises(ex.InvalidComponentCountException):
+        with testtools.ExpectedException(ex.InvalidComponentCountException):
             self._validate_case(0, 1, 10, 1)
-        with self.assertRaises(ex.InvalidComponentCountException):
+        with testtools.ExpectedException(ex.InvalidComponentCountException):
             self._validate_case(2, 1, 10, 1)
 
-        with self.assertRaises(ex.RequiredServiceMissingException):
+        with testtools.ExpectedException(ex.RequiredServiceMissingException):
             self._validate_case(1, 0, 10, 1)
-        with self.assertRaises(ex.InvalidComponentCountException):
+        with testtools.ExpectedException(ex.InvalidComponentCountException):
             self._validate_case(1, 2, 10, 1)
 
-        with self.assertRaises(ex.InvalidComponentCountException):
+        with testtools.ExpectedException(ex.InvalidComponentCountException):
             self._validate_case(1, 1, 0, 2)
-        with self.assertRaises(ex.RequiredServiceMissingException):
+        with testtools.ExpectedException(ex.RequiredServiceMissingException):
             self._validate_case(1, 0, 0, 1)
 
     def _validate_case(self, *args):
@@ -96,12 +97,12 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
             "Wrong-applicable-target": {
                 't1': 4
             }}
-        self.assertListEqual(c_h.extract_environment_confs(env_configs),
-                             ['HADOOP_NAMENODE_OPTS=\\"-Xmx3000m\\"',
-                              'HADOOP_DATANODE_OPTS=\\"-Xmx4000m\\"',
-                              'CATALINA_OPTS -Xmx4000m',
-                              'HADOOP_JOBTRACKER_OPTS=\\"-Xmx1000m\\"',
-                              'HADOOP_TASKTRACKER_OPTS=\\"-Xmx2000m\\"'])
+        self.assertEqual(c_h.extract_environment_confs(env_configs),
+                         ['HADOOP_NAMENODE_OPTS=\\"-Xmx3000m\\"',
+                          'HADOOP_DATANODE_OPTS=\\"-Xmx4000m\\"',
+                          'CATALINA_OPTS -Xmx4000m',
+                          'HADOOP_JOBTRACKER_OPTS=\\"-Xmx1000m\\"',
+                          'HADOOP_TASKTRACKER_OPTS=\\"-Xmx2000m\\"'])
 
     def test_extract_xml_configs(self):
         xml_configs = {
@@ -119,11 +120,11 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
             }
         }
 
-        self.assertListEqual(c_h.extract_xml_confs(xml_configs),
-                             [('fs.default.name', 'hdfs://'),
-                              ('dfs.replication', 3),
-                              ('mapred.reduce.tasks', 2),
-                              ('io.sort.factor', 10)])
+        self.assertEqual(c_h.extract_xml_confs(xml_configs),
+                         [('fs.default.name', 'hdfs://'),
+                         ('dfs.replication', 3),
+                         ('mapred.reduce.tasks', 2),
+                         ('io.sort.factor', 10)])
 
     def test_general_configs(self):
         gen_config = {
@@ -150,28 +151,28 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
             }
         }
         cfg = c_h.generate_cfg_from_general({}, configs, gen_config)
-        self.assertDictEqual(cfg, all_configured)
+        self.assertEqual(cfg, all_configured)
         configs['general'].update({'Enable MySQL': False})
         cfg = c_h.generate_cfg_from_general({}, configs, gen_config)
-        self.assertDictEqual(cfg, {'fs.swift.enabled': True})
+        self.assertEqual(cfg, {'fs.swift.enabled': True})
         configs['general'].update({
             'Enable Swift': False,
             'Enable MySQL': False
         })
         cfg = c_h.generate_cfg_from_general({}, configs, gen_config)
-        self.assertDictEqual(cfg, {})
+        self.assertEqual(cfg, {})
         configs = {}
         cfg = c_h.generate_cfg_from_general({}, configs, gen_config)
-        self.assertDictEqual(cfg, all_configured)
+        self.assertEqual(cfg, all_configured)
 
     def test_get_mysql_configs(self):
         cfg = m_h.get_required_mysql_configs(None, None)
-        self.assertDictEqual(cfg, m_h.get_oozie_mysql_configs())
+        self.assertEqual(cfg, m_h.get_oozie_mysql_configs())
         cfg = m_h.get_required_mysql_configs("metastore_host", "passwd")
         cfg_to_compare = m_h.get_oozie_mysql_configs()
         cfg_to_compare.update(m_h.get_hive_mysql_configs(
             "metastore_host", "passwd"))
-        self.assertDictEqual(cfg, cfg_to_compare)
+        self.assertEqual(cfg, cfg_to_compare)
 
     @mock.patch('sahara.conductor.api.LocalApi.cluster_get')
     def test_get_config_value(self, cond_get_cluster):
@@ -268,19 +269,20 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
             'plugin_name': 'mock_plugin',
             'hadoop_version': 'mock_version',
             'default_image_id': 'initial',
-            'node_groups': [tu.make_ng_dict("ng1", "f1", ["s1"], 1)]}
+            'node_groups': [tu.make_ng_dict("ng1", "f1", ["s1"], 1)],
+            'extra': {'test': '1'}}
 
         cluster1 = conductor.cluster_create(context.ctx(), cluster_dict)
         (private_key1, public_key1) = c_h.get_hadoop_ssh_keys(cluster1)
 
-        #should store keys for old cluster
+        # should store keys for old cluster
         cluster1 = conductor.cluster_get(context.ctx(), cluster1)
         (private_key2, public_key2) = c_h.get_hadoop_ssh_keys(cluster1)
 
         self.assertEqual(public_key1, public_key2)
         self.assertEqual(private_key1, private_key2)
 
-        #should generate new keys for new cluster
+        # should generate new keys for new cluster
         cluster_dict.update({'name': 'cluster2'})
         cluster2 = conductor.cluster_create(context.ctx(), cluster_dict)
         (private_key3, public_key3) = c_h.get_hadoop_ssh_keys(cluster2)

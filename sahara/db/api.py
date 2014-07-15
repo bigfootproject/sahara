@@ -66,7 +66,7 @@ def drop_db():
     return IMPL.drop_db()
 
 
-## Helpers for building constraints / equality checks
+# Helpers for building constraints / equality checks
 
 
 def constraint(**conditions):
@@ -107,7 +107,7 @@ def to_dict(func):
     return decorator
 
 
-## Cluster ops
+# Cluster ops
 
 @to_dict
 def cluster_get(context, cluster):
@@ -117,8 +117,9 @@ def cluster_get(context, cluster):
 
 @to_dict
 def cluster_get_all(context, **kwargs):
-    """Get all clusters filtered by **kwargs  e.g.
-         cluster_get_all(plugin_name='vanilla', hadoop_version='1.1')
+    """Get all clusters filtered by **kwargs.
+
+    e.g. cluster_get_all(plugin_name='vanilla', hadoop_version='1.1')
     """
     return IMPL.cluster_get_all(context, **kwargs)
 
@@ -140,7 +141,7 @@ def cluster_destroy(context, cluster):
     IMPL.cluster_destroy(context, cluster)
 
 
-## Node Group ops
+# Node Group ops
 
 def node_group_add(context, cluster, values):
     """Create a Node Group from the values dictionary."""
@@ -157,7 +158,7 @@ def node_group_remove(context, node_group):
     IMPL.node_group_remove(context, node_group)
 
 
-## Instance ops
+# Instance ops
 
 def instance_add(context, node_group, values):
     """Create an Instance from the values dictionary."""
@@ -174,7 +175,7 @@ def instance_remove(context, instance):
     IMPL.instance_remove(context, instance)
 
 
-## Volumes ops
+# Volumes ops
 
 def append_volume(context, instance, volume_id):
     """Append volume_id to instance."""
@@ -186,7 +187,7 @@ def remove_volume(context, instance, volume_id):
     IMPL.remove_volume(context, instance, volume_id)
 
 
-## Cluster Template ops
+# Cluster Template ops
 
 @to_dict
 def cluster_template_get(context, cluster_template):
@@ -211,7 +212,7 @@ def cluster_template_destroy(context, cluster_template):
     IMPL.cluster_template_destroy(context, cluster_template)
 
 
-## Node Group Template ops
+# Node Group Template ops
 
 @to_dict
 def node_group_template_get(context, node_group_template):
@@ -236,7 +237,7 @@ def node_group_template_destroy(context, node_group_template):
     IMPL.node_group_template_destroy(context, node_group_template)
 
 
-## Data Source ops
+# Data Source ops
 
 @to_dict
 def data_source_get(context, data_source):
@@ -261,7 +262,7 @@ def data_source_destroy(context, data_source):
     IMPL.data_source_destroy(context, data_source)
 
 
-## JobExecutions ops
+# JobExecutions ops
 
 @to_dict
 def job_execution_get(context, job_execution):
@@ -271,15 +272,17 @@ def job_execution_get(context, job_execution):
 
 @to_dict
 def job_execution_get_all(context, **kwargs):
-    """Get all JobExecutions filtered by **kwargs  e.g.
-        job_execution_get_all(cluster_id=12, input_id=123)
+    """Get all JobExecutions filtered by **kwargs.
+
+    e.g. job_execution_get_all(cluster_id=12, input_id=123)
     """
     return IMPL.job_execution_get_all(context, **kwargs)
 
 
 def job_execution_count(context, **kwargs):
-    """Count number of JobExecutions filtered by **kwargs  e.g.
-        job_execution_count(cluster_id=12, input_id=123)
+    """Count number of JobExecutions filtered by **kwargs.
+
+    e.g. job_execution_count(cluster_id=12, input_id=123)
     """
     return IMPL.job_execution_count(context, **kwargs)
 
@@ -301,7 +304,7 @@ def job_execution_destroy(context, job_execution):
     IMPL.job_execution_destroy(context, job_execution)
 
 
-## Job ops
+# Job ops
 
 @to_dict
 def job_get(context, job):

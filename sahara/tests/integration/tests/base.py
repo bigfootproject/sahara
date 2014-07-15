@@ -26,7 +26,7 @@ from saharaclient.api import base as client_base
 import saharaclient.client as sahara_client
 from swiftclient import client as swift_client
 import testtools
-import unittest2
+from testtools import testcase
 
 from sahara.openstack.common import excutils
 from sahara.tests.integration.configs import config as cfg
@@ -69,8 +69,7 @@ def skip_test(config_name, message=''):
     return handle
 
 
-class ITestCase(testtools.TestCase, testtools.testcase.WithAttributes,
-                unittest2.TestCase):
+class ITestCase(testcase.WithAttributes, testtools.TestCase):
     def setUp(self):
         super(ITestCase, self).setUp()
         self.common_config = cfg.ITConfig().common_config
@@ -138,7 +137,7 @@ class ITestCase(testtools.TestCase, testtools.testcase.WithAttributes,
         else:
             self.private_key = open(self.common_config.PATH_TO_SSH_KEY).read()
 
-#-------------------------Methods for object creation--------------------------
+# ------------------------Methods for object creation--------------------------
 
     def create_node_group_template(self, name, plugin_config, description,
                                    node_processes, node_configs,
@@ -218,7 +217,7 @@ class ITestCase(testtools.TestCase, testtools.testcase.WithAttributes,
             'plugin_config': plugin_config
         }
 
-#---------Helper methods for cluster info obtaining and its processing---------
+# --------Helper methods for cluster info obtaining and its processing---------
 
     def poll_cluster_state(self, cluster_id):
         data = self.sahara.clusters.get(cluster_id)
@@ -348,7 +347,7 @@ class ITestCase(testtools.TestCase, testtools.testcase.WithAttributes,
             )
         self.close_ssh_connection()
 
-#---------------------------------Remote---------------------------------------
+# --------------------------------Remote---------------------------------------
 
     def connect_to_swift(self):
         return swift_client.Connection(
@@ -403,7 +402,7 @@ class ITestCase(testtools.TestCase, testtools.testcase.WithAttributes,
             self.transfer_helper_script_to_node(script_name, parameter_list)
             self.close_ssh_connection()
 
-#--------------------------------Helper methods--------------------------------
+# -------------------------------Helper methods--------------------------------
 
     def get_image_id_and_ssh_username(self, plugin_config):
         def print_error_log(parameter, value):

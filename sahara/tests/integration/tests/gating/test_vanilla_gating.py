@@ -56,7 +56,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
             floating_ip_pool = self.get_floating_ip_pool_id_for_neutron_net()
             internal_neutron_net = self.get_internal_neutron_net_id()
 
-#----------------------------TRANSIENT CLUSTER TESTING-------------------------
+# ---------------------------TRANSIENT CLUSTER TESTING-------------------------
 
         try:
             self.transient_cluster_testing(
@@ -69,9 +69,9 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
         if self.vanilla_config.ONLY_TRANSIENT_CLUSTER_TEST:
             return
 
-#-------------------------------CLUSTER CREATION-------------------------------
+# ------------------------------CLUSTER CREATION-------------------------------
 
-#---------------------"tt-dn" node group template creation---------------------
+# --------------------"tt-dn" node group template creation---------------------
 
         node_group_template_id_list = []
 
@@ -91,11 +91,11 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
-                message = 'Failure while \'tt-dn\' node group ' \
-                          'template creation: '
+                message = ('Failure while \'tt-dn\' node group '
+                           'template creation: ')
                 self.print_error_log(message, e)
 
-#-----------------------"tt" node group template creation----------------------
+# ----------------------"tt" node group template creation----------------------
 
         if not self.vanilla_config.SKIP_CINDER_TEST:
             volumes_per_node = 2
@@ -127,7 +127,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while \'tt\' node group template creation: '
                 self.print_error_log(message, e)
 
-#----------------------"dn" node group template creation-----------------------
+# ---------------------"dn" node group template creation-----------------------
 
         try:
             node_group_template_dn_id = self.create_node_group_template(
@@ -152,7 +152,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while \'dn\' node group template creation: '
                 self.print_error_log(message, e)
 
-#---------------------------Cluster template creation--------------------------
+# --------------------------Cluster template creation--------------------------
 
         try:
             cluster_template_id = self.create_cluster_template(
@@ -180,6 +180,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                         flavor_id=self.flavor_id,
                         node_processes=['secondarynamenode', 'oozie'],
                         node_configs={
+                            'HDFS': cluster_configs.SNN_CONFIG,
                             'JobFlow': cluster_configs.OOZIE_CONFIG
                         },
                         floating_ip_pool=floating_ip_pool,
@@ -208,7 +209,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while cluster template creation: '
                 self.print_error_log(message, e)
 
-#-------------------------------Cluster creation-------------------------------
+# ------------------------------Cluster creation-------------------------------
 
         try:
             cluster_name = "%s-%s-v1" % (self.common_config.CLUSTER_NAME,
@@ -234,7 +235,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while cluster creation: '
                 self.print_error_log(message, e)
 
-#---------------------------------CINDER TESTING-------------------------------
+# --------------------------------CINDER TESTING-------------------------------
 
         try:
             self.cinder_volume_testing(cluster_info)
@@ -248,7 +249,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while Cinder testing: '
                 self.print_error_log(message, e)
 
-#----------------------------CLUSTER CONFIG TESTING----------------------------
+# ---------------------------CLUSTER CONFIG TESTING----------------------------
 
         try:
             self.cluster_config_testing(cluster_info)
@@ -262,7 +263,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while cluster config testing: '
                 self.print_error_log(message, e)
 
-#----------------------------------EDP TESTING---------------------------------
+# ---------------------------------EDP TESTING---------------------------------
 
         path = 'sahara/tests/integration/tests/resources/'
         pig_job_data = open(path + 'edp-job.pig').read()
@@ -273,20 +274,23 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
         java_lib_data = open(path + 'edp-java/edp-java.jar').read()
         java_configs = {
             "configs": {
-            "edp.java.main_class": "org.openstack.sahara.examples.WordCount"
+                "edp.java.main_class":
+                    "org.openstack.sahara.examples.WordCount"
             }
         }
 
         mapreduce_configs = {
             "configs": {
-            "mapred.mapper.class": "org.apache.oozie.example.SampleMapper",
-            "mapred.reducer.class": "org.apache.oozie.example.SampleReducer"
+                "mapred.mapper.class":
+                    "org.apache.oozie.example.SampleMapper",
+                "mapred.reducer.class":
+                    "org.apache.oozie.example.SampleReducer"
             }
         }
         mapreduce_streaming_configs = {
             "configs": {
-            "edp.streaming.mapper": "/bin/cat",
-            "edp.streaming.reducer": "/usr/bin/wc"
+                "edp.streaming.mapper": "/bin/cat",
+                "edp.streaming.reducer": "/usr/bin/wc"
             }
         }
         try:
@@ -320,7 +324,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while EDP testing: '
                 self.print_error_log(message, e)
 
-#------------------------------MAP REDUCE TESTING------------------------------
+# -----------------------------MAP REDUCE TESTING------------------------------
 
         try:
             self.map_reduce_testing(cluster_info)
@@ -334,7 +338,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure while Map Reduce testing: '
                 self.print_error_log(message, e)
 
-#---------------------------CHECK SWIFT AVAILABILITY---------------------------
+# --------------------------CHECK SWIFT AVAILABILITY---------------------------
 
         try:
             self.check_swift_availability(cluster_info)
@@ -348,7 +352,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                 message = 'Failure during check of Swift availability: '
                 self.print_error_log(message, e)
 
-#--------------------------------CLUSTER SCALING-------------------------------
+# -------------------------------CLUSTER SCALING-------------------------------
 
         if not self.vanilla_config.SKIP_SCALING_TEST:
             change_list = [
@@ -391,7 +395,7 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                     message = 'Failure while cluster scaling: '
                     self.print_error_log(message, e)
 
-#--------------------------CINDER TESTING AFTER SCALING------------------------
+# -------------------------CINDER TESTING AFTER SCALING------------------------
 
             try:
                 self.cinder_volume_testing(new_cluster_info)
@@ -402,11 +406,11 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                         new_cluster_info['cluster_id'], cluster_template_id,
                         node_group_template_id_list
                     )
-                    message = 'Failure while Cinder testing after cluster ' \
-                              'scaling: '
+                    message = ('Failure while Cinder testing after cluster '
+                               'scaling: ')
                     self.print_error_log(message, e)
 
-#---------------------CLUSTER CONFIG TESTING AFTER SCALING---------------------
+# --------------------CLUSTER CONFIG TESTING AFTER SCALING---------------------
 
             try:
                 self.cluster_config_testing(new_cluster_info)
@@ -417,11 +421,11 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                         new_cluster_info['cluster_id'], cluster_template_id,
                         node_group_template_id_list
                     )
-                    message = 'Failure while cluster config testing after ' \
-                              'cluster scaling: '
+                    message = ('Failure while cluster config testing after '
+                               'cluster scaling: ')
                     self.print_error_log(message, e)
 
-#-----------------------MAP REDUCE TESTING AFTER SCALING-----------------------
+# ----------------------MAP REDUCE TESTING AFTER SCALING-----------------------
 
             try:
                 self.map_reduce_testing(new_cluster_info)
@@ -432,11 +436,11 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                         new_cluster_info['cluster_id'], cluster_template_id,
                         node_group_template_id_list
                     )
-                    message = 'Failure while Map Reduce testing after ' \
-                              'cluster scaling: '
+                    message = ('Failure while Map Reduce testing after '
+                               'cluster scaling: ')
                     self.print_error_log(message, e)
 
-#--------------------CHECK SWIFT AVAILABILITY AFTER SCALING--------------------
+# -------------------CHECK SWIFT AVAILABILITY AFTER SCALING--------------------
 
             try:
                 self.check_swift_availability(new_cluster_info)
@@ -447,11 +451,11 @@ class VanillaGatingTest(cinder.CinderVolumeTest,
                         new_cluster_info['cluster_id'], cluster_template_id,
                         node_group_template_id_list
                     )
-                    message = 'Failure during check of Swift availability ' \
-                              'after cluster scaling: '
+                    message = ('Failure during check of Swift availability '
+                               'after cluster scaling: ')
                     self.print_error_log(message, e)
 
-#----------------------------DELETE CREATED OBJECTS----------------------------
+# ---------------------------DELETE CREATED OBJECTS----------------------------
 
         self.delete_objects(
             cluster_info['cluster_id'], cluster_template_id,

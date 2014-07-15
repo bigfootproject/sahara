@@ -23,7 +23,7 @@ from sahara.db.sqlalchemy import model_base as mb
 from sahara.db.sqlalchemy import types as st
 
 
-## Helpers
+# Helpers
 
 def _generate_unicode_uuid():
     return six.text_type(uuid.uuid4())
@@ -35,7 +35,7 @@ def _id_column():
                      default=_generate_unicode_uuid)
 
 
-## Main objects: Cluster, NodeGroup, Instance
+# Main objects: Cluster, NodeGroup, Instance
 
 class Cluster(mb.SaharaBase):
     """Contains all info about cluster."""
@@ -136,7 +136,7 @@ class Instance(mb.SaharaBase):
     volumes = sa.Column(st.JsonListType())
 
 
-## Template objects: ClusterTemplate, NodeGroupTemplate, TemplatesRelation
+# Template objects: ClusterTemplate, NodeGroupTemplate, TemplatesRelation
 
 class ClusterTemplate(mb.SaharaBase):
     """Template for Cluster."""
@@ -222,10 +222,11 @@ class TemplatesRelation(mb.SaharaBase):
     floating_ip_pool = sa.Column(sa.String(36))
 
 
-## EDP objects: DataSource, Job, Job Execution, JobBinary
+# EDP objects: DataSource, Job, Job Execution, JobBinary
 
 class DataSource(mb.SaharaBase):
-    """DataSource - represent a diffident types of data source,
+    """DataSource - represent a diffident types of data sources.
+
     e.g. Swift, Cassandra etc.
     """
 
@@ -245,8 +246,8 @@ class DataSource(mb.SaharaBase):
 
 
 class JobExecution(mb.SaharaBase):
-    """JobExecution - represent a job execution of specific cluster
-    """
+    """JobExecution - represent a job execution of specific cluster."""
+
     __tablename__ = 'job_executions'
 
     id = _id_column()
@@ -291,8 +292,7 @@ libs_association = sa.Table("libs_association",
 
 
 class Job(mb.SaharaBase):
-    """Job - description and location of a job binary
-    """
+    """Job - description and location of a job binary."""
 
     __tablename__ = 'jobs'
 
@@ -320,8 +320,8 @@ class Job(mb.SaharaBase):
 
 
 class JobBinaryInternal(mb.SaharaBase):
-    """JobBinaryInternal - raw binary storage for executable jobs
-    """
+    """JobBinaryInternal - raw binary storage for executable jobs."""
+
     __tablename__ = 'job_binary_internal'
 
     __table_args__ = (
@@ -336,8 +336,7 @@ class JobBinaryInternal(mb.SaharaBase):
 
 
 class JobBinary(mb.SaharaBase):
-    """JobBinary - raw binary storage for executable jobs
-    """
+    """JobBinary - raw binary storage for executable jobs."""
 
     __tablename__ = 'job_binaries'
 

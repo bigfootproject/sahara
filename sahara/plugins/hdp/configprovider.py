@@ -43,8 +43,7 @@ class ConfigurationProvider:
                                   self._get_target(
                                       service_property['applicable_target']),
                                   service_property['scope'],
-                                  config_type=
-                                  service_property['config_type'],
+                                  config_type=service_property['config_type'],
                                   default_value=service_property
                                   ['default_value'],
                                   is_optional=service_property[
@@ -54,7 +53,7 @@ class ConfigurationProvider:
 
                 setattr(config, 'tag', configuration['tag'].rsplit(".", 1)[0])
                 self.config_items.append(config)
-                #TODO(jspeidel): an assumption is made that property names
+                # TODO(jspeidel): an assumption is made that property names
                 # are unique across configuration sections which is dangerous
                 property_name = service_property['name']
                 # if property already exists, throw an exception
@@ -64,6 +63,6 @@ class ConfigurationProvider:
                     raise exceptions.InvalidDataException(
                         'Internal Error. Duplicate property '
                         'name detected: %s' % property_name)
-                self.config_mapper[service_property['name']] = \
+                self.config_mapper[service_property['name']] = (
                     self._get_target(
-                        service_property['applicable_target'])
+                        service_property['applicable_target']))

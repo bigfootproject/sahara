@@ -95,18 +95,18 @@ def start_patch(patch_templates=True):
     get_clusters_p = mock.patch("sahara.service.api.get_clusters")
     get_cluster_p = mock.patch("sahara.service.api.get_cluster")
     if patch_templates:
-        get_ng_templates_p = \
-            mock.patch("sahara.service.api.get_node_group_templates")
-        get_ng_template_p = \
-            mock.patch("sahara.service.api.get_node_group_template")
+        get_ng_templates_p = mock.patch(
+            "sahara.service.api.get_node_group_templates")
+        get_ng_template_p = mock.patch(
+            "sahara.service.api.get_node_group_template")
     get_plugins_p = mock.patch("sahara.service.api.get_plugins")
-    get_plugin_p = \
-        mock.patch("sahara.plugins.base.PluginManager.get_plugin")
+    get_plugin_p = mock.patch(
+        "sahara.plugins.base.PluginManager.get_plugin")
     if patch_templates:
-        get_cl_templates_p = \
-            mock.patch("sahara.service.api.get_cluster_templates")
-        get_cl_template_p = \
-            mock.patch("sahara.service.api.get_cluster_template")
+        get_cl_templates_p = mock.patch(
+            "sahara.service.api.get_cluster_templates")
+        get_cl_template_p = mock.patch(
+            "sahara.service.api.get_cluster_template")
     nova_p = mock.patch("sahara.utils.openstack.nova.client")
     keystone_p = mock.patch("sahara.utils.openstack.keystone.client")
     heat_p = mock.patch("sahara.utils.openstack.heat.client")
@@ -186,7 +186,6 @@ def start_patch(patch_templates=True):
     if patch_templates:
         ngt_dict = {'name': 'test', 'tenant_id': 't', 'flavor_id': '42',
                     'plugin_name': 'vanilla', 'hadoop_version': '1.2.1',
-                    #'id': '1234321',
                     'id': '550e8400-e29b-41d4-a716-446655440000',
                     'node_processes': ['namenode']}
 
@@ -231,11 +230,13 @@ def stop_patch(patchers):
 
 class ValidationTestCase(base.SaharaTestCase):
     def setUp(self):
+        super(ValidationTestCase, self).setUp()
         self._create_object_fun = None
         self.scheme = None
 
     def tearDown(self):
         self._create_object_fun = None
+        super(ValidationTestCase, self).tearDown()
 
     def _assert_calls(self, mock, call_info):
         if not call_info:

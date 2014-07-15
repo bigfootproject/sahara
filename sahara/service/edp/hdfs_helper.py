@@ -71,13 +71,13 @@ def create_dir(r, dir_name, hdfs_user):
 
 
 def _get_cluster_hosts_information(host, cluster):
-    for c in conductor.cluster_get_all(context.ctx()):
-        if c.id == cluster.id:
+    for clust in conductor.cluster_get_all(context.ctx()):
+        if clust.id == cluster.id:
             continue
 
-        for i in u.get_instances(c):
+        for i in u.get_instances(clust):
             if i.instance_name == host:
-                return g.generate_etc_hosts(c)
+                return g.generate_etc_hosts(clust)
 
     return None
 
@@ -90,12 +90,13 @@ def configure_cluster_for_hdfs(cluster, data_source):
         # Ip address hasn't been resolved, the last chance is for VM itself
         return
 
-    create_etc_host = 'sudo "cat /tmp/etc-hosts-update '
-    create_etc_host += '/etc/hosts > /tmp/etc-hosts"'
-    copy_etc_host = 'sudo "cat /tmp/etc-hosts > /etc/hosts"'
+    update_etc_hosts_cmd = (
+        'cat /tmp/etc-hosts-update /etc/hosts | '
+        'sort | uniq > /tmp/etc-hosts && '
+        'cat /tmp/etc-hosts > /etc/hosts && '
+        'rm -f /tmp/etc-hosts /tmp/etc-hosts-update')
 
     for inst in u.get_instances(cluster):
-        with inst.remote as r:
+        with inst.remote() as r:
             r.write_file_to('/tmp/etc-hosts-update', etc_hosts_information)
-            r.execute_command(create_etc_host)
-            r.execute_command(copy_etc_host)
+            r.execute_command(update_etc_hosts_cmd, run_as_root=True)

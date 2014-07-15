@@ -83,8 +83,8 @@ class Context(object):
         }
 
     def is_auth_capable(self):
-        return self.service_catalog and self.token and self.tenant_id and \
-            self.user_id
+        return (self.service_catalog and self.token and self.tenant_id and
+                self.user_id)
 
 
 def get_admin_context():
@@ -140,7 +140,9 @@ def spawn(thread_description, func, *args, **kwargs):
 
 
 class ThreadGroup(object):
-    """It is advised to use TreadGroup as a context manager instead
+    """ThreadGroup object.
+
+    It is advised to use TreadGroup as a context manager instead
     of instantiating and calling _wait() manually. The __exit__()
     guaranties to exit only after all child threads are done, even if
     spawning code have thrown an exception
@@ -171,7 +173,9 @@ class ThreadGroup(object):
     # * Oslo's ThreadGroup.wait() can exit before all threads are done
     #
     def _wait(self):
-        """It is preferred to use the class as a context manager and do not
+        """Using of _wait() method.
+
+        It is preferred to use the class as a context manager and do not
         use _wait() directly, see class docstring for an explanation.
         """
         with self.cv:

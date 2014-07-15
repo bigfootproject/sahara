@@ -33,7 +33,7 @@ from oslo.config import cfg
 import six.moves.urllib.parse as urlparse
 import sqlalchemy
 import sqlalchemy.exc
-import unittest2
+import testtools
 
 import sahara.db.migration
 from sahara.db.sqlalchemy import api as sa
@@ -49,9 +49,11 @@ synchronized = lockutils.synchronized_with_prefix('sahara-')
 
 
 def _get_connect_string(backend, user, passwd, database):
-    """Try to get a connection with a very specific set of values, if we get
-    these then we'll run the tests, otherwise they are skipped
+    """Tries to get a connection with a very specific set of values.
+
+    If we get these then we'll run the tests, otherwise they are skipped
     """
+
     if backend == "postgres":
         backend = "postgresql+psycopg2"
     elif backend == "mysql":
@@ -120,8 +122,7 @@ def get_pgsql_connection_info(conn_pieces):
 
 
 class CommonTestsMixIn(object):
-    """These tests are shared between TestSaharaMigrations and
-    TestBaremetalMigrations.
+    """TestSaharaMigrations and TestBaremetalMigrations use these tests.
 
     BaseMigrationTestCase is effectively an abstract class, meant to be derived
     from and not directly tested against; that's why these `test_` methods need
@@ -138,8 +139,9 @@ class CommonTestsMixIn(object):
         self._test_mysql_opportunistically()
 
     def test_mysql_connect_fail(self):
-        """Test that we can trigger a mysql connection failure and we fail
-        gracefully to ensure we don't break people without mysql
+        """Test that we can trigger a mysql connection failure.
+
+        We fail gracefully here to ensure we don't break people without mysql
         """
         if _is_backend_avail('mysql', "openstack_cifail", self.PASSWD,
                              self.DATABASE):
@@ -149,17 +151,19 @@ class CommonTestsMixIn(object):
         self._test_postgresql_opportunistically()
 
     def test_postgresql_connect_fail(self):
-        """Test that we can trigger a postgres connection failure and we fail
-        gracefully to ensure we don't break people without postgres
+        """Test that we can trigger a postgres connection failure.
+
+        We fail gracefully to ensure we don't break people without postgres
         """
         if _is_backend_avail('postgres', "openstack_cifail", self.PASSWD,
                              self.DATABASE):
             self.fail("Shouldn't have connected")
 
 
-class BaseMigrationTestCase(unittest2.TestCase):
-    """Base class for testing migrations and migration utils. This sets up
-    and configures the databases to run tests against.
+class BaseMigrationTestCase(testtools.TestCase):
+    """Base class for testing migrations and migration utils.
+
+    This sets up and configures the databases to run tests against.
     """
 
     # NOTE(jhesketh): It is expected that tests clean up after themselves.
@@ -243,8 +247,8 @@ class BaseMigrationTestCase(unittest2.TestCase):
 
     @synchronized('pgadmin', external=True, lock_path='/tmp')
     def _reset_pg(self, conn_pieces):
-        (user, password, database, host) = \
-            get_pgsql_connection_info(conn_pieces)
+        (user, password, database, host) = (
+            get_pgsql_connection_info(conn_pieces))
         os.environ['PGPASSWORD'] = password
         os.environ['PGUSER'] = user
         # note(boris-42): We must create and drop database, we can't
@@ -270,8 +274,8 @@ class BaseMigrationTestCase(unittest2.TestCase):
         # We can execute the MySQL client to destroy and re-create
         # the MYSQL database, which is easier and less error-prone
         # than using SQLAlchemy to do this via MetaData...trust me.
-        (user, password, database, host) = \
-            get_mysql_connection_info(conn_pieces)
+        (user, password, database, host) = (
+            get_mysql_connection_info(conn_pieces))
         sql = ("drop database if exists %(database)s; "
                "create database %(database)s;" % {'database': database})
         cmd = ("mysql -u \"%(user)s\" %(password)s -h %(host)s -e \"%(sql)s\""
@@ -300,16 +304,16 @@ class BaseMigrationTestCase(unittest2.TestCase):
         conn_pieces = urlparse.urlparse(conn_string)
 
         if conn_string.startswith('mysql'):
-            (user, password, database, host) = \
-                get_mysql_connection_info(conn_pieces)
+            (user, password, database, host) = (
+                get_mysql_connection_info(conn_pieces))
             sql = "create database if not exists %s;" % database
             cmd = ("mysql -u \"%(user)s\" %(password)s -h %(host)s "
                    "-e \"%(sql)s\"" % {'user': user, 'password': password,
                                        'host': host, 'sql': sql})
             self.execute_cmd(cmd)
         elif conn_string.startswith('postgresql'):
-            (user, password, database, host) = \
-                get_pgsql_connection_info(conn_pieces)
+            (user, password, database, host) = (
+                get_pgsql_connection_info(conn_pieces))
             os.environ['PGPASSWORD'] = password
             os.environ['PGUSER'] = user
 
@@ -351,8 +355,9 @@ class BaseMigrationTestCase(unittest2.TestCase):
 
 
 class BaseWalkMigrationTestCase(BaseMigrationTestCase):
-    """BaseWalkMigrationTestCase loads in an alternative set of databases for
-    testing against. This is necessary as the default databases can run tests
+    """Loads in an alternative set of databases for testing against.
+
+    This is necessary as the default databases can run tests
     concurrently without interfering with itself. It is expected that
     databases listed under [migraiton_dbs] in the configuration are only being
     accessed by one test at a time. Currently only test_walk_versions accesses
@@ -388,6 +393,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
 
     def _configure(self, engine):
         """For each type of repository we should do some of configure steps.
+
         For migrate_repo we should set under version control our database.
         For alembic we should configure database settings. For this goal we
         should use oslo.config and openstack.commom.db.sqlalchemy.session with
@@ -404,8 +410,8 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         # automatically in tearDown so no need to clean it up here.
         connect_string = _get_connect_string(
             "mysql", self.USER, self.PASSWD, self.DATABASE)
-        (user, password, database, host) = \
-            get_mysql_connection_info(urlparse.urlparse(connect_string))
+        (user, password, database, host) = (
+            get_mysql_connection_info(urlparse.urlparse(connect_string)))
         engine = sqlalchemy.create_engine(connect_string)
         self.engines[database] = engine
         self.test_databases[database] = connect_string
@@ -436,8 +442,8 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         connect_string = _get_connect_string(
             "postgres", self.USER, self.PASSWD, self.DATABASE)
         engine = sqlalchemy.create_engine(connect_string)
-        (user, password, database, host) = \
-            get_mysql_connection_info(urlparse.urlparse(connect_string))
+        (user, password, database, host) = (
+            get_mysql_connection_info(urlparse.urlparse(connect_string)))
         self.engines[database] = engine
         self.test_databases[database] = connect_string
 
@@ -449,6 +455,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
 
     def _alembic_command(self, alembic_command, engine, *args, **kwargs):
         """Most of alembic command return data into output.
+
         We should redefine this setting for getting info.
         """
         self.ALEMBIC_CONFIG.stdout = buf = io.StringIO()
@@ -461,10 +468,10 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         return res
 
     def _get_alembic_versions(self, engine):
-        """For support of full testing of migrations
-        we should have an opportunity to run command step by step for each
-        version in repo. This method returns list of alembic_versions by
-        historical order.
+        """Support of full testing of migrations.
+
+        An opportunity to run command step by step for each version in repo.
+        :returns list of alembic_versions by historical order.
         """
         full_history = self._alembic_command('history',
                                              engine, self.ALEMBIC_CONFIG)
@@ -476,7 +483,9 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         return alembic_history
 
     def _up_and_down_versions(self, engine):
-        """Since alembic version has a random algorithm of generation
+        """Stores a tuple of versions.
+
+        Since alembic version has a random algorithm of generation
         (SA-migrate has an ordered autoincrement naming) we should store
         a tuple of versions (version for upgrade and version for downgrade)
         for successful testing of migrations in up>down>up mode.
@@ -518,9 +527,8 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
                     self._migrate_down(engine, ver_down, next_version=ver_up)
 
     def _get_version_from_db(self, engine):
-        """For each type of migrate repo latest version from db
-        will be returned.
-        """
+        """Returns latest version from db for each type of migrate repo."""
+
         conn = engine.connect()
         try:
             context = migration.MigrationContext.configure(conn)
@@ -531,6 +539,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
 
     def _migrate(self, engine, version, cmd):
         """Base method for manipulation with migrate repo.
+
         It will upgrade or downgrade the actual database.
         """
 
