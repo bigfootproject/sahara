@@ -41,7 +41,7 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     run.stop_spark(r_master, sp_home)
 
     # write new slave file to master
-    files = {'/opt/spark/conf/slaves': slaves_content}
+    files = {os.path.join(sp_home, 'conf/slaves'): slaves_content}
     r_master.write_files_to(files)
 
     # write new slaves file to each survived slave as well

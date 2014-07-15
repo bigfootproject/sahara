@@ -49,9 +49,9 @@ def clean_port_hadoop(nn_remote):
 
 def start_spark_master(nn_remote, sp_home):
     nn_remote.execute_command("bash " + os.path.join(sp_home,
-                                                     "/sbin/start-all.sh"))
+                                                     "sbin/start-all.sh"))
 
 
 def stop_spark(nn_remote, sp_home):
     nn_remote.execute_command("bash " + os.path.join(sp_home,
-                                                     "/sbin/stop-all.sh"))
+                                                     "sbin/stop-all.sh"))

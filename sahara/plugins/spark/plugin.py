@@ -211,8 +211,8 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         sp_home = self._spark_home(cluster)
         files_spark = {
-            os.path.join(sp_home, '/conf/spark-env.sh'): ng_extra['sp_master'],
-            os.path.join(sp_home, '/conf/slaves'): ng_extra['sp_slaves']
+            os.path.join(sp_home, 'conf/spark-env.sh'): ng_extra['sp_master'],
+            os.path.join(sp_home, 'conf/slaves'): ng_extra['sp_slaves']
         }
 
         files_init = {
@@ -283,9 +283,8 @@ class SparkProvider(p.ProvisioningPluginBase):
             sp_home = self._spark_home(cluster)
             files = {
                 os.path.join(sp_home,
-                             '/conf/spark-env.sh'): ng_extra['sp_master'],
-                os.path.join(sp_home,
-                             '/conf/slaves'): ng_extra['sp_slaves'],
+                             'conf/spark-env.sh'): ng_extra['sp_master'],
+                os.path.join(sp_home, 'conf/slaves'): ng_extra['sp_slaves'],
             }
             r = remote.get_remote(instance)
             r.write_files_to(files)
