@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import uuid
 
 from oslo.config import cfg
@@ -44,7 +45,7 @@ def get_plugin(cluster):
     return plugin_base.PLUGINS.get_plugin(cluster.plugin_name)
 
 
-def upload_job_files(where, job_dir, job, hdfs_user):
+def upload_job_files_to_hdfs(where, job_dir, job, hdfs_user):
     mains = job.mains or []
     libs = job.libs or []
     uploaded_paths = []
@@ -64,7 +65,30 @@ def upload_job_files(where, job_dir, job, hdfs_user):
     return uploaded_paths
 
 
-def create_workflow_dir(where, job, hdfs_user):
+def upload_job_files(where, job_dir, job, libs_subdir=True):
+    mains = job.mains or []
+    libs = job.libs or []
+    uploaded_paths = []
+
+    def upload(r, dir, job_file):
+        dst = os.path.join(dir, job_file.name)
+        raw_data = dispatch.get_raw_binary(job_file)
+        r.write_file_to(dst, raw_data)
+        uploaded_paths.append(dst)
+
+    with remote.get_remote(where) as r:
+        libs_dir = job_dir
+        if libs_subdir and libs:
+            libs_dir = os.path.join(libs_dir, "libs")
+            r.execute_command("mkdir -p %s" % libs_dir)
+        for job_file in mains:
+            upload(r, job_dir, job_file)
+        for job_file in libs:
+            upload(r, libs_dir, job_file)
+    return uploaded_paths
+
+
+def create_hdfs_workflow_dir(where, job, hdfs_user):
 
     constructed_dir = '/user/%s/' % hdfs_user
     constructed_dir = _add_postfix(constructed_dir)
@@ -75,8 +99,20 @@ def create_workflow_dir(where, job, hdfs_user):
     return constructed_dir
 
 
+def create_workflow_dir(where, path, job, use_uuid=None):
+
+    if use_uuid is None:
+        use_uuid = six.text_type(uuid.uuid4())
+
+    constructed_dir = _append_slash_if_needed(path)
+    constructed_dir += '%s/%s' % (job.name, use_uuid)
+    with remote.get_remote(where) as r:
+        ret, stdout = r.execute_command("mkdir -p %s" % constructed_dir)
+    return constructed_dir
+
+
 def get_data_sources(job_execution, job):
-    if edp.compare_job_type(job.type, edp.JOB_TYPE_JAVA):
+    if edp.compare_job_type(job.type, edp.JOB_TYPE_JAVA, edp.JOB_TYPE_SPARK):
         return None, None
 
     ctx = context.ctx()
@@ -85,13 +121,13 @@ def get_data_sources(job_execution, job):
     return input_source, output_source
 
 
+def _append_slash_if_needed(path):
+    if path[-1] != '/':
+        path += '/'
+    return path
+
+
 def _add_postfix(constructed_dir):
-
-    def _append_slash_if_needed(path):
-        if path[-1] != '/':
-            path += '/'
-        return path
-
     constructed_dir = _append_slash_if_needed(constructed_dir)
     if CONF.job_workflow_postfix:
         constructed_dir = ''.join([str(constructed_dir),

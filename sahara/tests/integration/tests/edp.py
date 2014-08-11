@@ -18,7 +18,9 @@ import string
 import time
 import uuid
 
-from sahara.openstack.common import excutils
+import fixtures
+from oslo.utils import excutils
+
 from sahara.swift import swift_helper as sw
 from sahara.tests.integration.tests import base
 from sahara.utils import edp
@@ -45,17 +47,23 @@ class EDPTest(base.ITestCase):
     def _await_job_execution(self, job):
         timeout = self.common_config.JOB_LAUNCH_TIMEOUT * 60
         status = self.sahara.job_executions.get(job.id).info['status']
-        while status != 'SUCCEEDED':
-            if status == 'KILLED':
-                self.fail('Job status == \'KILLED\'.')
-            if timeout <= 0:
-                self.fail(
-                    'Job did not return to \'SUCCEEDED\' status within '
-                    '%d minute(s).' % self.common_config.JOB_LAUNCH_TIMEOUT
-                )
-            status = self.sahara.job_executions.get(job.id).info['status']
-            time.sleep(10)
-            timeout -= 10
+        try:
+            with fixtures.Timeout(timeout, gentle=True):
+                while status != edp.JOB_STATUS_SUCCEEDED:
+                    if status == edp.JOB_STATUS_KILLED:
+                        self.fail("Job status == '{0}'.".format(
+                            edp.JOB_STATUS_KILLED))
+
+                    time.sleep(10)
+                    status = self.sahara.job_executions.get(
+                        job.id).info['status']
+
+        except fixtures.TimeoutException:
+            self.fail(
+                "Job did not return to '{0}' status within {1:d} minute(s)."
+                .format(edp.JOB_STATUS_SUCCEEDED,
+                        self.common_config.JOB_LAUNCH_TIMEOUT)
+            )
 
     def _create_job_binaries(self, job_data_list, job_binary_internal_list,
                              job_binary_list, swift_connection=None,

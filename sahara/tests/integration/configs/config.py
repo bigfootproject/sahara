@@ -168,8 +168,6 @@ VANILLA_CONFIG_OPTS = [
                     'image. If you do not specify image related parameters, '
                     'then image for cluster creation will be chosen by '
                     'tag "sahara_i_tests".'),
-    cfg.StrOpt('SSH_USERNAME',
-               help='Username to get cluster node with SSH.'),
     cfg.StrOpt('HADOOP_VERSION',
                default='1.2.1',
                help='Version of Hadoop.'),
@@ -242,8 +240,6 @@ VANILLA_TWO_CONFIG_OPTS = [
                     'image. If you do not specify image related parameters, '
                     'then image for cluster creation will be chosen by '
                     'tag "savanna_i_tests".'),
-    cfg.StrOpt('SSH_USERNAME',
-               help='Username to get cluster node with SSH.'),
     cfg.StrOpt('HADOOP_VERSION',
                default='2.3.0',
                help='Version of Hadoop.'),
@@ -277,9 +273,102 @@ VANILLA_TWO_CONFIG_OPTS = [
                 },
                 help='Names for namenode, nodemanager and datanode '
                      'processes.'),
+    cfg.ListOpt('SKIP_EDP_JOB_TYPES',
+                default=[],
+                help='List of skipped EDP job types.'),
     cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',
                 default=False,
                 help='If this flag is True, then all tests for Vanilla plugin '
+                     'will be skipped.'),
+    cfg.BoolOpt('SKIP_CINDER_TEST', default=False),
+    cfg.BoolOpt('SKIP_CLUSTER_CONFIG_TEST', default=False),
+    cfg.BoolOpt('SKIP_EDP_TEST', default=False),
+    cfg.BoolOpt('SKIP_MAP_REDUCE_TEST', default=False),
+    cfg.BoolOpt('SKIP_SWIFT_TEST', default=False),
+    cfg.BoolOpt('SKIP_SCALING_TEST', default=False)
+]
+
+CDH_CONFIG_GROUP = cfg.OptGroup(name='CDH')
+CDH_CONFIG_OPTS = [
+    cfg.StrOpt('PLUGIN_NAME',
+               default='cdh',
+               help='Name of plugin.'),
+    cfg.StrOpt('IMAGE_ID',
+               default=None,
+               help='ID for image which is used for cluster creation. Also '
+                    'you can specify image name or tag of image instead of '
+                    'image ID. If you do not specify image related parameters '
+                    'then image for cluster creation will be chosen by '
+                    'tag "sahara_i_tests".'),
+    cfg.StrOpt('IMAGE_NAME',
+               default=None,
+               help='Name for image which is used for cluster creation. Also '
+                    'you can specify image ID or tag of image instead of '
+                    'image name. If you do not specify image related '
+                    'parameters, then the image for cluster creation will be '
+                    'chosen by tag "sahara_i_tests".'),
+    cfg.StrOpt('IMAGE_TAG',
+               default=None,
+               help='Tag for image which is used for cluster creation. Also '
+                    'you can specify image ID or image name instead of tag of '
+                    'image. If you do not specify image related parameters, '
+                    'then image for cluster creation will be chosen by '
+                    'tag "sahara_i_tests".'),
+    cfg.StrOpt('SSH_USERNAME',
+               default=None,
+               help='Username to get cluster node with SSH.'),
+    cfg.StrOpt('HADOOP_VERSION',
+               default='5',
+               help='Version of Hadoop.'),
+    cfg.StrOpt('HADOOP_USER',
+               default='hdfs',
+               help='Username which is used for access to Hadoop services.'),
+    cfg.StrOpt('HADOOP_EXAMPLES_JAR_PATH',
+               default='/usr/lib/hadoop-mapreduce'
+               '/hadoop-mapreduce-examples.jar',
+               help='Path to hadoop examples jar file.'),
+    cfg.StrOpt('HADOOP_LOG_DIRECTORY',
+               default='',
+               help='Directory where logs of completed jobs are located.'),
+    cfg.StrOpt('HADOOP_LOG_DIRECTORY_ON_VOLUME',
+               default='',
+               help='Directory where logs of completed jobs on volume mounted '
+                    'to node are located.'),
+    cfg.StrOpt('CDH_REPO_LIST_URL',
+               default='http://archive-primary.cloudera.com/cdh5/ubuntu'
+                       '/precise/amd64/cdh/cloudera.list'),
+    cfg.StrOpt('CM_REPO_LIST_URL',
+               default='http://archive-primary.cloudera.com/cm5/ubuntu'
+                       '/precise/amd64/cm/cloudera.list'),
+    cfg.StrOpt('CDH_APT_KEY_URL',
+               default='http://archive-primary.cloudera.com/cdh5/ubuntu'
+                       '/precise/amd64/cdh/archive.key'),
+    cfg.StrOpt('CM_APT_KEY_URL',
+               default='http://archive-primary.cloudera.com/cm5/ubuntu'
+                       '/precise/amd64/cm/archive.key'),
+    cfg.DictOpt('HADOOP_PROCESSES_WITH_PORTS',
+                default={
+                    'RESOURCEMANAGER': 8088,
+                    'NAMENODE': 50070,
+                    'SECONDARYNAMENODE': 50090,
+                    'NODEMANAGER': 8042,
+                    'DATANODE': 50075,
+                    'MANAGER': 7180,
+                    'JOBHISTORY': 19888,
+                    'OOZIE_SERVER': 11000
+                },
+                help='Hadoop process map with ports for CDH plugin.'),
+    cfg.DictOpt('PROCESS_NAMES',
+                default={
+                    'nn': 'NAMENODE',
+                    'tt': 'NODEMANAGER',
+                    'dn': 'DATANODE'
+                },
+                help='Names for namenode, nodemanager and datanode '
+                     'processes.'),
+    cfg.BoolOpt('SKIP_ALL_TESTS_FOR_PLUGIN',
+                default=False,
+                help='If this flag is True, then all tests for CDH plugin '
                      'will be skipped.'),
     cfg.BoolOpt('SKIP_CINDER_TEST', default=False),
     cfg.BoolOpt('SKIP_CLUSTER_CONFIG_TEST', default=False),
@@ -313,8 +402,6 @@ HDP_CONFIG_OPTS = [
                     'image. If you do not specify image related parameters, '
                     'then image for cluster creation will be chosen by '
                     'tag "sahara_i_tests".'),
-    cfg.StrOpt('SSH_USERNAME',
-               help='Username to get cluster node with SSH.'),
     cfg.ListOpt('MASTER_NODE_PROCESSES',
                 default=['JOBTRACKER', 'NAMENODE', 'SECONDARY_NAMENODE',
                          'GANGLIA_SERVER', 'NAGIOS_SERVER',
@@ -406,9 +493,6 @@ HDP2_CONFIG_OPTS = [
                     'image. If you do not specify image related parameters, '
                     'then image for cluster creation will be chosen by '
                     'tag "sahara_i_tests".'),
-    cfg.StrOpt('SSH_USERNAME',
-               default=None,
-               help='Username to get cluster node with SSH.'),
     cfg.ListOpt('MASTER_NODE_PROCESSES',
                 default=['NAMENODE', 'SECONDARY_NAMENODE', 'ZOOKEEPER_SERVER',
                          'AMBARI_SERVER', 'HISTORYSERVER', 'RESOURCEMANAGER',
@@ -489,6 +573,7 @@ class ITConfig:
 
         register_config(cfg.CONF, COMMON_CONFIG_GROUP, COMMON_CONFIG_OPTS)
         register_config(cfg.CONF, VANILLA_CONFIG_GROUP, VANILLA_CONFIG_OPTS)
+        register_config(cfg.CONF, CDH_CONFIG_GROUP, CDH_CONFIG_OPTS)
         register_config(cfg.CONF, HDP_CONFIG_GROUP, HDP_CONFIG_OPTS)
         register_config(cfg.CONF, HDP2_CONFIG_GROUP, HDP2_CONFIG_OPTS)
         register_config(
@@ -502,5 +587,6 @@ class ITConfig:
         self.common_config = cfg.CONF.COMMON
         self.vanilla_config = cfg.CONF.VANILLA
         self.vanilla_two_config = cfg.CONF.VANILLA_TWO
+        self.cdh_config = cfg.CONF.CDH
         self.hdp_config = cfg.CONF.HDP
         self.hdp2_config = cfg.CONF.HDP2

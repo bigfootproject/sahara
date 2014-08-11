@@ -22,9 +22,13 @@ import six
 
 from sahara import conductor as c
 from sahara import context
+from sahara.i18n import _LI
+from sahara.i18n import _LW
 from sahara.openstack.common import log as logging
 from sahara.service import networks
+from sahara.utils import edp
 from sahara.utils import general as g
+from sahara.utils.openstack import nova
 from sahara.utils import remote
 
 
@@ -46,9 +50,9 @@ class Engine:
     def shutdown_cluster(self, cluster):
         pass
 
-    @abc.abstractmethod
     def get_node_group_image_username(self, node_group):
-        pass
+        image_id = node_group.get_image_id()
+        return nova.client().images.get(image_id).username
 
     def _await_networks(self, cluster, instances):
         if not instances:
@@ -65,7 +69,8 @@ class Engine:
 
             context.sleep(1)
 
-        LOG.info("Cluster '%s': all instances have IPs assigned" % cluster.id)
+        LOG.info(
+            _LI("Cluster '%s': all instances have IPs assigned"), cluster.id)
 
         cluster = conductor.cluster_get(context.ctx(), cluster)
         instances = g.get_instances(cluster, ips_assigned)
@@ -75,7 +80,7 @@ class Engine:
                 tg.spawn("wait-for-ssh-%s" % instance.instance_name,
                          self._wait_until_accessible, instance)
 
-        LOG.info("Cluster '%s': all instances are accessible" % cluster.id)
+        LOG.info(_LI("Cluster '%s': all instances are accessible"), cluster.id)
 
     def _wait_until_accessible(self, instance):
         while True:
@@ -150,7 +155,7 @@ echo "${public_key}" >> ${user_home}/.ssh/authorized_keys\n
             update = {"cluster_id": None}
             if not je.end_time:
                 info = je.info.copy() if je.info else {}
-                info['status'] = 'KILLED'
+                info['status'] = edp.JOB_STATUS_KILLED
                 update.update({"info": info,
                                "end_time": datetime.datetime.now()})
             conductor.job_execution_update(ctx, je, update)
@@ -158,7 +163,8 @@ echo "${public_key}" >> ${user_home}/.ssh/authorized_keys\n
     def _log_operation_exception(self, message, cluster, ex):
         # we want to log the initial exception even if cluster was deleted
         cluster_name = cluster.name if cluster is not None else '_unknown_'
-        LOG.warn(message, cluster_name, ex)
+        LOG.warn(message, {'cluster': cluster_name, 'reason': ex})
         if cluster is None:
-            LOG.warn("Presumably the operation failed because the cluster was"
-                     "deleted by a user during the process.")
+            LOG.warn(
+                _LW("Presumably the operation failed because the cluster was "
+                    "deleted by a user during the process."))

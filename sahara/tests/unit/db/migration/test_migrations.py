@@ -40,8 +40,8 @@ postgres=# create database openstack_citest with owner openstack_citest;
 import os
 
 from oslo.config import cfg
+from oslo.db.sqlalchemy import utils as db_utils
 
-from sahara.openstack.common.db.sqlalchemy import utils as db_utils
 from sahara.tests.unit.db.migration import test_migrations_base as base
 
 CONF = cfg.CONF
@@ -338,20 +338,44 @@ class TestMigrations(base.BaseWalkMigrationTestCase, base.CommonTestsMixIn):
 
     def _check_002(self, engine, data):
         # currently, 002 is just a placeholder
-        self._check_001(engine, data)
+        pass
 
     def _check_003(self, engine, data):
         # currently, 003 is just a placeholder
-        self._check_001(engine, data)
+        pass
 
     def _check_004(self, engine, data):
         # currently, 004 is just a placeholder
-        self._check_001(engine, data)
+        pass
 
     def _check_005(self, engine, data):
         # currently, 005 is just a placeholder
-        self._check_001(engine, data)
+        pass
 
     def _check_006(self, engine, data):
         # currently, 006 is just a placeholder
-        self._check_001(engine, data)
+        pass
+
+    def _pre_upgrade_007(self, engine):
+        desc = 'magic'
+        t = db_utils.get_table(engine, 'clusters')
+        engine.execute(t.insert(), id='123', name='name', plugin_name='pname',
+                       hadoop_version='1',  management_private_key='2',
+                       management_public_key='3', status_description=desc)
+
+    def _check_007(self, engine, data):
+        t = db_utils.get_table(engine, 'clusters')
+        res = engine.execute(t.select(), id='123').first()
+        self.assertEqual('magic', res['status_description'])
+        engine.execute(t.delete())
+
+        # check that status_description can keep 128kb.
+        # MySQL varchar can not keep more then 64kb
+        desc = 'a' * 128 * 1024  # 128kb
+        t = db_utils.get_table(engine, 'clusters')
+        engine.execute(t.insert(), id='123', name='name', plugin_name='plname',
+                       hadoop_version='hversion', management_private_key='1',
+                       management_public_key='2', status_description=desc)
+        new_desc = engine.execute(t.select()).fetchone().status_description
+        self.assertEqual(desc, new_desc)
+        engine.execute(t.delete())

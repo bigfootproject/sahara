@@ -20,6 +20,7 @@ from oslo import messaging
 
 from sahara import conductor as c
 from sahara import context
+from sahara.i18n import _LE
 from sahara.openstack.common import log as logging
 from sahara.plugins import base as plugin_base
 from sahara.service.edp import job_manager
@@ -117,12 +118,10 @@ def _provision_cluster(cluster_id):
     ctx, cluster, plugin = _prepare_provisioning(cluster_id)
 
     if CONF.use_identity_api_v3 and cluster.is_transient:
-        trusts.create_trust(cluster)
+        trusts.create_trust_for_cluster(cluster)
 
     # updating cluster infra
-    cluster = conductor.cluster_update(ctx, cluster,
-                                       {"status": "InfraUpdating"})
-    LOG.info(g.format_cluster_status(cluster))
+    cluster = g.change_cluster_status(cluster, "InfraUpdating")
     plugin.update_infra(cluster)
 
     # creating instances and configuring them
@@ -134,18 +133,17 @@ def _provision_cluster(cluster_id):
         return
 
     # configure cluster
-    cluster = conductor.cluster_update(ctx, cluster, {"status": "Configuring"})
-    LOG.info(g.format_cluster_status(cluster))
+    cluster = g.change_cluster_status(cluster, "Configuring")
     try:
         plugin.configure_cluster(cluster)
     except Exception as ex:
         if not g.check_cluster_exists(cluster):
             LOG.info(g.format_cluster_deleted_message(cluster))
             return
-        LOG.exception("Can't configure cluster '%s' (reason: %s)",
-                      cluster.name, ex)
-        cluster = conductor.cluster_update(ctx, cluster, {"status": "Error"})
-        LOG.info(g.format_cluster_status(cluster))
+        LOG.exception(
+            _LE("Can't configure cluster '%(name)s' (reason: %(reason)s)"),
+            {'name': cluster.name, 'reason': ex})
+        g.change_cluster_status(cluster, "Error")
         return
 
     if not g.check_cluster_exists(cluster):
@@ -153,18 +151,17 @@ def _provision_cluster(cluster_id):
         return
 
     # starting prepared and configured cluster
-    cluster = conductor.cluster_update(ctx, cluster, {"status": "Starting"})
-    LOG.info(g.format_cluster_status(cluster))
+    cluster = g.change_cluster_status(cluster, "Starting")
     try:
         plugin.start_cluster(cluster)
     except Exception as ex:
         if not g.check_cluster_exists(cluster):
             LOG.info(g.format_cluster_deleted_message(cluster))
             return
-        LOG.exception("Can't start services for cluster '%s' (reason: %s)",
-                      cluster.name, ex)
-        cluster = conductor.cluster_update(ctx, cluster, {"status": "Error"})
-        LOG.info(g.format_cluster_status(cluster))
+        LOG.exception(
+            _LE("Can't start services for cluster '%(name)s' (reason: "
+                "%(reason)s)"), {'name': cluster.name, 'reason': ex})
+        g.change_cluster_status(cluster, "Error")
         return
 
     if not g.check_cluster_exists(cluster):
@@ -172,8 +169,7 @@ def _provision_cluster(cluster_id):
         return
 
     # cluster is now up and ready
-    cluster = conductor.cluster_update(ctx, cluster, {"status": "Active"})
-    LOG.info(g.format_cluster_status(cluster))
+    cluster = g.change_cluster_status(cluster, "Active")
 
     # schedule execution pending job for cluster
     for je in conductor.job_execution_get_all(ctx, cluster_id=cluster.id):
@@ -184,10 +180,7 @@ def _provision_scaled_cluster(cluster_id, node_group_id_map):
     ctx, cluster, plugin = _prepare_provisioning(cluster_id)
 
     # Decommissioning surplus nodes with the plugin
-
-    cluster = conductor.cluster_update(ctx, cluster,
-                                       {"status": "Decommissioning"})
-    LOG.info(g.format_cluster_status(cluster))
+    cluster = g.change_cluster_status(cluster, "Decommissioning")
 
     instances_to_delete = []
 
@@ -201,17 +194,14 @@ def _provision_scaled_cluster(cluster_id, node_group_id_map):
         plugin.decommission_nodes(cluster, instances_to_delete)
 
     # Scaling infrastructure
-    cluster = conductor.cluster_update(ctx, cluster, {"status": "Scaling"})
-    LOG.info(g.format_cluster_status(cluster))
+    cluster = g.change_cluster_status(cluster, "Scaling")
 
     instances = INFRA.scale_cluster(cluster, node_group_id_map)
 
     # Setting up new nodes with the plugin
 
     if instances:
-        cluster = conductor.cluster_update(ctx, cluster,
-                                           {"status": "Configuring"})
-        LOG.info(g.format_cluster_status(cluster))
+        cluster = g.change_cluster_status(cluster, "Configuring")
         try:
             instances = g.get_instances(cluster, instances)
             plugin.scale_cluster(cluster, instances)
@@ -219,19 +209,18 @@ def _provision_scaled_cluster(cluster_id, node_group_id_map):
             if not g.check_cluster_exists(cluster):
                 LOG.info(g.format_cluster_deleted_message(cluster))
                 return
-            LOG.exception("Can't scale cluster '%s' (reason: %s)",
-                          cluster.name, ex)
-            cluster = conductor.cluster_update(ctx, cluster,
-                                               {"status": "Error"})
-            LOG.info(g.format_cluster_status(cluster))
+            LOG.exception(
+                _LE("Can't scale cluster '%(name)s' (reason: %(reason)s)"),
+                {'name': cluster.name, 'reason': ex})
+
+            g.change_cluster_status(cluster, "Error")
             return
 
     if not g.check_cluster_exists(cluster):
         LOG.info(g.format_cluster_deleted_message(cluster))
         return
 
-    cluster = conductor.cluster_update(ctx, cluster, {"status": "Active"})
-    LOG.info(g.format_cluster_status(cluster))
+    g.change_cluster_status(cluster, "Active")
 
 
 def _terminate_cluster(cluster_id):
@@ -244,7 +233,7 @@ def _terminate_cluster(cluster_id):
     INFRA.shutdown_cluster(cluster)
 
     if CONF.use_identity_api_v3:
-        trusts.delete_trust(cluster)
+        trusts.delete_trust_from_cluster(cluster)
 
     conductor.cluster_destroy(ctx, cluster)
 

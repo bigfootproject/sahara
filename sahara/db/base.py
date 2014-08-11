@@ -16,8 +16,7 @@
 """Base class for classes that need modular database access."""
 
 from oslo.config import cfg
-
-from sahara.openstack.common import importutils
+from oslo.utils import importutils
 
 
 db_driver_opt = cfg.StrOpt('db_driver',
@@ -32,9 +31,4 @@ class Base(object):
     """DB driver is injected in the init method."""
 
     def __init__(self):
-        self.db = importutils.import_module(CONF.db_driver)
-
-
-def is_mysql_avail():
-    connection = CONF.database.connection
-    return connection and connection.startswith('mysql')
+        self.db = importutils.try_import(CONF.db_driver)

@@ -20,6 +20,7 @@ from oslo.config import cfg
 
 from sahara import context
 from sahara import exceptions as ex
+from sahara.i18n import _
 from sahara.openstack.common import log as logging
 from sahara.utils import files as f
 from sahara.utils import general as g
@@ -34,6 +35,24 @@ def client():
     ctx = context.current()
     heat_url = base.url_for(ctx.service_catalog, 'orchestration')
     return heat_client.Client('1', heat_url, token=ctx.token)
+
+
+def get_stack(stack_name):
+    heat = client()
+    for stack in heat.stacks.list(filters={'stack_name': stack_name}):
+        return stack
+
+    raise ex.NotFoundException(_('Failed to find stack %(stack)s')
+                               % {'stack': stack_name})
+
+
+def wait_stack_completion(stack):
+    while stack.status == 'IN_PROGRESS':
+        context.sleep(1)
+        stack.get()
+
+    if stack.status != 'COMPLETE':
+        raise ex.HeatStackException(stack.stack_status)
 
 
 def _get_inst_name(cluster_name, ng_name, index):
@@ -117,12 +136,7 @@ class ClusterTemplate(object):
                     stack.update(**kwargs)
                     break
 
-        for stack in heat.stacks.list():
-            if stack.stack_name == self.cluster.name:
-                return ClusterStack(self, stack)
-
-        raise ex.HeatStackException(
-            'Failed to find just created stack %s' % self.cluster.name)
+        return ClusterStack(self, get_stack(self.cluster.name))
 
     def _serialize_resources(self):
         resources = []
@@ -168,6 +182,7 @@ class ClusterTemplate(object):
         fields = {'instance_name': inst_name,
                   'flavor_id': ng.flavor_id,
                   'image_id': ng.get_image_id(),
+                  'image_username': ng.image_username,
                   'network_interfaces': nets,
                   'key_name': key_name,
                   'userdata': _prepare_userdata(userdata),
@@ -223,16 +238,6 @@ class ClusterStack(object):
     def __init__(self, tmpl, heat_stack):
         self.tmpl = tmpl
         self.heat_stack = heat_stack
-
-    def wait_till_active(self):
-        while self.heat_stack.stack_status in ('CREATE_IN_PROGRESS',
-                                               'UPDATE_IN_PROGRESS'):
-            context.sleep(1)
-            self.heat_stack.get()
-
-        if self.heat_stack.stack_status not in ('CREATE_COMPLETE',
-                                                'UPDATE_COMPLETE'):
-            raise ex.HeatStackException(self.heat_stack.stack_status)
 
     def get_node_group_instances(self, node_group):
         insts = []

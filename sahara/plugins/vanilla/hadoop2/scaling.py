@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from oslo.utils import timeutils
+
 from sahara import context
-from sahara.openstack.common import timeutils
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.general import utils as u
 from sahara.plugins.vanilla.hadoop2 import config
@@ -29,10 +30,12 @@ def scale_cluster(pctx, cluster, instances):
     config.configure_instances(pctx, instances)
     _update_include_files(cluster)
     run.refresh_hadoop_nodes(cluster)
-    run.refresh_yarn_nodes(cluster)
+    rm = vu.get_resourcemanager(cluster)
+    if rm:
+        run.refresh_yarn_nodes(cluster)
+
     config.configure_topology_data(pctx, cluster)
-    for instance in instances:
-        run.start_instance(instance)
+    run.start_all_processes(instances, [])
 
 
 def _get_instances_with_service(instances, service):
@@ -67,7 +70,9 @@ def decommission_nodes(pctx, cluster, instances):
     _update_exclude_files(cluster, instances)
 
     run.refresh_hadoop_nodes(cluster)
-    run.refresh_yarn_nodes(cluster)
+    rm = vu.get_resourcemanager(cluster)
+    if rm:
+        run.refresh_yarn_nodes(cluster)
 
     _check_nodemanagers_decommission(cluster, nodemanagers)
     _check_datanodes_decommission(cluster, datanodes)

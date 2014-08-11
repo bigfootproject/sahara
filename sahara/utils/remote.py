@@ -20,7 +20,7 @@ from oslo.config import cfg
 import six
 
 from sahara import exceptions as ex
-
+from sahara.i18n import _
 
 # These options are for SSH remote only
 ssh_opts = [
@@ -68,8 +68,8 @@ class Remote(object):
         """Returns HTTP client for a given instance's port."""
 
     @abc.abstractmethod
-    def close_http_sessions(self):
-        """Closes all cached HTTP sessions."""
+    def close_http_session(self, port):
+        """Closes cached HTTP session for a given instance's port."""
 
     @abc.abstractmethod
     def execute_command(self, cmd, run_as_root=False, get_stderr=False,
@@ -87,7 +87,18 @@ class Remote(object):
         """
 
     @abc.abstractmethod
+    def append_to_file(self, r_file, data, run_as_root=False, timeout=120):
+        """Append the given data to remote file.
+
+        Uses existing ssh connection.
+        """
+
+    @abc.abstractmethod
     def write_files_to(self, files, run_as_root=False, timeout=120):
+        """Copy file->data dictionary in a single ssh connection."""
+
+    @abc.abstractmethod
+    def append_to_files(self, files, run_as_root=False, timeout=120):
         """Copy file->data dictionary in a single ssh connection."""
 
     @abc.abstractmethod
@@ -109,10 +120,10 @@ def setup_remote(driver, engine):
 
 def _check_driver_is_loaded():
     if not DRIVER:
-        raise ex.SystemError('Remote driver is not loaded. Most probably you '
-                             'see this error because you are running Sahara '
-                             'in distributed mode and it is broken. Try '
-                             'running sahara-all instead.')
+        raise ex.SystemError(_('Remote driver is not loaded. Most probably '
+                               'you see this error because you are running '
+                               'Sahara in distributed mode and it is broken.'
+                               'Try running sahara-all instead.'))
 
 
 def get_remote(instance):

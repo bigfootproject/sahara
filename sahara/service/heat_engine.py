@@ -15,27 +15,36 @@
 
 from heatclient import exc as heat_exc
 from oslo.config import cfg
+from oslo.utils import excutils
+import six
 
 from sahara import conductor as c
 from sahara import context
-from sahara.openstack.common import excutils
+from sahara.i18n import _LE
+from sahara.i18n import _LI
+from sahara.i18n import _LW
 from sahara.openstack.common import log as logging
 from sahara.service import engine as e
 from sahara.service import volumes
 from sahara.utils import general as g
 from sahara.utils.openstack import heat
 
-
 conductor = c.API
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-CLOUD_INIT_USERNAME = 'ec2-user'
-
 
 class HeatEngine(e.Engine):
-    def get_node_group_image_username(self, node_group):
-        return CLOUD_INIT_USERNAME
+    def _add_volumes(self, ctx, cluster):
+        for instance in g.get_instances(cluster):
+            res_names = heat.client().resources.get(
+                cluster.name, instance.instance_name).required_by
+            for res_name in res_names:
+                vol_res = heat.client().resources.get(cluster.name, res_name)
+                if vol_res.resource_type == (('OS::Cinder::'
+                                              'VolumeAttachment')):
+                    volume_id = vol_res.physical_resource_id
+                    conductor.append_volume(ctx, instance, volume_id)
 
     def create_cluster(self, cluster):
         ctx = context.ctx()
@@ -47,20 +56,22 @@ class HeatEngine(e.Engine):
             self._nullify_ng_counts(cluster)
 
             cluster = conductor.cluster_get(ctx, cluster)
-
             launcher.launch_instances(ctx, cluster, target_count)
+
+            cluster = conductor.cluster_get(ctx, cluster)
+            self._add_volumes(ctx, cluster)
+
         except Exception as ex:
             with excutils.save_and_reraise_exception():
                 if not g.check_cluster_exists(cluster):
                     LOG.info(g.format_cluster_deleted_message(cluster))
                     return
                 self._log_operation_exception(
-                    "Can't start cluster '%s' (reason: %s)", cluster, ex)
+                    _LW("Can't start cluster '%(cluster)s' "
+                        "(reason: %(reason)s)"), cluster, ex)
 
-                cluster = conductor.cluster_update(
-                    ctx, cluster, {"status": "Error",
-                                   "status_description": str(ex)})
-                LOG.info(g.format_cluster_status(cluster))
+                cluster = g.change_cluster_status(
+                    cluster, "Error", status_description=six.text_type(ex))
                 self._rollback_cluster_creation(cluster)
 
     def _get_ng_counts(self, cluster):
@@ -90,7 +101,8 @@ class HeatEngine(e.Engine):
                     LOG.info(g.format_cluster_deleted_message(cluster))
                     return
                 self._log_operation_exception(
-                    "Can't scale cluster '%s' (reason: %s)", cluster, ex)
+                    _LW("Can't scale cluster '%(cluster)s' "
+                        "(reason: %(reason)s)"), cluster, ex)
 
                 cluster = conductor.cluster_get(ctx, cluster)
 
@@ -103,17 +115,14 @@ class HeatEngine(e.Engine):
                         return
                     # if something fails during the rollback, we stop
                     # doing anything further
-                    cluster = conductor.cluster_update(ctx, cluster,
-                                                       {"status": "Error"})
-                    LOG.info(g.format_cluster_status(cluster))
-                    LOG.error("Unable to complete rollback, aborting")
+                    cluster = g.change_cluster_status(cluster, "Error")
+                    LOG.error(_LE("Unable to complete rollback, aborting"))
                     raise
 
-                cluster = conductor.cluster_update(ctx, cluster,
-                                                   {"status": "Active"})
-                LOG.info(g.format_cluster_status(cluster))
+                cluster = g.change_cluster_status(cluster, "Active")
                 LOG.warn(
-                    "Rollback successful. Throwing off an initial exception.")
+                    _LW("Rollback successful. "
+                        "Throwing off an initial exception."))
         finally:
             cluster = conductor.cluster_get(ctx, cluster)
             g.clean_cluster_from_empty_ng(cluster)
@@ -138,7 +147,7 @@ class HeatEngine(e.Engine):
 
     def _rollback_cluster_creation(self, cluster):
         """Shutdown all instances and update cluster status."""
-        LOG.info("Cluster '%s' creation rollback", cluster.name)
+        LOG.info(_LI("Cluster '%s' creation rollback"), cluster.name)
 
         self.shutdown_cluster(cluster)
 
@@ -153,7 +162,7 @@ class HeatEngine(e.Engine):
         maximize the chance of rollback success.
         """
 
-        LOG.info("Cluster '%s' scaling rollback", cluster.name)
+        LOG.info(_LI("Cluster '%s' scaling rollback"), cluster.name)
 
         for ng in rollback_count.keys():
             if rollback_count[ng] > target_count[ng]:
@@ -166,8 +175,10 @@ class HeatEngine(e.Engine):
         """Shutdown specified cluster and all related resources."""
         try:
             heat.client().stacks.delete(cluster.name)
+            stack = heat.get_stack(cluster.name)
+            heat.wait_stack_completion(stack)
         except heat_exc.HTTPNotFound:
-            LOG.warn('Did not found stack for cluster %s' % cluster.name)
+            LOG.warn(_LW('Did not found stack for cluster %s') % cluster.name)
 
         self._clean_job_executions(cluster)
 
@@ -184,22 +195,18 @@ class _CreateLauncher(HeatEngine):
 
     def launch_instances(self, ctx, cluster, target_count):
         # create all instances
-        cluster = conductor.cluster_update(ctx, cluster,
-                                           {"status": self.STAGES[0]})
-        LOG.info(g.format_cluster_status(cluster))
+        cluster = g.change_cluster_status(cluster, self.STAGES[0])
 
         tmpl = heat.ClusterTemplate(cluster)
 
         self._configure_template(ctx, tmpl, cluster, target_count)
         stack = tmpl.instantiate(update_existing=self.UPDATE_STACK)
-        stack.wait_till_active()
+        heat.wait_stack_completion(stack.heat_stack)
 
         self.inst_ids = self._populate_cluster(ctx, cluster, stack)
 
         # wait for all instances are up and networks ready
-        cluster = conductor.cluster_update(ctx, cluster,
-                                           {"status": self.STAGES[1]})
-        LOG.info(g.format_cluster_status(cluster))
+        cluster = g.change_cluster_status(cluster, self.STAGES[1])
 
         instances = g.get_instances(cluster, self.inst_ids)
 
@@ -210,9 +217,7 @@ class _CreateLauncher(HeatEngine):
             return
 
         # prepare all instances
-        cluster = conductor.cluster_update(ctx, cluster,
-                                           {"status": self.STAGES[2]})
-        LOG.info(g.format_cluster_status(cluster))
+        cluster = g.change_cluster_status(cluster, self.STAGES[2])
 
         instances = g.get_instances(cluster, self.inst_ids)
         volumes.mount_to_instances(instances)

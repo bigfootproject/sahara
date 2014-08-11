@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import six
+
+from sahara.i18n import _
+
 
 class SaharaException(Exception):
     """Base Exception for the project
@@ -20,7 +24,7 @@ class SaharaException(Exception):
     To correctly use this class, inherit from it and define
     a 'message' and 'code' properties.
     """
-    message = "An unknown exception occurred"
+    message = _("An unknown exception occurred")
     code = "UNKNOWN_EXCEPTION"
 
     def __str__(self):
@@ -32,7 +36,7 @@ class SaharaException(Exception):
 
 
 class NotFoundException(SaharaException):
-    message = "Object '%s' is not found"
+    message = _("Object '%s' is not found")
     # It could be a various property of object which was not found
     value = None
 
@@ -41,10 +45,12 @@ class NotFoundException(SaharaException):
         self.value = value
         if message:
             self.message = message % value
+        else:
+            self.message = self.message % value
 
 
 class NameAlreadyExistsException(SaharaException):
-    message = "Name already exists"
+    message = _("Name already exists")
 
     def __init__(self, message=None):
         self.code = "NAME_ALREADY_EXISTS"
@@ -53,7 +59,7 @@ class NameAlreadyExistsException(SaharaException):
 
 
 class InvalidCredentials(SaharaException):
-    message = "Invalid credentials"
+    message = _("Invalid credentials")
 
     def __init__(self, message=None):
         self.code = "INVALID_CREDENTIALS"
@@ -62,7 +68,7 @@ class InvalidCredentials(SaharaException):
 
 
 class InvalidException(SaharaException):
-    message = "Invalid object reference"
+    message = _("Invalid object reference")
 
     def __init__(self, message=None):
         self.code = "INVALID_REFERENCE"
@@ -71,7 +77,7 @@ class InvalidException(SaharaException):
 
 
 class RemoteCommandException(SaharaException):
-    message = "Error during command execution: \"%s\""
+    message = _("Error during command execution: \"%s\"")
 
     def __init__(self, cmd, ret_code=None, stdout=None,
                  stderr=None):
@@ -102,7 +108,7 @@ class InvalidDataException(SaharaException):
     A more useful message should be passed to __init__ which
     tells the user more about why the data is invalid.
     """
-    message = "Data is invalid"
+    message = _("Data is invalid")
     code = "INVALID_DATA"
 
     def __init__(self, message=None):
@@ -111,8 +117,8 @@ class InvalidDataException(SaharaException):
 
 
 class BadJobBinaryInternalException(SaharaException):
-    message = ("Job binary internal data must be a string of length "
-               "greater than zero")
+    message = _("Job binary internal data must be a string of length "
+                "greater than zero")
 
     def __init__(self, message=None):
         if message:
@@ -121,8 +127,8 @@ class BadJobBinaryInternalException(SaharaException):
 
 
 class BadJobBinaryException(SaharaException):
-    message = ("To work with JobBinary located in internal swift add 'user'"
-               " and 'password' to extra")
+    message = _("To work with JobBinary located in internal swift add 'user'"
+                " and 'password' to extra")
 
     def __init__(self, message=None):
         if message:
@@ -131,7 +137,7 @@ class BadJobBinaryException(SaharaException):
 
 
 class DBDuplicateEntry(SaharaException):
-    message = "Database object already exists"
+    message = _("Database object already exists")
     code = "DB_DUPLICATE_ENTRY"
 
     def __init__(self, message=None):
@@ -139,8 +145,17 @@ class DBDuplicateEntry(SaharaException):
             self.message = message
 
 
+class CreationFailed(SaharaException):
+    message = _("Object was not created")
+    code = "CREATION_FAILED"
+
+    def __init__(self, message=None):
+        if message:
+            self.message = message
+
+
 class DeletionFailed(SaharaException):
-    message = "Object was not deleted"
+    message = _("Object was not deleted")
     code = "DELETION_FAILED"
 
     def __init__(self, message=None):
@@ -150,8 +165,8 @@ class DeletionFailed(SaharaException):
 
 class MissingFloatingNetworkException(SaharaException):
     def __init__(self, ng_name):
-        self.message = ("Node Group %s is missing 'floating_ip_pool' "
-                        "field" % ng_name)
+        self.message = _("Node Group %s is missing 'floating_ip_pool' "
+                         "field") % ng_name
         self.code = "MISSING_FLOATING_NETWORK"
 
 
@@ -168,19 +183,21 @@ class SwiftClientException(SaharaException):
 
 
 class DataTooBigException(SaharaException):
-    message = "Size of data (%s) is greater than maximum (%s)"
+    message = _("Size of data (%(size)s) is greater than maximum "
+                "(%(maximum)s)")
 
     def __init__(self, size, maximum, message=None):
         if message:
             self.message = message
-        self.message = self.message % (size, maximum)
+        self.message = self.message % ({'size': size, 'maximum': maximum})
         self.code = "DATA_TOO_BIG"
 
 
 class ThreadException(SaharaException):
     def __init__(self, thread_description, e):
-        self.message = "An error occurred in thread '%s': %s" % (
-            thread_description, str(e))
+        self.message = (_("An error occurred in thread '%(thread)s': %(e)s")
+                        % {'thread': thread_description,
+                           'e': six.text_type(e)})
         self.code = "THREAD_EXCEPTION"
 
 
@@ -188,13 +205,14 @@ class NotImplementedException(SaharaException):
     code = "NOT_IMPLEMENTED"
 
     def __init__(self, feature):
-        self.message = "Feature '%s' is not implemented" % feature
+        self.message = _("Feature '%s' is not implemented") % feature
 
 
 class HeatStackException(SaharaException):
     def __init__(self, heat_stack_status):
         self.code = "HEAT_STACK_EXCEPTION"
-        self.message = "Heat stack failed with status %s" % heat_stack_status
+        self.message = (_("Heat stack failed with status %s") %
+                        heat_stack_status)
 
 
 class ConfigurationError(SaharaException):
@@ -223,3 +241,11 @@ class EDPError(SaharaException):
 
     def __init__(self, message):
         self.message = message
+
+
+class TimeoutException(SaharaException):
+    code = "TIMEOUT"
+    message = _("Operation timed out after %i second(s)")
+
+    def __init__(self, timeout):
+        self.message = self.message % timeout
