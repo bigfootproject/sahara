@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from sahara.i18n import _
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.general import utils as u
 from sahara.plugins import provisioning as p
@@ -25,19 +26,12 @@ class VanillaProvider(p.ProvisioningPluginBase):
 
     def get_description(self):
         return (
-            "This plugin provides an ability to launch vanilla Apache Hadoop "
-            "cluster without any management consoles. Also it can "
-            "deploy Oozie and Hive")
+            _("This plugin provides an ability to launch vanilla Apache Hadoop"
+              " cluster without any management consoles. Also it can "
+              "deploy Oozie and Hive"))
 
     def _get_version_handler(self, hadoop_version):
         return self.version_factory.get_version_handler(hadoop_version)
-
-    def get_resource_manager_uri(self, cluster):
-        return self._get_version_handler(
-            cluster.hadoop_version).get_resource_manager_uri(cluster)
-
-    def get_hdfs_user(self):
-        return 'hadoop'
 
     def get_node_processes(self, hadoop_version):
         return self._get_version_handler(hadoop_version).get_node_processes()
@@ -76,17 +70,15 @@ class VanillaProvider(p.ProvisioningPluginBase):
             cluster.hadoop_version).validate_scaling(cluster, existing,
                                                      additional)
 
-    def get_oozie_server(self, cluster):
-        return self._get_version_handler(
-            cluster.hadoop_version).get_oozie_server(cluster)
-
     def validate_edp(self, cluster):
         oo_count = u.get_instances_count(cluster, 'oozie')
         if oo_count != 1:
             raise ex.InvalidComponentCountException('oozie', '1', oo_count)
 
-    def get_name_node_uri(self, cluster):
-        return cluster['info']['HDFS']['NameNode']
+    def get_edp_engine(self, cluster, job_type):
+        return self._get_version_handler(
+            cluster.hadoop_version).get_edp_engine(cluster, job_type)
 
-    def get_oozie_server_uri(self, cluster):
-        return cluster['info']['JobFlow']['Oozie'] + "/oozie/"
+    def get_open_ports(self, node_group):
+        return self._get_version_handler(
+            node_group.cluster.hadoop_version).get_open_ports(node_group)

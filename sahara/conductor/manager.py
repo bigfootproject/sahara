@@ -28,6 +28,7 @@ CLUSTER_DEFAULTS = {
     "anti_affinity": [],
     "status_description": "",
     "info": {},
+    "rollback_info": {},
 }
 
 NODE_GROUP_DEFAULTS = {
@@ -36,7 +37,9 @@ NODE_GROUP_DEFAULTS = {
     "volumes_per_node": 0,
     "volumes_size": 0,
     "volume_mount_prefix": "/volumes/disk",
-    "floating_ip_pool": None
+    "floating_ip_pool": None,
+    "security_groups": None,
+    "auto_security_group": False,
 }
 
 INSTANCE_DEFAULTS = {

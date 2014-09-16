@@ -15,12 +15,11 @@
 
 import mock
 from novaclient import exceptions as nova_exceptions
-import six
-import testtools
 
 from sahara import conductor as cond
 from sahara import context
 from sahara.service import direct_engine as e
+from sahara.service import ops
 from sahara.tests.unit import base
 import sahara.utils.crypto as c
 from sahara.utils import general as g
@@ -42,6 +41,7 @@ class AbstractInstanceTest(base.SaharaWithDbTestCase):
         self.novaclient_patcher = mock.patch(
             'sahara.utils.openstack.nova.client')
         self.nova = _create_nova_mock(self.novaclient_patcher.start())
+        self.nova.server_groups.findall.return_value = []
 
         self.get_userdata_patcher = mock.patch(
             'sahara.utils.remote.get_userdata_template')
@@ -57,19 +57,29 @@ class AbstractInstanceTest(base.SaharaWithDbTestCase):
 
 class TestClusterRollBack(AbstractInstanceTest):
 
-    def test_cluster_creation_with_errors(self):
+    @mock.patch('sahara.service.direct_engine.DirectEngine._check_if_deleted')
+    @mock.patch('sahara.service.ops._prepare_provisioning')
+    @mock.patch('sahara.service.ops.INFRA')
+    def test_cluster_creation_with_errors(self, infra, prepare,
+                                          deleted_checker):
+        infra.create_cluster.side_effect = self.engine.create_cluster
+        infra.rollback_cluster.side_effect = self.engine.rollback_cluster
+
         node_groups = [_make_ng_dict('test_group', 'test_flavor',
                                      ['data node', 'task tracker'], 2)]
 
         cluster = _create_cluster_mock(node_groups, [])
+
+        prepare.return_value = (context.ctx(), cluster, mock.Mock())
 
         self.nova.servers.create.side_effect = [_mock_instance(1),
                                                 MockException("test")]
 
         self.nova.servers.list.return_value = [_mock_instance(1)]
 
-        with testtools.ExpectedException(MockException):
-            self.engine.create_cluster(cluster)
+        deleted_checker.return_value = True
+
+        ops._provision_cluster(cluster.id)
 
         ctx = context.ctx()
         cluster_obj = conductor.cluster_get_all(ctx)[0]
@@ -79,25 +89,28 @@ class TestClusterRollBack(AbstractInstanceTest):
 class NodePlacementTest(AbstractInstanceTest):
 
     def test_one_node_groups_and_one_affinity_group(self):
+        self.nova.server_groups.create.return_value = mock.Mock(id='123')
+
         node_groups = [_make_ng_dict('test_group', 'test_flavor',
                                      ['data node'], 2)]
         cluster = _create_cluster_mock(node_groups, ["data node"])
         self.engine._create_instances(cluster)
         userdata = _generate_user_data_script(cluster)
-
         self.nova.servers.create.assert_has_calls(
             [mock.call("test_cluster-test_group-001",
                        "initial",
                        "test_flavor",
-                       scheduler_hints=None,
+                       scheduler_hints={'group': "123"},
                        userdata=userdata,
-                       key_name='user_keypair'),
+                       key_name='user_keypair',
+                       security_groups=None),
              mock.call("test_cluster-test_group-002",
                        "initial",
                        "test_flavor",
-                       scheduler_hints={'different_host': ["1"]},
+                       scheduler_hints={'group': "123"},
                        userdata=userdata,
-                       key_name='user_keypair')],
+                       key_name='user_keypair',
+                       security_groups=None)],
             any_order=False)
 
         ctx = context.ctx()
@@ -105,10 +118,13 @@ class NodePlacementTest(AbstractInstanceTest):
         self.assertEqual(len(cluster_obj.node_groups[0].instances), 2)
 
     def test_one_node_groups_and_no_affinity_group(self):
+        self.nova.server_groups.create.return_value = mock.Mock(id='123')
+
         node_groups = [_make_ng_dict('test_group', 'test_flavor',
                                      ['data node', 'task tracker'], 2)]
 
         cluster = _create_cluster_mock(node_groups, [])
+
         self.engine._create_instances(cluster)
         userdata = _generate_user_data_script(cluster)
 
@@ -118,13 +134,15 @@ class NodePlacementTest(AbstractInstanceTest):
                        "test_flavor",
                        scheduler_hints=None,
                        userdata=userdata,
-                       key_name='user_keypair'),
+                       key_name='user_keypair',
+                       security_groups=None),
              mock.call("test_cluster-test_group-002",
                        "initial",
                        "test_flavor",
                        scheduler_hints=None,
                        userdata=userdata,
-                       key_name='user_keypair')],
+                       key_name='user_keypair',
+                       security_groups=None)],
             any_order=False)
 
         ctx = context.ctx()
@@ -132,6 +150,8 @@ class NodePlacementTest(AbstractInstanceTest):
         self.assertEqual(len(cluster_obj.node_groups[0].instances), 2)
 
     def test_two_node_groups_and_one_affinity_group(self):
+        self.nova.server_groups.create.return_value = mock.Mock(id='123')
+
         node_groups = [_make_ng_dict("test_group_1", "test_flavor",
                                      ["data node", "test tracker"], 2),
                        _make_ng_dict("test_group_2", "test_flavor",
@@ -141,61 +161,28 @@ class NodePlacementTest(AbstractInstanceTest):
         self.engine._create_instances(cluster)
         userdata = _generate_user_data_script(cluster)
 
-        def _find_created_at(idx):
-            """Find the #N instance creation call.
-
-            To determine which instance was created first, we should check
-            scheduler hints For example we should find call with scheduler
-            hint different_hosts = [1, 2] and it's the third call of instance
-            create.
-            """
-            different_hosts = []
-            for instance_id in six.moves.xrange(1, idx):
-                different_hosts.append(str(instance_id))
-            scheduler_hints = ({'different_host': different_hosts}
-                               if different_hosts else None)
-
-            for call in self.nova.servers.create.mock_calls:
-                if call[2]['scheduler_hints'] == scheduler_hints:
-                    return call[1][0]
-
-            self.fail("Couldn't find call with scheduler_hints='%s'"
-                      % scheduler_hints)
-
-        # find instance names in instance create calls
-        instance_names = []
-        for idx in six.moves.xrange(1, 4):
-            instance_name = _find_created_at(idx)
-            if instance_name in instance_names:
-                self.fail("Create instance was called twice with the same "
-                          "instance name='%s'" % instance_name)
-            instance_names.append(instance_name)
-
-        self.assertEqual(3, len(instance_names))
-        self.assertEqual(set(['test_cluster-test_group_1-001',
-                              'test_cluster-test_group_1-002',
-                              'test_cluster-test_group_2-001']),
-                         set(instance_names))
-
         self.nova.servers.create.assert_has_calls(
-            [mock.call(instance_names[0],
+            [mock.call('test_cluster-test_group_1-001',
                        "initial",
                        "test_flavor",
-                       scheduler_hints=None,
+                       scheduler_hints={'group': "123"},
                        userdata=userdata,
-                       key_name='user_keypair'),
-             mock.call(instance_names[1],
+                       key_name='user_keypair',
+                       security_groups=None),
+             mock.call('test_cluster-test_group_1-002',
                        "initial",
                        "test_flavor",
-                       scheduler_hints={'different_host': ["1"]},
+                       scheduler_hints={'group': "123"},
                        userdata=userdata,
-                       key_name='user_keypair'),
-             mock.call(instance_names[2],
+                       key_name='user_keypair',
+                       security_groups=None),
+             mock.call('test_cluster-test_group_2-001',
                        "initial",
                        "test_flavor",
-                       scheduler_hints={'different_host': ["1", "2"]},
+                       scheduler_hints={'group': "123"},
                        userdata=userdata,
-                       key_name='user_keypair')],
+                       key_name='user_keypair',
+                       security_groups=None)],
             any_order=False)
 
         ctx = context.ctx()
@@ -236,7 +223,9 @@ class IpManagementTest(AbstractInstanceTest):
 
 
 class ShutdownClusterTest(AbstractInstanceTest):
-    def test_delete_floating_ips(self):
+
+    @mock.patch('sahara.service.direct_engine.DirectEngine._check_if_deleted')
+    def test_delete_floating_ips(self, deleted_checker):
         node_groups = [_make_ng_dict("test_group_1", "test_flavor",
                                      ["data node", "test tracker"], 2, 'pool')]
 
@@ -248,6 +237,8 @@ class ShutdownClusterTest(AbstractInstanceTest):
         instances_list = g.get_instances(cluster)
 
         self.engine._assign_floating_ips(instances_list)
+
+        deleted_checker.return_value = True
 
         self.engine._shutdown_instances(cluster)
         self.assertEqual(self.nova.floating_ips.delete.call_count, 2,

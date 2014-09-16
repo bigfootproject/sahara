@@ -15,7 +15,7 @@ consistent state. We suggest the following options:
 To install with Fuel
 --------------------
 
-1. Start by following the `Quickstart
+1. Start by following the `MOS Quickstart
    <http://software.mirantis.com/quick-start/>`_ to install and setup
    OpenStack.
 
@@ -26,7 +26,7 @@ To install with Fuel
 To install with RDO
 -------------------
 
-1. Start by following the `Quickstart
+1. Start by following the `RDO Quickstart
    <http://openstack.redhat.com/Quickstart>`_ to install and setup
    OpenStack.
 
@@ -156,9 +156,6 @@ To install into a virtual environment
 
 Notes:
 ------
-One of the :doc:`Sahara Features <features>`, Anti-Affinity, requires a Nova adjustment.
-See :ref:`Enabling Anti-Affinity <enable-anti-affinity>` for details. But that is purely optional.
-
 
 Make sure that your operating system is not blocking Sahara port (default: 8386).
 You may need to configure iptables in CentOS and some other operating systems.

@@ -91,13 +91,14 @@ class RemoteCommandException(SaharaException):
         self.message = self.message % cmd
 
         if ret_code:
-            self.message += '\nReturn code: ' + str(ret_code)
+            self.message = '%s\nReturn code: %s' % (self.message,
+                                                    six.text_type(ret_code))
 
         if stderr:
-            self.message += '\nSTDERR:\n' + stderr
+            self.message = '%s\nSTDERR:\n%s' % (self.message, stderr)
 
         if stdout:
-            self.message += '\nSTDOUT:\n' + stdout
+            self.message = '%s\nSTDOUT:\n%s' % (self.message, stdout)
 
         self.message = self.message.decode('ascii', 'ignore')
 
@@ -249,3 +250,10 @@ class TimeoutException(SaharaException):
 
     def __init__(self, timeout):
         self.message = self.message % timeout
+
+
+class DeprecatedException(SaharaException):
+    code = "DEPRECATED"
+
+    def __init__(self, message):
+        self.message = message

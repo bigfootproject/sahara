@@ -15,6 +15,7 @@
 
 import six
 
+from sahara.i18n import _LI
 from sahara.openstack.common import log as logging
 from sahara.plugins.vanilla.hadoop2 import config_helper as c_helper
 from sahara.plugins.vanilla.hadoop2 import oozie_helper as o_helper
@@ -296,8 +297,8 @@ def _merge_configs(a, b):
 
 def configure_topology_data(pctx, cluster):
     if c_helper.is_data_locality_enabled(pctx, cluster):
-        LOG.info("Node group awareness is not implemented in YARN yet "
-                 "so enable_hypervisor_awareness set to False explicitly")
+        LOG.info(_LI("Node group awareness is not implemented in YARN yet "
+                     "so enable_hypervisor_awareness set to False explicitly"))
         tpl_map = th.generate_topology_map(cluster, is_node_awareness=False)
         topology_data = "\n".join(
             [k + " " + v for k, v in tpl_map.items()]) + "\n"
@@ -305,3 +306,34 @@ def configure_topology_data(pctx, cluster):
             for i in ng.instances:
                 i.remote().write_file_to(HADOOP_CONF_DIR + "/topology.data",
                                          topology_data, run_as_root=True)
+
+
+def get_open_ports(node_group):
+    ports = []
+
+    if "namenode" in node_group.node_processes:
+        ports.append(50070)
+        ports.append(9000)
+
+    if "secondarynamenode" in node_group.node_processes:
+        ports.append(50090)
+
+    if "resourcemanager" in node_group.node_processes:
+        ports.append(8088)
+        ports.append(8032)
+
+    if "historyserver" in node_group.node_processes:
+        ports.append(19888)
+
+    if "datanode" in node_group.node_processes:
+        ports.append(50010)
+        ports.append(50075)
+        ports.append(50020)
+
+    if "nodemanager" in node_group.node_processes:
+        ports.append(8042)
+
+    if "oozie" in node_group.node_processes:
+        ports.append(11000)
+
+    return ports

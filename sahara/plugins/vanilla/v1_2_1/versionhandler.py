@@ -20,12 +20,15 @@ import six
 
 from sahara import conductor
 from sahara import context
+from sahara.i18n import _
+from sahara.i18n import _LI
 from sahara.openstack.common import log as logging
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.general import utils
 from sahara.plugins.vanilla import abstractversionhandler as avm
 from sahara.plugins.vanilla import utils as vu
 from sahara.plugins.vanilla.v1_2_1 import config_helper as c_helper
+from sahara.plugins.vanilla.v1_2_1 import edp_engine
 from sahara.plugins.vanilla.v1_2_1 import run_scripts as run
 from sahara.plugins.vanilla.v1_2_1 import scaling as sc
 from sahara.topology import topology_helper as th
@@ -52,12 +55,6 @@ class VersionHandler(avm.AbstractVersionHandler):
             "Hive": ["hiveserver"]
         }
 
-    def get_resource_manager_uri(self, cluster):
-        return cluster['info']['MapReduce']['JobTracker']
-
-    def get_oozie_server(self, cluster):
-        return vu.get_oozie(cluster)
-
     def validate(self, cluster):
         nn_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "namenode")])
@@ -68,14 +65,14 @@ class VersionHandler(avm.AbstractVersionHandler):
                         in utils.get_node_groups(cluster, "jobtracker")])
 
         if jt_count not in [0, 1]:
-            raise ex.InvalidComponentCountException("jobtracker", '0 or 1',
+            raise ex.InvalidComponentCountException("jobtracker", _('0 or 1'),
                                                     jt_count)
 
         oozie_count = sum([ng.count for ng
                            in utils.get_node_groups(cluster, "oozie")])
 
         if oozie_count not in [0, 1]:
-            raise ex.InvalidComponentCountException("oozie", '0 or 1',
+            raise ex.InvalidComponentCountException("oozie", _('0 or 1'),
                                                     oozie_count)
 
         hive_count = sum([ng.count for ng
@@ -97,7 +94,7 @@ class VersionHandler(avm.AbstractVersionHandler):
                     "jobtracker", required_by="hive")
 
         if hive_count not in [0, 1]:
-            raise ex.InvalidComponentCountException("hive", '0 or 1',
+            raise ex.InvalidComponentCountException("hive", _('0 or 1'),
                                                     hive_count)
 
     def configure_cluster(self, cluster):
@@ -122,7 +119,7 @@ class VersionHandler(avm.AbstractVersionHandler):
 
         self._await_datanodes(cluster)
 
-        LOG.info("Hadoop services in cluster %s have been started" %
+        LOG.info(_LI("Hadoop services in cluster %s have been started"),
                  cluster.name)
 
         oozie = vu.get_oozie(cluster)
@@ -133,7 +130,7 @@ class VersionHandler(avm.AbstractVersionHandler):
                     run.oozie_create_db(r)
                 run.oozie_share_lib(r, nn_instance.hostname())
                 run.start_oozie(r)
-                LOG.info("Oozie service at '%s' has been started",
+                LOG.info(_LI("Oozie service at '%s' has been started"),
                          nn_instance.hostname())
 
         hive_server = vu.get_hiveserver(cluster)
@@ -148,10 +145,11 @@ class VersionHandler(avm.AbstractVersionHandler):
                         run.mysql_start(r, hive_server)
                     run.hive_create_db(r)
                     run.hive_metastore_start(r)
-                    LOG.info("Hive Metastore server at %s has been started",
+                    LOG.info(_LI("Hive Metastore server at %s has been "
+                                 "started"),
                              hive_server.hostname())
 
-        LOG.info('Cluster %s has been started successfully' % cluster.name)
+        LOG.info(_LI('Cluster %s has been started successfully'), cluster.name)
         self._set_cluster_info(cluster)
 
     def _await_datanodes(self, cluster):
@@ -159,12 +157,12 @@ class VersionHandler(avm.AbstractVersionHandler):
         if datanodes_count < 1:
             return
 
-        LOG.info("Waiting %s datanodes to start up" % datanodes_count)
+        LOG.info(_LI("Waiting %s datanodes to start up"), datanodes_count)
         with remote.get_remote(vu.get_namenode(cluster)) as r:
             while True:
                 if run.check_datanodes_count(r, datanodes_count):
                     LOG.info(
-                        'Datanodes on cluster %s has been started' %
+                        _LI('Datanodes on cluster %s has been started'),
                         cluster.name)
                     return
 
@@ -172,8 +170,8 @@ class VersionHandler(avm.AbstractVersionHandler):
 
                 if not g.check_cluster_exists(cluster):
                     LOG.info(
-                        'Stop waiting datanodes on cluster %s since it has '
-                        'been deleted' % cluster.name)
+                        _LI('Stop waiting datanodes on cluster %s since it has'
+                            ' been deleted'), cluster.name)
                     return
 
     def _extract_configs_to_extra(self, cluster):
@@ -451,14 +449,14 @@ class VersionHandler(avm.AbstractVersionHandler):
             ng = self._get_by_id(cluster.node_groups, ng_id)
             if not set(ng.node_processes).issubset(scalable_processes):
                 raise ex.NodeGroupCannotBeScaled(
-                    ng.name, "Vanilla plugin cannot scale nodegroup"
-                             " with processes: " +
-                             ' '.join(ng.node_processes))
+                    ng.name, _("Vanilla plugin cannot scale nodegroup"
+                               " with processes: %s") %
+                    ' '.join(ng.node_processes))
             if not jt and 'tasktracker' in ng.node_processes:
                 raise ex.NodeGroupCannotBeScaled(
-                    ng.name, "Vanilla plugin cannot scale node group with "
-                             "processes which have no master-processes run "
-                             "in cluster")
+                    ng.name, _("Vanilla plugin cannot scale node group with "
+                               "processes which have no master-processes run "
+                               "in cluster"))
 
     def _validate_existing_ng_scaling(self, cluster, existing):
         scalable_processes = self._get_scalable_processes()
@@ -470,9 +468,9 @@ class VersionHandler(avm.AbstractVersionHandler):
                     dn_to_delete += ng.count - existing[ng.id]
                 if not set(ng.node_processes).issubset(scalable_processes):
                     raise ex.NodeGroupCannotBeScaled(
-                        ng.name, "Vanilla plugin cannot scale nodegroup"
-                                 " with processes: " +
-                                 ' '.join(ng.node_processes))
+                        ng.name, _("Vanilla plugin cannot scale nodegroup"
+                                   " with processes: %s") %
+                        ' '.join(ng.node_processes))
 
         dn_amount = len(vu.get_datanodes(cluster))
         rep_factor = c_helper.get_config_value('HDFS', 'dfs.replication',
@@ -480,6 +478,51 @@ class VersionHandler(avm.AbstractVersionHandler):
 
         if dn_to_delete > 0 and dn_amount - dn_to_delete < rep_factor:
             raise ex.ClusterCannotBeScaled(
-                cluster.name, "Vanilla plugin cannot shrink cluster because "
-                              "it would be not enough nodes for replicas "
-                              "(replication factor is %s)" % rep_factor)
+                cluster.name, _("Vanilla plugin cannot shrink cluster because "
+                                "it would be not enough nodes for replicas "
+                                "(replication factor is %s)") % rep_factor)
+
+    def get_edp_engine(self, cluster, job_type):
+        if job_type in edp_engine.EdpOozieEngine.get_supported_job_types():
+            return edp_engine.EdpOozieEngine(cluster)
+        return None
+
+    def get_open_ports(self, node_group):
+        cluster = node_group.cluster
+
+        ports = []
+
+        if "namenode" in node_group.node_processes:
+            ports.append(c_helper.get_port_from_config(
+                'HDFS', 'dfs.http.address', cluster))
+            ports.append(8020)
+
+        if "datanode" in node_group.node_processes:
+            ports.append(c_helper.get_port_from_config(
+                'HDFS', 'dfs.datanode.http.address', cluster))
+            ports.append(c_helper.get_port_from_config(
+                'HDFS', 'dfs.datanode.address', cluster))
+            ports.append(c_helper.get_port_from_config(
+                'HDFS', 'dfs.datanode.ipc.address', cluster))
+
+        if "jobtracker" in node_group.node_processes:
+            ports.append(c_helper.get_port_from_config(
+                'MapReduce', 'mapred.job.tracker.http.address', cluster))
+            ports.append(8021)
+
+        if "tasktracker" in node_group.node_processes:
+            ports.append(c_helper.get_port_from_config(
+                'MapReduce', 'mapred.task.tracker.http.address', cluster))
+
+        if "secondarynamenode" in node_group.node_processes:
+            ports.append(c_helper.get_port_from_config(
+                'HDFS', 'dfs.secondary.http.address', cluster))
+
+        if "oozie" in node_group.node_processes:
+            ports.append(11000)
+
+        if "hive" in node_group.node_processes:
+            ports.append(9999)
+            ports.append(10000)
+
+        return ports

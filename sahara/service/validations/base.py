@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import operator
+
 import novaclient.exceptions as nova_ex
 from oslo.config import cfg
 
@@ -95,6 +97,7 @@ def check_all_configurations(data):
     if data.get('node_groups'):
         check_duplicates_node_groups_names(data['node_groups'])
         for ng in data['node_groups']:
+            check_auto_security_group(data['name'], ng)
             check_node_group_basic_fields(data['plugin_name'],
                                           data['hadoop_version'],
                                           ng, pl_confs)
@@ -131,12 +134,24 @@ def check_node_group_basic_fields(plugin_name, hadoop_version, ng,
     if ng.get('floating_ip_pool'):
         check_floatingip_pool_exists(ng['name'], ng['floating_ip_pool'])
 
+    if ng.get('security_groups'):
+        check_security_groups_exist(ng['security_groups'])
+
 
 def check_flavor_exists(flavor_id):
     flavor_list = nova.client().flavors.list()
     if flavor_id not in [flavor.id for flavor in flavor_list]:
         raise ex.InvalidException(
             _("Requested flavor '%s' not found") % flavor_id)
+
+
+def check_security_groups_exist(security_groups):
+    security_group_list = nova.client().security_groups.list()
+    allowed_groups = set(reduce(
+        operator.add, [[sg.id, sg.name] for sg in security_group_list], []))
+    for sg in security_groups:
+        if sg not in allowed_groups:
+            raise ex.InvalidException(_("Security group '%s' not found") % sg)
 
 
 def check_floatingip_pool_exists(ng_name, pool_id):
@@ -167,7 +182,7 @@ def check_node_processes(plugin_name, version, node_processes):
     if not set(node_processes).issubset(set(plugin_processes)):
         raise ex.InvalidException(
             _("Plugin supports the following node procesess: %s")
-            % plugin_processes)
+            % sorted(plugin_processes))
 
 
 def check_duplicates_node_groups_names(node_groups):
@@ -175,6 +190,16 @@ def check_duplicates_node_groups_names(node_groups):
     if len(set(ng_names)) < len(node_groups):
         raise ex.InvalidException(
             _("Duplicates in node group names are detected"))
+
+
+def check_auto_security_group(cluster_name, nodegroup):
+    if nodegroup.get('auto_security_group'):
+        name = g.generate_auto_security_group_name(
+            cluster_name, nodegroup['name'])
+        if name in [security_group.name for security_group in
+                    nova.client().security_groups.list()]:
+            raise ex.NameAlreadyExistsException(
+                _("Security group with name '%s' already exists") % name)
 
 
 # Cluster creation related checks
@@ -250,6 +275,7 @@ def check_node_groups_in_cluster_templates(cluster_name, plugin_name,
     n_groups = c_t.to_wrapped_dict()['cluster_template']['node_groups']
     check_network_config(n_groups)
     for node_group in n_groups:
+        check_auto_security_group(cluster_name, node_group)
         check_node_group_basic_fields(plugin_name, hadoop_version, node_group)
     check_cluster_hostnames_lengths(cluster_name, n_groups)
 
@@ -319,6 +345,7 @@ def check_add_node_groups(cluster, add_node_groups):
 
         check_node_group_basic_fields(cluster.plugin_name,
                                       cluster.hadoop_version, ng, pl_confs)
+        check_auto_security_group(cluster.name, ng)
 
 
 # Cinder

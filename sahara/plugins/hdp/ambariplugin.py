@@ -17,6 +17,8 @@ from oslo.config import cfg
 
 from sahara import conductor
 from sahara import context
+from sahara.i18n import _
+from sahara.i18n import _LI
 from sahara.openstack.common import log as logging
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.general import utils as u
@@ -64,7 +66,7 @@ class AmbariPlugin(p.ProvisioningPluginBase):
         # enabled
         self._configure_topology_for_cluster(cluster, servers)
 
-        LOG.info("Install of Hadoop stack successful.")
+        LOG.info(_LI("Install of Hadoop stack successful."))
         # add service urls
         self._set_cluster_info(cluster, cluster_spec)
 
@@ -93,9 +95,6 @@ class AmbariPlugin(p.ProvisioningPluginBase):
             node_processes[service.name] = components
 
         return node_processes
-
-    def get_hdfs_user(self):
-        return 'hdfs'
 
     def convert(self, config, plugin_name, version, template_name,
                 cluster_template_create):
@@ -138,25 +137,16 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                                         "node_groups": node_groups,
                                         "cluster_configs": cluster_configs})
 
-    def get_oozie_server(self, cluster):
-        return u.get_instance(cluster, "OOZIE_SERVER")
+    def get_edp_engine(self, cluster, job_type):
+        version_handler = (
+            self.version_factory.get_version_handler(cluster.hadoop_version))
+        return version_handler.get_edp_engine(cluster, job_type)
 
     def validate_edp(self, cluster):
         oo_count = u.get_instances_count(cluster, 'OOZIE_SERVER')
         if oo_count != 1:
             raise ex.InvalidComponentCountException(
                 'OOZIE_SERVER', '1', oo_count)
-
-    def get_resource_manager_uri(self, cluster):
-        version_handler = (
-            self.version_factory.get_version_handler(cluster.hadoop_version))
-        return version_handler.get_resource_manager_uri(cluster)
-
-    def get_name_node_uri(self, cluster):
-        return cluster['info']['HDFS']['NameNode']
-
-    def get_oozie_server_uri(self, cluster):
-        return cluster['info']['JobFlow']['Oozie'] + "/oozie/"
 
     def update_infra(self, cluster):
         pass
@@ -171,8 +161,8 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                            servers, version):
         # TODO(jspeidel): encapsulate in another class
 
-        LOG.info('Provisioning Cluster via Ambari Server: {0} ...'.format(
-            ambari_info.get_address()))
+        LOG.info(_LI('Provisioning Cluster via Ambari Server: {0} ...')
+                 .format(ambari_info.get_address()))
 
         for server in servers:
             self._spawn(
@@ -221,9 +211,9 @@ class AmbariPlugin(p.ProvisioningPluginBase):
 
                 if not is_admin_provided:
                     if admin_user is None:
-                        raise ex.HadoopProvisionError("An Ambari user in the "
-                                                      "admin group must be "
-                                                      "configured.")
+                        raise ex.HadoopProvisionError(_("An Ambari user in the"
+                                                        " admin group must be "
+                                                        "configured."))
                     ambari_info.user = admin_user
                     ambari_info.password = admin_password
                     ambari_client.delete_ambari_user('admin', ambari_info)
@@ -240,7 +230,7 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                 ambari_info.user = admin_user.name
                 ambari_info.password = admin_user.password
 
-        LOG.info('Using "{0}" as admin user for scaling of cluster'
+        LOG.info(_LI('Using "{0}" as admin user for scaling of cluster')
                  .format(ambari_info.user))
 
     # PLUGIN SPI METHODS:
@@ -276,9 +266,9 @@ class AmbariPlugin(p.ProvisioningPluginBase):
         return 'Hortonworks Data Platform'
 
     def get_description(self):
-        return ('The Hortonworks OpenStack plugin works with project '
-                'Sahara to automate the deployment of the Hortonworks data'
-                ' platform on OpenStack based public & private clouds')
+        return _('The Hortonworks OpenStack plugin works with project '
+                 'Sahara to automate the deployment of the Hortonworks data'
+                 ' platform on OpenStack based public & private clouds')
 
     def validate(self, cluster):
         # creating operational config results in validation
@@ -323,8 +313,8 @@ class AmbariPlugin(p.ProvisioningPluginBase):
         ambari_client.cleanup(ambari_info)
 
     def decommission_nodes(self, cluster, instances):
-        LOG.info('AmbariPlugin: decommission_nodes called for '
-                 'HDP version = ' + cluster.hadoop_version)
+        LOG.info(_LI('AmbariPlugin: decommission_nodes called for '
+                 'HDP version = %s'), cluster.hadoop_version)
 
         handler = self.version_factory.get_version_handler(
             cluster.hadoop_version)

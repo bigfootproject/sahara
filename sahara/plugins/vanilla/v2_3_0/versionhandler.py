@@ -17,10 +17,13 @@ from oslo.config import cfg
 
 from sahara import conductor
 from sahara import context
+from sahara import exceptions as ex
+from sahara.i18n import _
 from sahara.openstack.common import log as logging
 from sahara.plugins.general import utils
 from sahara.plugins.vanilla import abstractversionhandler as avm
 from sahara.plugins.vanilla.hadoop2 import config as c
+from sahara.plugins.vanilla.hadoop2 import edp_engine
 from sahara.plugins.vanilla.hadoop2 import run_scripts as run
 from sahara.plugins.vanilla.hadoop2 import scaling as sc
 from sahara.plugins.vanilla.hadoop2 import validation as vl
@@ -53,7 +56,10 @@ class VersionHandler(avm.AbstractVersionHandler):
         }
 
     def validate(self, cluster):
-        vl.validate_cluster_creating(self.pctx, cluster)
+        raise ex.DeprecatedException(
+            _("The Vanilla 2.3.0 plugin is now deprecated and will be removed"
+              " in the Kylo release. The Vanilla 2.4.1 plugin remains and"
+              " continues to be supported."))
 
     def update_infra(self, cluster):
         pass
@@ -131,8 +137,10 @@ class VersionHandler(avm.AbstractVersionHandler):
         ctx = context.ctx()
         conductor.cluster_update(ctx, cluster, {'info': info})
 
-    def get_oozie_server(self, cluster):
-        return vu.get_oozie(cluster)
+    def get_edp_engine(self, cluster, job_type):
+        if job_type in edp_engine.EdpOozieEngine.get_supported_job_types():
+            return edp_engine.EdpOozieEngine(cluster)
+        return None
 
-    def get_resource_manager_uri(self, cluster):
-        return cluster['info']['YARN']['ResourceManager']
+    def get_open_ports(self, node_group):
+        return c.get_open_ports(node_group)

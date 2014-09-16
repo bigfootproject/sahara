@@ -53,6 +53,7 @@ class Cluster(object):
     status_description
     info
     extra
+    rollback_info - internal information required for rollback
     node_groups - list of NodeGroup objects
     cluster_template_id
     cluster_template - ClusterTemplate object
@@ -74,7 +75,13 @@ class NodeGroup(object):
     volumes_size
     volume_mount_prefix
     floating_ip_pool - Floating IP Pool name used to assign Floating IPs to
-                        instances in this Node Group
+                       instances in this Node Group
+    security_groups - List of security groups for instances in this Node Group
+    auto_security_group - indicates if Sahara should create additional
+                          security group for the Node Group
+    open_ports - List of ports that will be opened if auto_security_group is
+                 True
+
     count
     instances - list of Instance objects
     node_group_template_id
@@ -167,6 +174,8 @@ class NodeGroupTemplate(object):
     volumes_size
     volume_mount_prefix
     floating_ip_pool
+    security_groups
+    auto_security_group
     """
 
 

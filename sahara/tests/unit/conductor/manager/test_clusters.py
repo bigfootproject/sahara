@@ -35,13 +35,15 @@ SAMPLE_CLUSTER = {
             "name": "ng_1",
             "flavor_id": "42",
             "node_processes": ["p1", "p2"],
-            "count": 1
+            "count": 1,
+            "security_groups": None
         },
         {
             "name": "ng_2",
             "flavor_id": "42",
             "node_processes": ["p3", "p4"],
-            "count": 3
+            "count": 3,
+            "security_groups": ["group1", "group2"]
         }
     ],
     "cluster_configs": {
@@ -114,6 +116,8 @@ class ClusterTest(test_base.ConductorManagerTestCase):
             ng.pop("volumes_per_node")
             ng.pop("floating_ip_pool")
             ng.pop("image_username")
+            ng.pop("open_ports")
+            ng.pop("auto_security_group")
             ng.pop("tenant_id")
 
         self.assertEqual(SAMPLE_CLUSTER["node_groups"],

@@ -264,7 +264,8 @@ Normal Response Code: 202 (ACCEPTED)
 
 Errors: none
 
-This operation returns short plugin description.
+This operation returns Sahara's JSON representation of a cluster template created
+from the posted configuration.
 
 The request body should contain configuration file.
 
@@ -306,6 +307,8 @@ The request body should contain configuration file.
                         },
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "namenode",
                             "jobtracker"
@@ -322,6 +325,8 @@ The request body should contain configuration file.
                         },
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "datanode",
                             "tasktracker"
@@ -778,6 +783,8 @@ This operation does not require a request body.
                     ],
                     "flavor_id": "42",
                     "volumes_per_node": 0,
+                    "security_groups": [],
+                    "auto_security_group": False,
                     "node_configs": {
                         "HDFS": {},
                         "MapReduce": {}
@@ -797,6 +804,8 @@ This operation does not require a request body.
                     ],
                     "flavor_id": "42",
                     "volumes_per_node": 0,
+                    "security_groups": [],
+                    "auto_security_group": False,
                     "node_configs": {
                         "HDFS": {},
                         "MapReduce": {}
@@ -851,6 +860,8 @@ This operation does not require a request body.
                 "flavor_id": "42",
                 "volumes_per_node": 0,
                 "floating_ip_pool": "public",
+                "security_groups": [],
+                "auto_security_group": False,
                 "node_configs": {
                     "HDFS": {},
                     "MapReduce": {}
@@ -915,6 +926,8 @@ This operation returns created Node Group Template.
                 "flavor_id": "42",
                 "volumes_per_node": 0,
                 "floating_ip_pool", "public",
+                "security_groups": [],
+                "auto_security_group": False,
                 "node_configs": {},
                 "hadoop_version": "1.2.1",
                 "id": "ddefda09-9ab9-4555-bf48-e996243af6f2"
@@ -970,6 +983,8 @@ This operation returns created Node Group Template.
                 ],
                 "flavor_id": "42",
                 "volumes_per_node": 0,
+                "security_groups": [],
+                "auto_security_group": False,
                 "node_configs": {
                     "HDFS": {
                         "data_node_heap_size": 1024
@@ -1091,6 +1106,8 @@ This operation does not require a request body.
                             },
                             "flavor_id": "42",
                             "volumes_per_node": 0,
+                            "security_groups": [],
+                            "auto_security_group": False,
                             "node_processes": [
                                 "namenode",
                                 "jobtracker"
@@ -1108,6 +1125,8 @@ This operation does not require a request body.
                             },
                             "flavor_id": "42",
                             "volumes_per_node": 0,
+                            "security_groups": [],
+                            "auto_security_group": False,
                             "node_processes": [
                                 "datanode",
                                 "tasktracker"
@@ -1174,6 +1193,8 @@ This operation does not require a request body.
                         },
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "namenode",
                             "jobtracker"
@@ -1191,6 +1212,8 @@ This operation does not require a request body.
                         },
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "datanode",
                             "tasktracker"
@@ -1270,6 +1293,8 @@ This operation returns created Cluster Template.
                         },
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "datanode",
                             "tasktracker"
@@ -1287,6 +1312,8 @@ This operation returns created Cluster Template.
                         },
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "namenode",
                             "jobtracker"
@@ -1370,6 +1397,8 @@ This operation returns created Cluster Template.
                         "node_configs": {},
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "namenode",
                             "jobtracker"
@@ -1383,6 +1412,8 @@ This operation returns created Cluster Template.
                         "node_configs": {},
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_processes": [
                             "datanode",
                             "tasktracker"
@@ -1510,6 +1541,8 @@ This operation does not require a request body.
                             ],
                             "flavor_id": "42",
                             "volumes_per_node": 0,
+                            "security_groups": [],
+                            "auto_security_group": False,
                             "node_configs": {
                                 "HDFS": {},
                                 "MapReduce": {}
@@ -1536,6 +1569,8 @@ This operation does not require a request body.
                             ],
                             "flavor_id": "42",
                             "volumes_per_node": 0,
+                            "security_groups": [],
+                            "auto_security_group": False,
                             "node_configs": {
                                 "HDFS": {},
                                 "MapReduce": {}
@@ -1624,6 +1659,8 @@ This operation does not require a request body.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -1650,6 +1687,8 @@ This operation does not require a request body.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -1739,6 +1778,8 @@ This operation returns created Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -1765,6 +1806,8 @@ This operation returns created Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -1879,6 +1922,8 @@ This operation returns created Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -1903,6 +1948,8 @@ This operation returns created Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -2014,6 +2061,8 @@ This operation returns updated Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -2040,6 +2089,8 @@ This operation returns updated Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}
@@ -2073,6 +2124,8 @@ This operation returns updated Cluster.
                         ],
                         "flavor_id": "42",
                         "volumes_per_node": 0,
+                        "security_groups": [],
+                        "auto_security_group": False,
                         "node_configs": {
                             "HDFS": {},
                             "MapReduce": {}

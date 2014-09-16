@@ -93,19 +93,10 @@ is not reliable because all replicas may turn up on one physical machine.
 Anti-affinity feature provides an ability to explicitly tell Sahara to run specified processes on different compute nodes. This
 is especially useful for Hadoop datanode process to make HDFS replicas reliable.
 
-.. _`enable-anti-affinity`:
-
-The Anti-Affinity feature requires certain scheduler filters to be enabled on Nova.
-Edit your ``/etc/nova/nova.conf`` in the following way:
-
-.. sourcecode:: cfg
-
-    [DEFAULT]
-
-    ...
-
-    scheduler_driver=nova.scheduler.filter_scheduler.FilterScheduler
-    scheduler_default_filters=DifferentHostFilter,SameHostFilter
+Starting with Juno release Sahara creates server groups with
+``anti-affinity`` policy to enable anti affinity feature. Sahara creates one
+server group per cluster and assigns all instances with affected processes to
+this server group. Refer to Nova documentation on how server groups work.
 
 This feature is supported by all plugins out of the box.
 
@@ -161,6 +152,20 @@ Hadoop versions after 1.2.0 support four-layer topology
 set ``enable_hypervisor_awareness`` option to ``True`` in Sahara configuration
 file. In this case Sahara will add compute node ID as a second level of
 topology for Virtual Machines.
+
+Security group management
+-------------------------
+
+Sahara allows you to control which security groups will be used for created
+instances. This can be done by providing the ``security_groups`` parameter for
+the Node Group or Node Group Template. By default an empty list is used that
+will result in using the default security group.
+
+Sahara may also create a security group for instances in node group
+automatically. This security group will only have open ports which are
+required by instance processes or the Sahara engine. This option is useful
+for development and secured from outside environments, but for production
+environments it is recommended to control security group policy manually.
 
 Heat Integration
 ----------------

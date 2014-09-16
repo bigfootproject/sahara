@@ -30,6 +30,8 @@ from sahara.utils.openstack import base
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+SSH_PORT = 22
+
 
 def client():
     ctx = context.current()
@@ -47,7 +49,9 @@ def get_stack(stack_name):
 
 
 def wait_stack_completion(stack):
-    while stack.status == 'IN_PROGRESS':
+    # NOTE: expected empty status because status of stack
+    # maybe is not set in heat database
+    while stack.status in ['IN_PROGRESS', '']:
         context.sleep(1)
         stack.get()
 
@@ -57,6 +61,10 @@ def wait_stack_completion(stack):
 
 def _get_inst_name(cluster_name, ng_name, index):
     return g.generate_instance_name(cluster_name, ng_name, index + 1)
+
+
+def _get_aa_group_name(cluster_name):
+    return g.generate_aa_group_name(cluster_name)
 
 
 def _get_port_name(inst_name):
@@ -77,16 +85,6 @@ def _get_volume_name(inst_name, volume_idx):
 
 def _get_volume_attach_name(inst_name, volume_idx):
     return '%s-volume-attachment-%i' % (inst_name, volume_idx)
-
-
-def _get_anti_affinity_scheduler_hints(instances_names):
-    if not instances_names:
-        return ''
-
-    aa_list = []
-    for instances_name in set(instances_names):
-        aa_list.append({"Ref": instances_name})
-    return '"scheduler_hints" : %s,' % json.dumps({"different_host": aa_list})
 
 
 def _load_template(template_name, fields):
@@ -116,15 +114,16 @@ class ClusterTemplate(object):
         }
 
     # Consider using a single Jinja template for all this
-    def instantiate(self, update_existing):
+    def instantiate(self, update_existing, disable_rollback=True):
         main_tmpl = _load_template('main.heat',
                                    {'resources': self._serialize_resources()})
+
         heat = client()
 
         kwargs = {
             'stack_name': self.cluster.name,
             'timeout_mins': 180,
-            'disable_rollback': True,
+            'disable_rollback': disable_rollback,
             'parameters': {},
             'template': json.loads(main_tmpl)}
 
@@ -138,24 +137,66 @@ class ClusterTemplate(object):
 
         return ClusterStack(self, get_stack(self.cluster.name))
 
+    def _need_aa_server_group(self, node_group):
+        for node_process in node_group.node_processes:
+            if node_process in self.cluster.anti_affinity:
+                return True
+        return False
+
+    def _get_anti_affinity_scheduler_hints(self, node_group):
+        if not self._need_aa_server_group(node_group):
+            return ''
+
+        return ('"scheduler_hints" : %s,' %
+                json.dumps({"group": {"Ref": _get_aa_group_name(
+                    self.cluster.name)}}))
+
     def _serialize_resources(self):
         resources = []
-        aa_groups = {}
+
+        if self.cluster.anti_affinity:
+            resources.extend(self._serialize_aa_server_group())
 
         for ng in self.cluster.node_groups:
+            if ng.auto_security_group:
+                resources.extend(self._serialize_auto_security_group(ng))
             for idx in range(0, self.node_groups_extra[ng.id]['node_count']):
-                resources.extend(self._serialize_instance(ng, idx, aa_groups))
+                resources.extend(self._serialize_instance(ng, idx))
 
         return ',\n'.join(resources)
 
-    def _serialize_instance(self, ng, idx, aa_groups):
+    def _serialize_auto_security_group(self, ng):
+        fields = {
+            'security_group_name': g.generate_auto_security_group_name(
+                ng.cluster.name, ng.name),
+            'security_group_description':
+            "Auto security group created by Sahara for Node Group "
+            "'%s' of cluster '%s'." % (ng.name, ng.cluster.name),
+            'rules': self._serialize_auto_security_group_rules(ng)}
+
+        yield _load_template('security_group.heat', fields)
+
+    def _serialize_auto_security_group_rules(self, ng):
+        rules = []
+        for port in ng.open_ports:
+            rules.append({"remote_ip_prefix": "0.0.0.0/0", "protocol": "tcp",
+                          "port_range_min": port, "port_range_max": port})
+
+        rules.append({"remote_ip_prefix": "0.0.0.0/0", "protocol": "tcp",
+                      "port_range_min": SSH_PORT, "port_range_max": SSH_PORT})
+
+        return json.dumps(rules)
+
+    def _serialize_instance(self, ng, idx):
         inst_name = _get_inst_name(self.cluster.name, ng.name, idx)
 
         nets = ''
+        security_groups = ''
         if CONF.use_neutron:
             port_name = _get_port_name(inst_name)
             yield self._serialize_port(port_name,
-                                       self.cluster.neutron_management_network)
+                                       self.cluster.neutron_management_network,
+                                       self._get_security_groups(ng))
 
             nets = '"networks" : [{ "port" : { "Ref" : "%s" }}],' % port_name
 
@@ -167,9 +208,10 @@ class ClusterTemplate(object):
                 yield self._serialize_nova_floating(inst_name,
                                                     ng.floating_ip_pool)
 
-        aa_names = []
-        for node_process in ng.node_processes:
-            aa_names += aa_groups.get(node_process) or []
+            if ng.security_groups:
+                security_groups = (
+                    '"security_groups": %s,' % json.dumps(
+                        self._get_security_groups(ng)))
 
         # Check if cluster contains user key-pair and include it to template.
         key_name = ''
@@ -186,23 +228,20 @@ class ClusterTemplate(object):
                   'network_interfaces': nets,
                   'key_name': key_name,
                   'userdata': _prepare_userdata(userdata),
-                  'scheduler_hints': _get_anti_affinity_scheduler_hints(
-                      aa_names)}
-
-        for node_process in ng.node_processes:
-            if node_process in self.cluster.anti_affinity:
-                aa_group_names = aa_groups.get(node_process, [])
-                aa_group_names.append(inst_name)
-                aa_groups[node_process] = aa_group_names
+                  'scheduler_hints':
+                  self._get_anti_affinity_scheduler_hints(ng),
+                  'security_groups': security_groups}
 
         yield _load_template('instance.heat', fields)
 
         for idx in range(0, ng.volumes_per_node):
             yield self._serialize_volume(inst_name, idx, ng.volumes_size)
 
-    def _serialize_port(self, port_name, fixed_net_id):
+    def _serialize_port(self, port_name, fixed_net_id, security_groups):
         fields = {'port_name': port_name,
-                  'fixed_net_id': fixed_net_id}
+                  'fixed_net_id': fixed_net_id,
+                  'security_groups': ('"security_groups": %s,' % json.dumps(
+                      security_groups) if security_groups else '')}
 
         return _load_template('neutron-port.heat', fields)
 
@@ -232,6 +271,19 @@ class ClusterTemplate(object):
                   'instance_name': inst_name}
 
         return _load_template('volume.heat', fields)
+
+    def _get_security_groups(self, node_group):
+        if not node_group.auto_security_group:
+            return node_group.security_groups
+
+        return (list(node_group.security_groups or []) +
+                [{"Ref": g.generate_auto_security_group_name(
+                    node_group.cluster.name, node_group.name)}])
+
+    def _serialize_aa_server_group(self):
+        fields = {'server_group_name': _get_aa_group_name(self.cluster.name)}
+
+        yield _load_template('aa_server_group.heat', fields)
 
 
 class ClusterStack(object):

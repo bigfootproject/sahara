@@ -16,6 +16,7 @@
 from oslo.utils import timeutils
 
 from sahara import context
+from sahara.i18n import _
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.general import utils as u
 from sahara.plugins.vanilla.hadoop2 import config
@@ -47,11 +48,16 @@ def _get_instances_with_service(instances, service):
     return ret
 
 
-def _update_include_files(cluster):
+def _update_include_files(cluster, dec_instances=None):
+    dec_instances = dec_instances or []
+    dec_instances_ids = [instance.id for instance in dec_instances]
+
     instances = u.get_instances(cluster)
 
-    datanodes = vu.get_datanodes(cluster)
-    nodemanagers = vu.get_nodemanagers(cluster)
+    inst_filter = lambda inst: inst.id not in dec_instances_ids
+
+    datanodes = filter(inst_filter, vu.get_datanodes(cluster))
+    nodemanagers = filter(inst_filter, vu.get_nodemanagers(cluster))
     dn_hosts = u.generate_fqdn_host_names(datanodes)
     nm_hosts = u.generate_fqdn_host_names(nodemanagers)
     for instance in instances:
@@ -77,8 +83,9 @@ def decommission_nodes(pctx, cluster, instances):
     _check_nodemanagers_decommission(cluster, nodemanagers)
     _check_datanodes_decommission(cluster, datanodes)
 
-    _update_include_files(cluster)
+    _update_include_files(cluster, instances)
     _clear_exclude_files(cluster)
+    run.refresh_hadoop_nodes(cluster)
 
     config.configure_topology_data(pctx, cluster)
 
@@ -122,8 +129,9 @@ def _check_decommission(cluster, instances, check_func, timeout):
             context.sleep(5)
     else:
         ex.DecommissionError(
-            "Cannot finish decommission of cluster %s in %d seconds" %
-            (cluster, timeout))
+            _("Cannot finish decommission of cluster %(cluster)s in "
+              "%(seconds)d seconds") %
+            {"cluster": cluster, "seconds": timeout})
 
 
 def _check_nodemanagers_decommission(cluster, instances):

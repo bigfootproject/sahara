@@ -54,9 +54,9 @@ class AbstractVersionHandler():
         return
 
     @abc.abstractmethod
-    def get_resource_manager_uri(self, cluster):
+    def get_edp_engine(self, cluster, job_type):
         return
 
     @abc.abstractmethod
-    def get_oozie_server(self, cluster):
+    def get_open_ports(self, node_group):
         return

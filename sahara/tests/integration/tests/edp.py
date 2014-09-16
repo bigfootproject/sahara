@@ -20,13 +20,87 @@ import uuid
 
 import fixtures
 from oslo.utils import excutils
+import six
 
 from sahara.swift import swift_helper as sw
 from sahara.tests.integration.tests import base
 from sahara.utils import edp
 
 
+class EDPJobInfo(object):
+    PIG_PATH = 'etc/edp-examples/pig-job/'
+    JAVA_PATH = 'etc/edp-examples/edp-java/'
+    MAPREDUCE_PATH = 'etc/edp-examples/edp-mapreduce/'
+    SPARK_PATH = 'etc/edp-examples/edp-spark/'
+
+    HADOOP2_JAVA_PATH = 'etc/edp-examples/hadoop2/edp-java/'
+
+    def read_pig_example_script(self):
+        return open(self.PIG_PATH + 'example.pig').read()
+
+    def read_pig_example_jar(self):
+        return open(self.PIG_PATH + 'udf.jar').read()
+
+    def read_java_example_lib(self, hadoop_vers=1):
+        if hadoop_vers == 1:
+            return open(self.JAVA_PATH + 'edp-java.jar').read()
+        return open(self.HADOOP2_JAVA_PATH + (
+            'hadoop-mapreduce-examples-2.3.0.jar')).read()
+
+    def java_example_configs(self, hadoop_vers=1):
+        if hadoop_vers == 1:
+            return {
+                'configs': {
+                    'edp.java.main_class':
+                    'org.openstack.sahara.examples.WordCount'
+                }
+            }
+
+        return {
+            'configs': {
+                'edp.java.main_class':
+                'org.apache.hadoop.examples.QuasiMonteCarlo'
+            },
+            'args': ['10', '10']
+        }
+
+    def read_mapreduce_example_jar(self):
+        return open(self.MAPREDUCE_PATH + 'edp-mapreduce.jar').read()
+
+    def mapreduce_example_configs(self):
+        return {
+            'configs': {
+                'mapred.mapper.class': 'org.apache.oozie.example.SampleMapper',
+                'mapred.reducer.class':
+                'org.apache.oozie.example.SampleReducer'
+            }
+        }
+
+    def mapreduce_streaming_configs(self):
+        return {
+            "configs": {
+                "edp.streaming.mapper": "/bin/cat",
+                "edp.streaming.reducer": "/usr/bin/wc"
+            }
+        }
+
+    def read_spark_example_jar(self):
+        return open(self.SPARK_PATH + 'spark-example.jar').read()
+
+    def spark_example_configs(self):
+        return {
+            'configs': {
+                'edp.java.main_class':
+                'org.apache.spark.examples.SparkPi'
+            },
+            'args': ['4']
+        }
+
+
 class EDPTest(base.ITestCase):
+    def setUp(self):
+        super(EDPTest, self).setUp()
+        self.edp_info = EDPJobInfo()
 
     def _create_data_source(self, name, data_type, url, description=''):
         return self.sahara.data_sources.create(
@@ -132,6 +206,10 @@ class EDPTest(base.ITestCase):
     def edp_testing(self, job_type, job_data_list, lib_data_list=None,
                     configs=None, pass_input_output_args=False,
                     swift_binaries=False, hdfs_local_output=False):
+        job_data_list = job_data_list or []
+        lib_data_list = lib_data_list or []
+        configs = configs or {}
+
         try:
             swift = self.connect_to_swift()
             container_name = 'Edp-test-%s' % str(uuid.uuid4())[:8]
@@ -139,7 +217,7 @@ class EDPTest(base.ITestCase):
             swift.put_object(
                 container_name, 'input', ''.join(
                     random.choice(':' + ' ' + '\n' + string.ascii_lowercase)
-                    for x in range(10000)
+                    for x in six.moves.range(10000)
                 )
             )
 
@@ -168,7 +246,9 @@ class EDPTest(base.ITestCase):
 
             # Java jobs don't use data sources.  Input/output paths must
             # be passed as args with corresponding username/password configs
-            if not edp.compare_job_type(job_type, edp.JOB_TYPE_JAVA):
+            if not edp.compare_job_type(job_type,
+                                        edp.JOB_TYPE_JAVA,
+                                        edp.JOB_TYPE_SPARK):
                 input_id = self._create_data_source(
                     'input-%s' % str(uuid.uuid4())[:8], 'swift',
                     swift_input_url)
@@ -205,6 +285,10 @@ class EDPTest(base.ITestCase):
                 job_binary_list, lib_binary_list)
             if not configs:
                 configs = {}
+
+            # TODO(tmckay): for spark we don't have support for swift
+            # yet.  When we do, we'll need something to here to set up
+            # swift paths and we can use a spark wordcount job
 
             # Append the input/output paths with the swift configs
             # if the caller has requested it...

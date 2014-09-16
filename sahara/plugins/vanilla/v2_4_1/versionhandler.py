@@ -18,8 +18,10 @@ from oslo.config import cfg
 from sahara import conductor
 from sahara import context
 from sahara.openstack.common import log as logging
+from sahara.plugins.general import utils
 from sahara.plugins.vanilla import abstractversionhandler as avm
 from sahara.plugins.vanilla.hadoop2 import config as c
+from sahara.plugins.vanilla.hadoop2 import edp_engine
 from sahara.plugins.vanilla.hadoop2 import run_scripts as run
 from sahara.plugins.vanilla.hadoop2 import scaling as sc
 from sahara.plugins.vanilla.hadoop2 import validation as vl
@@ -72,13 +74,10 @@ class VersionHandler(avm.AbstractVersionHandler):
         if rm:
             run.start_yarn_process(rm, 'resourcemanager')
 
-        for dn in vu.get_datanodes(cluster):
-            run.start_hadoop_process(dn, 'datanode')
+        run.start_all_processes(utils.get_instances(cluster),
+                                ['datanode', 'nodemanager'])
 
         run.await_datanodes(cluster)
-
-        for nm in vu.get_nodemanagers(cluster):
-            run.start_yarn_process(nm, 'nodemanager')
 
         hs = vu.get_historyserver(cluster)
         if hs:
@@ -110,7 +109,8 @@ class VersionHandler(avm.AbstractVersionHandler):
 
         if rm:
             info['YARN'] = {
-                'Web UI': 'http://%s:%s' % (rm.management_ip, '8088')
+                'Web UI': 'http://%s:%s' % (rm.management_ip, '8088'),
+                'ResourceManager': 'http://%s:%s' % (rm.management_ip, '8032')
             }
 
         if nn:
@@ -132,10 +132,10 @@ class VersionHandler(avm.AbstractVersionHandler):
         ctx = context.ctx()
         conductor.cluster_update(ctx, cluster, {'info': info})
 
-    def get_oozie_server(self, cluster):
-        return vu.get_oozie(cluster)
+    def get_edp_engine(self, cluster, job_type):
+        if job_type in edp_engine.EdpOozieEngine.get_supported_job_types():
+            return edp_engine.EdpOozieEngine(cluster)
+        return None
 
-    def get_resource_manager_uri(self, cluster):
-        rm = vu.get_resourcemanager(cluster)
-        return 'http://%(host)s:%(port)s' % {'host': rm.management_ip,
-                                             'port': '8032'}
+    def get_open_ports(self, node_group):
+        return c.get_open_ports(node_group)

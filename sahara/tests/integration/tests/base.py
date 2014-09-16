@@ -189,7 +189,7 @@ class ITestCase(testcase.WithAttributes, base.BaseTestCase):
             with excutils.save_and_reraise_exception():
                 print(
                     '\nFailure during check of node process deployment '
-                    'on cluster node: ' + str(e)
+                    'on cluster node: ' + six.text_type(e)
                 )
 
         # For example: method "create_cluster_and_get_info" return
@@ -271,7 +271,7 @@ class ITestCase(testcase.WithAttributes, base.BaseTestCase):
         except Exception as e:
             with excutils.save_and_reraise_exception():
                 print(
-                    '\nTelnet has failed: ' + str(e) +
+                    '\nTelnet has failed: ' + six.text_type(e) +
                     '  NODE IP: %s, PORT: %s. Passed %s minute(s).'
                     % (host, port, self.common_config.TELNET_TIMEOUT)
                 )
@@ -333,12 +333,21 @@ class ITestCase(testcase.WithAttributes, base.BaseTestCase):
                         'sudo -u %s bash -lc "hadoop job -list-active-trackers'
                         '" | grep "^tracker_" | wc -l'
                         % plugin_config.HADOOP_USER)[1]
-                    active_tasktracker_count = int(active_tasktracker_count)
+                    try:
+                        active_tasktracker_count = int(
+                            active_tasktracker_count)
+                    except ValueError:
+                        active_tasktracker_count = -1
+
                     active_datanode_count = self.execute_command(
                         'sudo -u %s bash -lc "hadoop dfsadmin -report" | '
-                        'grep "Datanodes available:.*" | awk \'{print $3}\''
+                        'grep -e "Datanodes available:.*" '
+                        '-e "Live datanodes.*" | grep -o "[0-9]*" | head -1'
                         % plugin_config.HADOOP_USER)[1]
-                    active_datanode_count = int(active_datanode_count)
+                    try:
+                        active_datanode_count = int(active_datanode_count)
+                    except ValueError:
+                        active_datanode_count = -1
 
                     if (active_tasktracker_count ==
                             node_info['tasktracker_count'] and
@@ -401,7 +410,7 @@ class ITestCase(testcase.WithAttributes, base.BaseTestCase):
             with excutils.save_and_reraise_exception():
                 print(
                     '\nFailure while helper script transferring '
-                    'to cluster node: ' + str(e)
+                    'to cluster node: ' + six.text_type(e)
                 )
         self.execute_command('chmod 777 script.sh')
 
@@ -588,7 +597,7 @@ class ITestCase(testcase.WithAttributes, base.BaseTestCase):
             'ERROR LOG *!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*'
             '!*!\n'
         )
-        print(message + str(exception))
+        print(message + six.text_type(exception))
         print(
             '\n!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!* END OF '
             'ERROR LOG *!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*'

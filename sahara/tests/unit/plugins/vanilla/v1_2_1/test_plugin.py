@@ -19,6 +19,7 @@ import testtools
 from sahara import conductor as cond
 from sahara import context
 from sahara import exceptions as e
+from sahara.plugins import base as pb
 from sahara.plugins.general import exceptions as ex
 from sahara.plugins.vanilla import plugin as p
 from sahara.plugins.vanilla.v1_2_1 import config_helper as c_h
@@ -26,6 +27,7 @@ from sahara.plugins.vanilla.v1_2_1 import mysql_helper as m_h
 from sahara.plugins.vanilla.v1_2_1 import versionhandler as v_h
 from sahara.tests.unit import base
 from sahara.tests.unit import testutils as tu
+from sahara.utils import edp
 
 
 conductor = cond.API
@@ -34,6 +36,7 @@ conductor = cond.API
 class VanillaPluginTest(base.SaharaWithDbTestCase):
     def setUp(self):
         super(VanillaPluginTest, self).setUp()
+        pb.setup_plugins()
         self.pl = p.VanillaProvider()
 
     def test_validate(self):
@@ -98,10 +101,10 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
                 't1': 4
             }}
         self.assertEqual(c_h.extract_environment_confs(env_configs),
-                         ['HADOOP_NAMENODE_OPTS=\\"-Xmx3000m\\"',
+                         ['CATALINA_OPTS -Xmx4000m',
                           'HADOOP_DATANODE_OPTS=\\"-Xmx4000m\\"',
-                          'CATALINA_OPTS -Xmx4000m',
                           'HADOOP_JOBTRACKER_OPTS=\\"-Xmx1000m\\"',
+                          'HADOOP_NAMENODE_OPTS=\\"-Xmx3000m\\"',
                           'HADOOP_TASKTRACKER_OPTS=\\"-Xmx2000m\\"'])
 
     def test_extract_xml_configs(self):
@@ -121,10 +124,10 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
         }
 
         self.assertEqual(c_h.extract_xml_confs(xml_configs),
-                         [('fs.default.name', 'hdfs://'),
-                         ('dfs.replication', 3),
-                         ('mapred.reduce.tasks', 2),
-                         ('io.sort.factor', 10)])
+                         [('dfs.replication', 3),
+                         ('fs.default.name', 'hdfs://'),
+                         ('io.sort.factor', 10),
+                         ('mapred.reduce.tasks', 2)])
 
     def test_general_configs(self):
         gen_config = {
@@ -289,3 +292,18 @@ class VanillaPluginTest(base.SaharaWithDbTestCase):
 
         self.assertNotEqual(public_key1, public_key3)
         self.assertNotEqual(private_key1, private_key3)
+
+    @mock.patch('sahara.service.edp.hdfs_helper.create_dir_hadoop1')
+    def test_edp_calls_hadoop1_create_dir(self, create_dir):
+        cluster_dict = {
+            'name': 'cluster1',
+            'plugin_name': 'vanilla',
+            'hadoop_version': '1.2.1',
+            'default_image_id': 'image'}
+
+        cluster = conductor.cluster_create(context.ctx(), cluster_dict)
+        plugin = pb.PLUGINS.get_plugin(cluster.plugin_name)
+        plugin.get_edp_engine(cluster, edp.JOB_TYPE_PIG).create_hdfs_dir(
+            mock.Mock(), '/tmp')
+
+        self.assertEqual(1, create_dir.call_count)

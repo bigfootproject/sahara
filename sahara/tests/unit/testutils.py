@@ -28,10 +28,13 @@ def create_cluster(name, tenant, plugin, version, node_groups, **kwargs):
 def make_ng_dict(name, flavor, processes, count, instances=None, **kwargs):
     instances = instances or []
     dct = {'name': name, 'flavor_id': flavor, 'node_processes': processes,
-           'count': count, 'instances': instances, 'node_configs': {}}
+           'count': count, 'instances': instances, 'node_configs': {},
+           'security_groups': None, 'auto_security_group': False,
+           'open_ports': []}
     dct.update(kwargs)
     return dct
 
 
-def make_inst_dict(inst_id, inst_name):
-    return {'instance_id': inst_id, 'instance_name': inst_name}
+def make_inst_dict(inst_id, inst_name, management_ip='1.2.3.4'):
+    return {'instance_id': inst_id, 'instance_name': inst_name,
+            'management_ip': management_ip}

@@ -19,6 +19,7 @@ from sahara import conductor as c
 from sahara import context
 from sahara.i18n import _LI
 from sahara.openstack.common import log as logging
+from sahara.utils.notification import sender
 
 conductor = c.API
 LOG = logging.getLogger(__name__)
@@ -69,20 +70,14 @@ def change_cluster_status(cluster, status, status_description=None):
         update_dict["status_description"] = status_description
 
     cluster = conductor.cluster_update(context.ctx(), cluster, update_dict)
+
     LOG.info(_LI("Cluster status has been changed: id=%(id)s, New status="
                  "%(status)s"), {'id': cluster.id, 'status': cluster.status})
+
+    sender.notify(context.ctx(), cluster.id, cluster.name, cluster.status,
+                  "update")
+
     return cluster
-
-
-def format_cluster_deleted_message(cluster):
-    msg = _LI("Cluster %(name)s (id=%(id)s) was deleted. "
-              "Canceling current operation.")
-
-    if cluster:
-        return (msg, {'name': cluster.name,
-                      'id': cluster.id})
-    return (msg, {'name': _LI("Unknown"),
-                  'id': _LI("Unknown")})
 
 
 def check_cluster_exists(cluster):
@@ -124,3 +119,11 @@ def generate_etc_hosts(cluster):
 
 def generate_instance_name(cluster_name, node_group_name, index):
     return ("%s-%s-%03d" % (cluster_name, node_group_name, index)).lower()
+
+
+def generate_auto_security_group_name(cluster_name, node_group_name):
+    return ("%s-%s" % (cluster_name, node_group_name)).lower()
+
+
+def generate_aa_group_name(cluster_name):
+    return ("%s-aa-group" % cluster_name).lower()

@@ -187,7 +187,7 @@ class NodeGroupResource(Resource, objects.NodeGroup):
     }
 
     _filter_fields = ['id', 'tenant_id', 'cluster_id', 'cluster_template_id',
-                      'image_username']
+                      'image_username', 'open_ports']
 
 
 class ClusterTemplateResource(Resource, objects.ClusterTemplate):
@@ -206,7 +206,7 @@ class ClusterResource(Resource, objects.Cluster):
         'cluster_template': (ClusterTemplateResource, None)
     }
 
-    _filter_fields = ['management_private_key', 'extra']
+    _filter_fields = ['management_private_key', 'extra', 'rollback_info']
 
 
 # EDP Resources
@@ -227,6 +227,8 @@ class JobExecution(Resource, objects.JobExecution):
                 configs[swift_helper.HADOOP_SWIFT_PASSWORD] = ""
         if 'trusts' in job_configs:
             del job_configs['trusts']
+        if 'proxy_configs' in job_configs:
+            del job_configs['proxy_configs']
         return job_configs
 
     def sanitize_info(self, info):

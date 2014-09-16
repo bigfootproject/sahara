@@ -23,10 +23,10 @@ from sahara import exceptions as ex
 from sahara.plugins import base as pb
 from sahara.service.edp import job_manager
 from sahara.service.edp import job_utils
-from sahara.service.edp.oozie import engine as oozie_engine
 from sahara.service.edp.oozie.workflow_creator import workflow_factory
 from sahara.swift import swift_helper as sw
 from sahara.tests.unit import base
+from sahara.tests.unit.service.edp import edp_test_utils as u
 from sahara.utils import edp
 from sahara.utils import patches as p
 
@@ -42,22 +42,6 @@ class TestJobManager(base.SaharaWithDbTestCase):
         super(TestJobManager, self).setUp()
         p.patch_minidom_writexml()
         pb.setup_plugins()
-
-    @mock.patch('sahara.utils.remote.get_remote')
-    @mock.patch('sahara.service.edp.hdfs_helper.create_dir')
-    def test_hdfs_create_workflow_dir(self, helper, remote):
-        remote_class = mock.MagicMock()
-        remote_class.__exit__.return_value = 'closed'
-        remote.return_value = remote_class
-        helper.return_value = 'ok'
-
-        job, _ = _create_all_stack(edp.JOB_TYPE_PIG)
-        res = job_utils.create_hdfs_workflow_dir(mock.Mock(), job, 'hadoop')
-        self.assertIn('/user/hadoop/special_name/', res)
-
-        remote.reset_mock()
-        remote_class.reset_mock()
-        helper.reset_mock()
 
     @mock.patch('uuid.uuid4')
     @mock.patch('sahara.utils.remote.get_remote')
@@ -81,33 +65,6 @@ class TestJobManager(base.SaharaWithDbTestCase):
         job_utils.create_workflow_dir("where", "/tmp/somewhere", job)
         remote_instance.execute_command.assert_called_with(
             "mkdir -p /tmp/somewhere/job/generated_uuid")
-
-    @mock.patch('sahara.utils.remote.get_remote')
-    @mock.patch('sahara.service.edp.hdfs_helper.put_file_to_hdfs')
-    @mock.patch('sahara.service.edp.hdfs_helper._dir_missing')
-    @mock.patch('sahara.utils.ssh_remote.InstanceInteropHelper')
-    @mock.patch('sahara.conductor.API.job_binary_internal_get_raw_data')
-    def test_hdfs_upload_job_files(self, conductor_raw_data, remote_class,
-                                   dir_missing, helper, remote):
-        remote_class.__exit__.return_value = 'closed'
-        remote.return_value = remote_class
-        helper.return_value = 'ok'
-        dir_missing.return_value = False
-        conductor_raw_data.return_value = 'ok'
-
-        job, _ = _create_all_stack(edp.JOB_TYPE_PIG)
-        res = job_utils.upload_job_files_to_hdfs(mock.Mock(), 'job_prefix',
-                                                 job, 'hadoop')
-        self.assertEqual(['job_prefix/script.pig'], res)
-
-        job, _ = _create_all_stack(edp.JOB_TYPE_MAPREDUCE)
-        res = job_utils.upload_job_files_to_hdfs(mock.Mock(), 'job_prefix',
-                                                 job, 'hadoop')
-        self.assertEqual(['job_prefix/lib/main.jar'], res)
-
-        remote.reset_mock()
-        remote_class.reset_mock()
-        helper.reset_mock()
 
     @mock.patch('sahara.service.edp.binary_retrievers.dispatch.get_raw_binary')
     @mock.patch('sahara.utils.remote.get_remote')
@@ -152,26 +109,18 @@ class TestJobManager(base.SaharaWithDbTestCase):
         for path in paths:
             remote_instance.write_file_to.assert_any_call(path, "data")
 
-    def test_add_postfix(self):
-        self.override_config("job_workflow_postfix", 'caba')
-        res = job_utils._add_postfix('aba')
-        self.assertEqual("aba/caba/", res)
-
-        self.override_config("job_workflow_postfix", '')
-        res = job_utils._add_postfix('aba')
-        self.assertEqual("aba/", res)
-
     @mock.patch('sahara.conductor.API.job_binary_get')
     def test_build_workflow_for_job_pig(self, job_binary):
 
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_PIG)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_PIG, configs={})
         job_binary.return_value = {"name": "script.pig"}
 
-        input_data = _create_data_source('swift://ex/i')
-        output_data = _create_data_source('swift://ex/o')
+        input_data = u.create_data_source('swift://ex/i')
+        output_data = u.create_data_source('swift://ex/o')
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         self.assertIn("""
       <param>INPUT=swift://ex.sahara/i</param>
@@ -191,18 +140,48 @@ class TestJobManager(base.SaharaWithDbTestCase):
 
         self.assertIn("<script>script.pig</script>", res)
 
+        # testing workflow creation with a proxy domain
+        self.override_config('use_domain_for_proxy_users', True)
+        self.override_config("proxy_user_domain_name", 'sahara_proxy_domain')
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_PIG, proxy=True)
+
+        res = workflow_factory.get_workflow_xml(
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
+
+        self.assertIn("""
+      <configuration>
+        <property>
+          <name>fs.swift.service.sahara.domain.name</name>
+          <value>sahara_proxy_domain</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.password</name>
+          <value>55555555-6666-7777-8888-999999999999</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.trust.id</name>
+          <value>0123456789abcdef0123456789abcdef</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.username</name>
+          <value>job_00000000-1111-2222-3333-4444444444444444</value>
+        </property>
+      </configuration>""", res)
+
     @mock.patch('sahara.conductor.API.job_binary_get')
     def test_build_workflow_swift_configs(self, job_binary):
 
         # Test that swift configs come from either input or output data sources
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_PIG)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_PIG, configs={})
         job_binary.return_value = {"name": "script.pig"}
 
-        input_data = _create_data_source('swift://ex/i')
-        output_data = _create_data_source('hdfs://user/hadoop/out')
+        input_data = u.create_data_source('swift://ex/i')
+        output_data = u.create_data_source('hdfs://user/hadoop/out')
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         self.assertIn("""
       <configuration>
@@ -216,11 +195,12 @@ class TestJobManager(base.SaharaWithDbTestCase):
         </property>
       </configuration>""", res)
 
-        input_data = _create_data_source('hdfs://user/hadoop/in')
-        output_data = _create_data_source('swift://ex/o')
+        input_data = u.create_data_source('hdfs://user/hadoop/in')
+        output_data = u.create_data_source('swift://ex/o')
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         self.assertIn("""
       <configuration>
@@ -234,13 +214,14 @@ class TestJobManager(base.SaharaWithDbTestCase):
         </property>
       </configuration>""", res)
 
-        job, job_exec = _create_all_stack(
+        job, job_exec = u.create_job_exec(
             edp.JOB_TYPE_PIG, configs={'configs': {'dummy': 'value'}})
-        input_data = _create_data_source('hdfs://user/hadoop/in')
-        output_data = _create_data_source('hdfs://user/hadoop/out')
+        input_data = u.create_data_source('hdfs://user/hadoop/in')
+        output_data = u.create_data_source('hdfs://user/hadoop/out')
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         self.assertIn("""
       <configuration>
@@ -250,7 +231,7 @@ class TestJobManager(base.SaharaWithDbTestCase):
         </property>
       </configuration>""", res)
 
-    def _build_workflow_common(self, job_type, streaming=False):
+    def _build_workflow_common(self, job_type, streaming=False, proxy=False):
         if streaming:
             configs = {'edp.streaming.mapper': '/usr/bin/cat',
                        'edp.streaming.reducer': '/usr/bin/wc'}
@@ -258,13 +239,14 @@ class TestJobManager(base.SaharaWithDbTestCase):
         else:
             configs = {}
 
-        job, job_exec = _create_all_stack(job_type, configs)
+        job, job_exec = u.create_job_exec(job_type, configs)
 
-        input_data = _create_data_source('swift://ex/i')
-        output_data = _create_data_source('swift://ex/o')
+        input_data = u.create_data_source('swift://ex/i')
+        output_data = u.create_data_source('swift://ex/o')
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         if streaming:
             self.assertIn("""
@@ -285,21 +267,53 @@ class TestJobManager(base.SaharaWithDbTestCase):
           <value>swift://ex.sahara/i</value>
         </property>""", res)
 
-        self.assertIn("""
+        if not proxy:
+            self.assertIn("""
         <property>
           <name>fs.swift.service.sahara.password</name>
           <value>admin1</value>
         </property>""", res)
 
-        self.assertIn("""
+            self.assertIn("""
         <property>
           <name>fs.swift.service.sahara.username</name>
           <value>admin</value>
+        </property>""", res)
+        else:
+            # testing workflow creation with a proxy domain
+            self.override_config('use_domain_for_proxy_users', True)
+            self.override_config("proxy_user_domain_name",
+                                 'sahara_proxy_domain')
+            job, job_exec = u.create_job_exec(job_type, proxy=True)
+
+            res = workflow_factory.get_workflow_xml(
+                job, u.create_cluster(), job_exec, input_data, output_data,
+                'hadoop')
+
+            self.assertIn("""
+        <property>
+          <name>fs.swift.service.sahara.domain.name</name>
+          <value>sahara_proxy_domain</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.password</name>
+          <value>55555555-6666-7777-8888-999999999999</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.trust.id</name>
+          <value>0123456789abcdef0123456789abcdef</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.username</name>
+          <value>job_00000000-1111-2222-3333-4444444444444444</value>
         </property>""", res)
 
     def test_build_workflow_for_job_mapreduce(self):
         self._build_workflow_common(edp.JOB_TYPE_MAPREDUCE)
         self._build_workflow_common(edp.JOB_TYPE_MAPREDUCE, streaming=True)
+        self._build_workflow_common(edp.JOB_TYPE_MAPREDUCE, proxy=True)
+        self._build_workflow_common(edp.JOB_TYPE_MAPREDUCE, streaming=True,
+                                    proxy=True)
 
     def test_build_workflow_for_job_java(self):
         # If args include swift paths, user and password values
@@ -314,9 +328,9 @@ class TestJobManager(base.SaharaWithDbTestCase):
                      'output_path']
         }
 
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_JAVA, configs)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_JAVA, configs)
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec)
+            job, u.create_cluster(), job_exec)
 
         self.assertIn("""
       <configuration>
@@ -334,17 +348,56 @@ class TestJobManager(base.SaharaWithDbTestCase):
       <arg>swift://ex.sahara/i</arg>
       <arg>output_path</arg>""" % (_java_main_class, _java_opts), res)
 
+        # testing workflow creation with a proxy domain
+        self.override_config('use_domain_for_proxy_users', True)
+        self.override_config("proxy_user_domain_name", 'sahara_proxy_domain')
+        configs = {
+            'configs': {},
+            'args': ['swift://ex/i',
+                     'output_path']
+        }
+
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_JAVA, configs,
+                                          proxy=True)
+        res = workflow_factory.get_workflow_xml(job, u.create_cluster(),
+                                                job_exec)
+
+        self.assertIn("""
+      <configuration>
+        <property>
+          <name>fs.swift.service.sahara.domain.name</name>
+          <value>sahara_proxy_domain</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.password</name>
+          <value>55555555-6666-7777-8888-999999999999</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.trust.id</name>
+          <value>0123456789abcdef0123456789abcdef</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.username</name>
+          <value>job_00000000-1111-2222-3333-4444444444444444</value>
+        </property>
+      </configuration>
+      <main-class>%s</main-class>
+      <java-opts>%s</java-opts>
+      <arg>swift://ex.sahara/i</arg>
+      <arg>output_path</arg>""" % (_java_main_class, _java_opts), res)
+
     @mock.patch('sahara.conductor.API.job_binary_get')
     def test_build_workflow_for_job_hive(self, job_binary):
 
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_HIVE)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_HIVE, configs={})
         job_binary.return_value = {"name": "script.q"}
 
-        input_data = _create_data_source('swift://ex/i')
-        output_data = _create_data_source('swift://ex/o')
+        input_data = u.create_data_source('swift://ex/i')
+        output_data = u.create_data_source('swift://ex/o')
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         self.assertIn("""
       <job-xml>/user/hadoop/conf/hive-site.xml</job-xml>
@@ -362,38 +415,39 @@ class TestJobManager(base.SaharaWithDbTestCase):
       <param>INPUT=swift://ex.sahara/i</param>
       <param>OUTPUT=swift://ex.sahara/o</param>""", res)
 
-    def _build_workflow_with_conf_common(self, job_type):
-        job, _ = _create_all_stack(job_type)
+        # testing workflow creation with a proxy domain
+        self.override_config('use_domain_for_proxy_users', True)
+        self.override_config("proxy_user_domain_name", 'sahara_proxy_domain')
 
-        input_data = _create_data_source('swift://ex/i')
-        output_data = _create_data_source('swift://ex/o')
-
-        job_exec = _create_job_exec(job.id,
-                                    job_type, configs={"configs": {'c': 'f'}})
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_HIVE, proxy=True)
 
         res = workflow_factory.get_workflow_xml(
-            job, _create_cluster(), job_exec, input_data, output_data)
+            job, u.create_cluster(), job_exec, input_data, output_data,
+            'hadoop')
 
         self.assertIn("""
+      <job-xml>/user/hadoop/conf/hive-site.xml</job-xml>
+      <configuration>
         <property>
-          <name>c</name>
-          <value>f</value>
-        </property>""", res)
-
-        self.assertIn("""
+          <name>fs.swift.service.sahara.domain.name</name>
+          <value>sahara_proxy_domain</value>
+        </property>
         <property>
-          <name>mapred.input.dir</name>
-          <value>swift://ex.sahara/i</value>
-        </property>""", res)
-
-        self.assertIn("""
+          <name>fs.swift.service.sahara.password</name>
+          <value>55555555-6666-7777-8888-999999999999</value>
+        </property>
         <property>
-          <name>mapred.output.dir</name>
-          <value>swift://ex.sahara/o</value>
-        </property>""", res)
-
-    def test_build_workflow_for_job_mapreduce_with_conf(self):
-        self._build_workflow_with_conf_common(edp.JOB_TYPE_MAPREDUCE)
+          <name>fs.swift.service.sahara.trust.id</name>
+          <value>0123456789abcdef0123456789abcdef</value>
+        </property>
+        <property>
+          <name>fs.swift.service.sahara.username</name>
+          <value>job_00000000-1111-2222-3333-4444444444444444</value>
+        </property>
+      </configuration>
+      <script>script.q</script>
+      <param>INPUT=swift://ex.sahara/i</param>
+      <param>OUTPUT=swift://ex.sahara/o</param>""", res)
 
     def test_update_job_dict(self):
         w = workflow_factory.BaseFactory()
@@ -440,7 +494,7 @@ class TestJobManager(base.SaharaWithDbTestCase):
     @mock.patch('sahara.service.edp.job_manager._run_job')
     def test_run_job_handles_exceptions(self, runjob, job_ex_upd):
         runjob.side_effect = ex.SwiftClientException("Unauthorised")
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_PIG)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_PIG)
         job_manager.run_job(job_exec.id)
 
         self.assertEqual(1, job_ex_upd.call_count)
@@ -449,18 +503,18 @@ class TestJobManager(base.SaharaWithDbTestCase):
         self.assertEqual(edp.JOB_STATUS_FAILED, new_status)
 
     def test_get_plugin(self):
-        plugin = job_utils.get_plugin(_create_cluster())
+        plugin = job_utils.get_plugin(u.create_cluster())
         self.assertEqual("vanilla", plugin.name)
 
     @mock.patch('sahara.conductor.API.job_get')
     def test_job_type_supported(self, job_get):
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_PIG)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_PIG)
         job_get.return_value = job
-        self.assertIsNotNone(job_manager._get_job_engine(_create_cluster(),
+        self.assertIsNotNone(job_manager._get_job_engine(u.create_cluster(),
                                                          job_exec))
 
         job.type = "unsupported_type"
-        self.assertIsNone(job_manager._get_job_engine(_create_cluster(),
+        self.assertIsNone(job_manager._get_job_engine(u.create_cluster(),
                                                       job_exec))
 
     @mock.patch('sahara.conductor.API.job_get')
@@ -468,11 +522,11 @@ class TestJobManager(base.SaharaWithDbTestCase):
     @mock.patch('sahara.conductor.API.cluster_get')
     def test_run_job_unsupported_type(self,
                                       cluster_get, job_exec_get, job_get):
-        job, job_exec = _create_all_stack("unsupported_type")
+        job, job_exec = u.create_job_exec("unsupported_type")
         job_exec_get.return_value = job_exec
         job_get.return_value = job
 
-        cluster = _create_cluster()
+        cluster = u.create_cluster()
         cluster.status = "Active"
         cluster_get.return_value = cluster
         with testtools.ExpectedException(ex.EDPError):
@@ -480,7 +534,10 @@ class TestJobManager(base.SaharaWithDbTestCase):
 
     @mock.patch('sahara.conductor.API.data_source_get')
     def test_get_data_sources(self, ds):
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_PIG)
+        def _conductor_data_source_get(ctx, id):
+            return "obj_" + id
+
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_PIG)
 
         job_exec.input_id = 's1'
         job_exec.output_id = 's2'
@@ -502,92 +559,10 @@ class TestJobManager(base.SaharaWithDbTestCase):
                      'output_path']
         }
 
-        job, job_exec = _create_all_stack(edp.JOB_TYPE_JAVA, configs)
+        job, job_exec = u.create_job_exec(edp.JOB_TYPE_JAVA, configs)
 
         input_source, output_source = (
             job_utils.get_data_sources(job_exec, job))
 
         self.assertEqual(None, input_source)
         self.assertEqual(None, output_source)
-
-    @mock.patch('sahara.service.edp.job_utils.get_plugin')
-    def test_get_oozie_job_params(self, getplugin):
-        plugin = mock.Mock()
-        getplugin.return_value = plugin
-
-        plugin.get_resource_manager_uri.return_value = 'http://localhost:50030'
-        plugin.get_name_node_uri.return_value = 'hdfs://localhost:8020'
-
-        cluster = _create_cluster()
-        oje = oozie_engine.OozieJobEngine(cluster)
-        job_params = oje._get_oozie_job_params('hadoop', '/tmp')
-        self.assertEqual('http://localhost:50030', job_params["jobTracker"])
-        self.assertEqual('hdfs://localhost:8020', job_params["nameNode"])
-        self.assertEqual('hadoop', job_params["user.name"])
-
-
-def _create_all_stack(type, configs=None):
-    b = _create_job_binary('1', type)
-    j = _create_job('2', b, type)
-    e = _create_job_exec(j.id, type, configs)
-    return j, e
-
-
-def _create_job(id, job_binary, type):
-    job = mock.Mock()
-    job.id = id
-    job.type = type
-    job.name = 'special_name'
-    if edp.compare_job_type(type, edp.JOB_TYPE_PIG, edp.JOB_TYPE_HIVE):
-        job.mains = [job_binary]
-        job.libs = None
-    else:
-        job.libs = [job_binary]
-        job.mains = None
-    return job
-
-
-def _create_job_binary(id, type):
-    binary = mock.Mock()
-    binary.id = id
-    binary.url = "internal-db://42"
-    if edp.compare_job_type(type, edp.JOB_TYPE_PIG):
-        binary.name = "script.pig"
-    elif edp.compare_job_type(type, edp.JOB_TYPE_MAPREDUCE, edp.JOB_TYPE_JAVA):
-        binary.name = "main.jar"
-    else:
-        binary.name = "script.q"
-    return binary
-
-
-def _create_cluster(plugin_name='vanilla', plugin_version='1.2.1'):
-    cluster = mock.Mock()
-    cluster.plugin_name = plugin_name
-    cluster.plugin_version = plugin_version
-    return cluster
-
-
-def _create_data_source(url):
-    data_source = mock.Mock()
-    data_source.url = url
-    if url.startswith("swift"):
-        data_source.type = "swift"
-        data_source.credentials = {'user': 'admin',
-                                   'password': 'admin1'}
-    elif url.startswith("hdfs"):
-        data_source.type = "hdfs"
-    return data_source
-
-
-def _create_job_exec(job_id, type, configs=None):
-    j_exec = mock.Mock()
-    j_exec.job_id = job_id
-    j_exec.job_configs = configs
-    if edp.compare_job_type(type, edp.JOB_TYPE_JAVA):
-        j_exec.job_configs['configs']['edp.java.main_class'] = _java_main_class
-        j_exec.job_configs['configs']['edp.java.java_opts'] = _java_opts
-    return j_exec
-
-
-def _conductor_data_source_get(ctx, id):
-    return "obj_" + id

@@ -15,6 +15,7 @@
 
 
 from sahara import exceptions as ex
+from sahara.i18n import _
 from sahara.plugins import base as plugins_base
 from sahara.utils import resources
 
@@ -26,10 +27,6 @@ class ProvisioningPluginBase(plugins_base.PluginInterface):
 
     @plugins_base.required
     def get_configs(self, hadoop_version):
-        pass
-
-    @plugins_base.optional
-    def get_hdfs_user(self):
         pass
 
     @plugins_base.required
@@ -65,55 +62,16 @@ class ProvisioningPluginBase(plugins_base.PluginInterface):
         pass
 
     @plugins_base.optional
-    def get_name_node_uri(self, cluster):
-        pass
-
-    @plugins_base.optional
-    def get_oozie_server(self, cluster):
-        pass
-
-    @plugins_base.optional
-    def get_oozie_server_uri(self, cluster):
-        pass
-
-    @plugins_base.optional
     def validate_edp(self, cluster):
         pass
 
-    @plugins_base.required_with_default
-    def get_edp_engine(self, cluster, job_type, default_engines):
-        '''Default implementation to select an EDP job engine
-
-        This method chooses an EDP implementation based on job type. It should
-        be overloaded by a plugin to allow different behavior or the selection
-        of a custom EDP implementation.
-
-        The default_engines parameter is a list of default EDP implementations.
-        Each item in the list is a dictionary, and each dictionary has the
-        following elements:
-
-        name (a simple name for the implementation)
-        job_types (a list of EDP job types supported by the implementation)
-        engine (a class derived from sahara.service.edp.base_engine.JobEngine)
-
-        This method will choose the first engine that it finds which lists the
-        job_type value in the job_types element. An instance of that engine
-        will be allocated and returned.
-
-        :param cluster: a Sahara cluster object
-        :param job_type: an EDP job type string
-        :param default_engines: a list of dictionaries describing the default
-        implementations.
-        :returns: an instance of a class derived from
-        sahara.service.edp.base_engine.JobEngine or None
-        '''
-        for eng in default_engines:
-            if job_type in eng["job_types"]:
-                return eng["engine"](cluster)
-
     @plugins_base.optional
-    def get_resource_manager_uri(self, cluster):
+    def get_edp_engine(self, cluster, job_type):
         pass
+
+    @plugins_base.required_with_default
+    def get_open_ports(self, node_group):
+        return []
 
     @plugins_base.required_with_default
     def decommission_nodes(self, cluster, instances):
@@ -153,17 +111,21 @@ class ProvisioningPluginBase(plugins_base.PluginInterface):
                 confs = config_objs_map.get(applicable_target)
                 if not confs:
                     raise ex.ConfigurationError(
-                        "Can't find applicable target '%s' for '%s'"
-                        % (applicable_target, config_name))
+                        _("Can't find applicable target "
+                          "'%(applicable_target)s' for '%(config_name)s'")
+                        % {"applicable_target": applicable_target,
+                           "config_name": config_name})
                 conf = confs.get(config_name)
                 if not conf:
                     raise ex.ConfigurationError(
-                        "Can't find config '%s' in '%s'"
-                        % (config_name, applicable_target))
+                        _("Can't find config '%(config_name)s' "
+                          "in '%(applicable_target)s'")
+                        % {"config_name": config_name,
+                           "applicable_target": applicable_target})
                 result.append(UserInput(
                     conf, configs[applicable_target][config_name]))
 
-        return result
+        return sorted(result)
 
 
 class Config(resources.BaseResource):
@@ -200,6 +162,9 @@ class Config(resources.BaseResource):
         # TODO(slukjanov): all custom fields from res
         return res
 
+    def __lt__(self, other):
+        return self.name < other.name
+
     def __repr__(self):
         return '<Config %s in %s>' % (self.name, self.applicable_target)
 
@@ -213,6 +178,9 @@ class UserInput(object):
 
     def __eq__(self, other):
         return self.config == other.config and self.value == other.value
+
+    def __lt__(self, other):
+        return (self.config, self.value) < (other.config, other.value)
 
     def __repr__(self):
         return '<UserInput %s = %s>' % (self.config.name, self.value)

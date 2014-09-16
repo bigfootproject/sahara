@@ -69,10 +69,12 @@ def start_instances(cluster):
 
 def delete_instances(cluster, instances):
     api = get_api_client(cluster)
+    cm_cluster = get_cloudera_cluster(cluster)
     hosts = api.get_all_hosts(view='full')
     hostsnames_to_deleted = [i.fqdn() for i in instances]
     for host in hosts:
         if host.hostname in hostsnames_to_deleted:
+            cm_cluster.remove_host(host.hostId)
             api.delete_host(host.hostId)
 
 
@@ -97,7 +99,7 @@ def get_service(process, cluster=None, instance=None):
             {'process': process})
 
 
-def decomission_nodes(cluster, process, role_names):
+def decommission_nodes(cluster, process, role_names):
     service = get_service(process, cluster)
     service.decommission(*role_names).wait()
     for role_name in role_names:
@@ -175,7 +177,7 @@ def start_service(service):
 
 
 @cloudera_cmd
-def start_roles(service, role_names):
+def start_roles(service, *role_names):
     for role in service.start_roles(*role_names):
         yield role
 

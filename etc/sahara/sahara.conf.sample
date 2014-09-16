@@ -43,6 +43,10 @@
 # Whether to disable the Nagle algorithm. (boolean value)
 #qpid_tcp_nodelay=true
 
+# The number of prefetched messages held by receiver. (integer
+# value)
+#qpid_receiver_capacity=1
+
 # The qpid topology version to use.  Version 1 is what was
 # originally used by impl_qpid.  Version 2 includes some
 # backwards-incompatible changes that allow broker federation
@@ -197,7 +201,7 @@
 #log_exchange=false
 
 # Maximum length of job binary data in kilobytes that may be
-# stored or retrieved in a single operation (integer value)
+# stored or retrieved in a single operation. (integer value)
 #job_binary_max_KB=5120
 
 # If set to True, Sahara will use floating IPs to communicate
@@ -390,11 +394,11 @@
 #periodic_fuzzy_delay=60
 
 # Max interval size between periodic tasks execution in
-# seconds (integer value)
+# seconds. (integer value)
 #periodic_interval_max=60
 
 # Minimal "lifetime" in seconds for a transient cluster.
-# Cluster is guarantied to be "alive" within this time period.
+# Cluster is guaranteed to be "alive" within this time period.
 # (integer value)
 #min_transient_cluster_active_time=30
 
@@ -439,6 +443,21 @@
 
 
 #
+# Options defined in sahara.utils.notification.sender
+#
+
+# Notification level for outgoing notifications (string value)
+#notification_level=INFO
+
+# Notification publisher_id for outgoing notifications (string
+# value)
+#notification_publisher_id=<None>
+
+# Enables sending notifications to Ceilometer (boolean value)
+#enable_notifications=false
+
+
+#
 # Options defined in sahara.utils.openstack.keystone
 #
 
@@ -446,6 +465,24 @@
 # disabled, per-job clusters will not be terminated
 # automatically. (boolean value)
 #use_identity_api_v3=true
+
+
+#
+# Options defined in sahara.utils.proxy
+#
+
+# Enables Sahara to use a domain for creating temporary proxy
+# users to access Swift. If this is enabled a domain must be
+# created for Sahara to use. (boolean value)
+#use_domain_for_proxy_users=false
+
+# The domain Sahara will use to create new proxy users for
+# Swift object access. (string value)
+#proxy_user_domain_name=<None>
+
+# A list of the role names that the proxy user should assume
+# through trust for Swift object access. (list value)
+#proxy_user_role_names=Member
 
 
 #
@@ -582,7 +619,7 @@
 [keystone_authtoken]
 
 #
-# Options defined in keystoneclient.middleware.auth_token
+# Options defined in keystonemiddleware.auth_token
 #
 
 # Prefix to prepend at the beginning of the path. Deprecated,
