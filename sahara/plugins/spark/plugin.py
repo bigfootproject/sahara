@@ -41,12 +41,6 @@ CONF = cfg.CONF
 
 
 class SparkProvider(p.ProvisioningPluginBase):
-    def __init__(self):
-        self.processes = {
-            "HDFS": ["namenode", "datanode"],
-            "Spark": ["master", "slave"]
-        }
-
     def get_title(self):
         return "Apache Spark"
 
@@ -61,34 +55,36 @@ class SparkProvider(p.ProvisioningPluginBase):
         return c_helper.get_plugin_configs()
 
     def get_node_processes(self, hadoop_version):
-        return self.processes
+        return {
+            "HDFS": ["namenode", "datanode"],
+            "Spark": ["master", "slave"]
+        }
 
     def validate(self, cluster):
         nn_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "namenode")])
-        if nn_count != 1:
+        if nn_count > 1:
             raise ex.InvalidComponentCountException("namenode", 1, nn_count)
-
-        dn_count = sum([ng.count for ng
-                        in utils.get_node_groups(cluster, "datanode")])
-        if dn_count < 1:
-            raise ex.InvalidComponentCountException("datanode", _("1 or more"),
-                                                    nn_count)
+        elif nn_count == 1:
+            dn_count = sum([ng.count for ng
+                            in utils.get_node_groups(cluster, "datanode")])
+            if dn_count < 1:
+                raise ex.InvalidComponentCountException("datanode", _("1 or more"),
+                                                        nn_count)
 
         # validate Spark Master Node and Spark Slaves
         sm_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "master")])
 
-        if sm_count != 1:
+        if sm_count > 1:
             raise ex.RequiredServiceMissingException("Spark master")
-
-        sl_count = sum([ng.count for ng
-                        in utils.get_node_groups(cluster, "slave")])
-
-        if sl_count < 1:
-            raise ex.InvalidComponentCountException("Spark slave",
-                                                    _("1 or more"),
-                                                    sl_count)
+        elif sm_count == 1:
+            sl_count = sum([ng.count for ng
+                            in utils.get_node_groups(cluster, "slave")])
+            if sl_count < 1:
+                raise ex.InvalidComponentCountException("Spark slave",
+                                                        _("1 or more"),
+                                                        sl_count)
 
     def update_infra(self, cluster):
         pass
