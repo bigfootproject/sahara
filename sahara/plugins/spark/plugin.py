@@ -98,20 +98,21 @@ class SparkProvider(p.ProvisioningPluginBase):
         dn_instances = utils.get_instances(cluster, "datanode")
 
         # Start the name node
-        with remote.get_remote(nn_instance) as r:
-            run.format_namenode(r)
-            run.start_processes(r, "namenode")
+        if nn_instance is not None:
+            with remote.get_remote(nn_instance) as r:
+                run.format_namenode(r)
+                run.start_processes(r, "namenode")
 
-        # start the data nodes
-        self._start_slave_datanode_processes(dn_instances)
+            # start the data nodes
+            self._start_slave_datanode_processes(dn_instances)
 
-        LOG.info(_LI("Hadoop services in cluster %s have been started"),
-                 cluster.name)
+            LOG.info(_LI("Hadoop services in cluster %s have been started"),
+                     cluster.name)
 
-        with remote.get_remote(nn_instance) as r:
-            r.execute_command("sudo -u hdfs hdfs dfs -mkdir -p /user/$USER/")
-            r.execute_command("sudo -u hdfs hdfs dfs -chown $USER "
-                              "/user/$USER/")
+            with remote.get_remote(nn_instance) as r:
+                r.execute_command("sudo -u hdfs hdfs dfs -mkdir -p /user/$USER/")
+                r.execute_command("sudo -u hdfs hdfs dfs -chown $USER "
+                                  "/user/$USER/")
 
         # start spark nodes
         if sm_instance:
@@ -147,20 +148,36 @@ class SparkProvider(p.ProvisioningPluginBase):
             config_slaves = "\n"
 
         for ng in cluster.node_groups:
-            extra[ng.id] = {
-                'xml': c_helper.generate_xml_configs(
-                    ng.configuration(),
-                    ng.storage_paths(),
-                    nn.hostname(), None,
-                ),
-                'setup_script': c_helper.generate_hadoop_setup_script(
-                    ng.storage_paths(),
-                    c_helper.extract_hadoop_environment_confs(
-                        ng.configuration())
-                ),
-                'sp_master': config_master,
-                'sp_slaves': config_slaves
-            }
+            if nn != None:
+                extra[ng.id] = {
+                    'xml': c_helper.generate_xml_configs(
+                        ng.configuration(),
+                        ng.storage_paths(),
+                        nn.hostname(), None,
+                    ),
+                    'setup_script': c_helper.generate_hadoop_setup_script(
+                        ng.storage_paths(),
+                        c_helper.extract_hadoop_environment_confs(
+                            ng.configuration())
+                    ),
+                    'sp_master': config_master,
+                    'sp_slaves': config_slaves
+                }
+            else:
+                extra[ng.id] = {
+                    'xml': c_helper.generate_xml_configs(
+                        ng.configuration(),
+                        ng.storage_paths(),
+                        "CHANGEME", None,
+                    ),
+                    'setup_script': c_helper.generate_hadoop_setup_script(
+                        ng.storage_paths(),
+                        c_helper.extract_hadoop_environment_confs(
+                            ng.configuration())
+                    ),
+                    'sp_master': config_master,
+                    'sp_slaves': config_slaves
+                }
 
         if c_helper.is_data_locality_enabled(cluster):
             topology_data = th.generate_topology_map(
