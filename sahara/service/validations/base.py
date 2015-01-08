@@ -17,6 +17,7 @@ import operator
 
 import novaclient.exceptions as nova_ex
 from oslo.config import cfg
+import six
 
 from sahara import conductor as cond
 from sahara import context
@@ -25,6 +26,7 @@ from sahara.i18n import _
 import sahara.plugins.base as plugin_base
 import sahara.service.api as api
 from sahara.utils import general as g
+import sahara.utils.openstack.cinder as cinder
 import sahara.utils.openstack.heat as heat
 import sahara.utils.openstack.keystone as keystone
 import sahara.utils.openstack.nova as nova
@@ -97,7 +99,6 @@ def check_all_configurations(data):
     if data.get('node_groups'):
         check_duplicates_node_groups_names(data['node_groups'])
         for ng in data['node_groups']:
-            check_auto_security_group(data['name'], ng)
             check_node_group_basic_fields(data['plugin_name'],
                                           data['hadoop_version'],
                                           ng, pl_confs)
@@ -130,12 +131,21 @@ def check_node_group_basic_fields(plugin_name, hadoop_version, ng,
 
     if ng.get('volumes_per_node'):
         check_cinder_exists()
+        if ng.get('volumes_availability_zone'):
+            check_volume_availability_zone_exist(
+                ng['volumes_availability_zone'])
+
+        if ng.get('volume_type'):
+            check_volume_type_exists(ng['volume_type'])
 
     if ng.get('floating_ip_pool'):
         check_floatingip_pool_exists(ng['name'], ng['floating_ip_pool'])
 
     if ng.get('security_groups'):
         check_security_groups_exist(ng['security_groups'])
+
+    if ng.get('availability_zone'):
+        check_availability_zone_exist(ng['availability_zone'])
 
 
 def check_flavor_exists(flavor_id):
@@ -148,7 +158,8 @@ def check_flavor_exists(flavor_id):
 def check_security_groups_exist(security_groups):
     security_group_list = nova.client().security_groups.list()
     allowed_groups = set(reduce(
-        operator.add, [[sg.id, sg.name] for sg in security_group_list], []))
+        operator.add, [[six.text_type(sg.id), sg.name]
+                       for sg in security_group_list], []))
     for sg in security_groups:
         if sg not in allowed_groups:
             raise ex.InvalidException(_("Security group '%s' not found") % sg)
@@ -192,14 +203,28 @@ def check_duplicates_node_groups_names(node_groups):
             _("Duplicates in node group names are detected"))
 
 
-def check_auto_security_group(cluster_name, nodegroup):
-    if nodegroup.get('auto_security_group'):
-        name = g.generate_auto_security_group_name(
-            cluster_name, nodegroup['name'])
-        if name in [security_group.name for security_group in
-                    nova.client().security_groups.list()]:
-            raise ex.NameAlreadyExistsException(
-                _("Security group with name '%s' already exists") % name)
+def check_availability_zone_exist(az):
+    az_list = nova.client().availability_zones.list(False)
+    az_names = [a.zoneName for a in az_list]
+    if az not in az_names:
+        raise ex.InvalidException(_("Nova availability zone '%s' not found")
+                                  % az)
+
+
+def check_volume_availability_zone_exist(az):
+    az_list = cinder.client().availability_zones.list()
+    az_names = [a.zoneName for a in az_list]
+    if az not in az_names:
+        raise ex.InvalidException(_("Cinder availability zone '%s' not found")
+                                  % az)
+
+
+def check_volume_type_exists(volume_type):
+    volume_types = cinder.client().volume_types.list(search_opts={'name':
+                                                                  volume_type})
+    if len(volume_types) == 1 and volume_types[0] == volume_type:
+        return
+    raise ex.NotFoundException(_("Volume type '%s' not found") % volume_type)
 
 
 # Cluster creation related checks
@@ -218,12 +243,6 @@ def check_heat_stack_name(cluster_name):
                 raise ex.NameAlreadyExistsException(
                     _("Cluster name '%s' is already used as Heat stack name")
                     % cluster_name)
-
-
-def check_cluster_exists(id):
-    if not api.get_cluster(id):
-        raise ex.InvalidException(
-            _("Cluster with id '%s' doesn't exist") % id)
 
 
 def check_cluster_hostnames_lengths(cluster_name, node_groups):
@@ -275,7 +294,6 @@ def check_node_groups_in_cluster_templates(cluster_name, plugin_name,
     n_groups = c_t.to_wrapped_dict()['cluster_template']['node_groups']
     check_network_config(n_groups)
     for node_group in n_groups:
-        check_auto_security_group(cluster_name, node_group)
         check_node_group_basic_fields(plugin_name, hadoop_version, node_group)
     check_cluster_hostnames_lengths(cluster_name, n_groups)
 
@@ -345,14 +363,13 @@ def check_add_node_groups(cluster, add_node_groups):
 
         check_node_group_basic_fields(cluster.plugin_name,
                                       cluster.hadoop_version, ng, pl_confs)
-        check_auto_security_group(cluster.name, ng)
 
 
 # Cinder
 
 def check_cinder_exists():
     services = [service.name for service in
-                keystone.client().services.list()]
+                keystone.client_for_admin().services.list()]
     if 'cinder' not in services:
         raise ex.InvalidException(_("Cinder is not supported"))
 
@@ -370,11 +387,3 @@ def check_required_image_tags(plugin_name, hadoop_version, image_id):
                   " tags ['%(name)s', '%(version)s']")
                 % {'image': image_id, 'name': plugin_name,
                    'version': hadoop_version})
-
-
-# EDP
-
-
-def check_edp_job_support(cluster_id):
-    cluster = api.get_cluster(cluster_id)
-    plugin_base.PLUGINS.get_plugin(cluster.plugin_name).validate_edp(cluster)

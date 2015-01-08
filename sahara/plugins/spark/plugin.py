@@ -22,13 +22,13 @@ from sahara import context
 from sahara.i18n import _
 from sahara.i18n import _LI
 from sahara.openstack.common import log as logging
-from sahara.plugins.general import exceptions as ex
-from sahara.plugins.general import utils
+from sahara.plugins import exceptions as ex
 from sahara.plugins import provisioning as p
 from sahara.plugins.spark import config_helper as c_helper
 from sahara.plugins.spark import edp_engine
 from sahara.plugins.spark import run_scripts as run
 from sahara.plugins.spark import scaling as sc
+from sahara.plugins import utils
 from sahara.topology import topology_helper as th
 from sahara.utils import files as f
 from sahara.utils import general as ug
@@ -244,17 +244,16 @@ class SparkProvider(p.ProvisioningPluginBase):
                    'sudo chown $USER $HOME/.ssh/id_rsa; '
                    'sudo chmod 600 $HOME/.ssh/id_rsa')
 
-        for ng in cluster.node_groups:
-            dn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
-                                                   '/dfs/dn')
-            nn_path = c_helper.extract_hadoop_path(ng.storage_paths(),
-                                                   '/dfs/nn')
-            hdfs_dir_cmd = (('sudo mkdir -p %s %s;'
-                             'sudo chown -R hdfs:hadoop %s %s;'
-                             'sudo chmod 755 %s %s;')
-                            % (nn_path, dn_path,
-                               nn_path, dn_path,
-                               nn_path, dn_path))
+        storage_paths = instance.node_group.storage_paths()
+        dn_path = ' '.join(c_helper.make_hadoop_path(storage_paths,
+                                                     '/dfs/dn'))
+        nn_path = ' '.join(c_helper.make_hadoop_path(storage_paths,
+                                                     '/dfs/nn'))
+
+        hdfs_dir_cmd = ('sudo mkdir -p %(nn_path)s %(dn_path)s &&'
+                        'sudo chown -R hdfs:hadoop %(nn_path)s %(dn_path)s &&'
+                        'sudo chmod 755 %(nn_path)s %(dn_path)s' %
+                        {"nn_path": nn_path, "dn_path": dn_path})
 
         with remote.get_remote(instance) as r:
             r.execute_command(
@@ -433,10 +432,31 @@ class SparkProvider(p.ProvisioningPluginBase):
                 rep_factor)
 
     def get_edp_engine(self, cluster, job_type):
-        if cluster.hadoop_version < "1.0.0":
-            return
-
         if job_type in edp_engine.EdpEngine.get_supported_job_types():
             return edp_engine.EdpEngine(cluster)
 
         return None
+
+    def get_open_ports(self, node_group):
+        cluster = node_group.cluster
+        ports_map = {
+            'namenode': [8020, 50070, 50470],
+            'datanode': [50010, 1004, 50075, 1006, 50020],
+            'master': [
+                int(c_helper.get_config_value("Spark", "Master port",
+                                              cluster)),
+                int(c_helper.get_config_value("Spark", "Master webui port",
+                                              cluster)),
+            ],
+            'slave': [
+                int(c_helper.get_config_value("Spark", "Worker webui port",
+                                              cluster))
+            ]
+        }
+
+        ports = []
+        for process in node_group.node_processes:
+            if process in ports_map:
+                ports.extend(ports_map[process])
+
+        return ports

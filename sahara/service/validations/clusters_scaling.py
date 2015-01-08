@@ -69,6 +69,26 @@ CLUSTER_SCALING_SCHEMA = {
 
 def check_cluster_scaling(data, cluster_id, **kwargs):
     cluster = api.get_cluster(id=cluster_id)
+
+    cluster_engine = cluster.sahara_info.get(
+        'infrastructure_engine') if cluster.sahara_info else None
+
+    engine_type_and_version = api.OPS.get_engine_type_and_version()
+    if (not cluster_engine and
+            not engine_type_and_version.startswith('direct')):
+        raise ex.InvalidException(
+            _("Cluster created before Juno release "
+              "can't be scaled with %(engine)s engine") %
+            {"engine": engine_type_and_version})
+
+    if (cluster.sahara_info and
+            cluster_engine != engine_type_and_version):
+        raise ex.InvalidException(
+            _("Cluster created with %(old_engine)s infrastructure engine "
+              "can't be scaled with %(new_engine)s engine") %
+            {"old_engine": cluster.sahara_info.get('infrastructure_engine'),
+             "new_engine": engine_type_and_version})
+
     if not (plugin_base.PLUGINS.is_plugin_implements(cluster.plugin_name,
                                                      'scale_cluster') and (
             plugin_base.PLUGINS.is_plugin_implements(cluster.plugin_name,

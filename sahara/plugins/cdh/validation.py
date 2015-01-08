@@ -18,8 +18,8 @@ from sahara.i18n import _LE
 from sahara.openstack.common import log as logging
 from sahara.plugins.cdh import cloudera_utils as cmu
 from sahara.plugins.cdh import utils as cu
-from sahara.plugins.general import exceptions as ex
-from sahara.plugins.general import utils as u
+from sahara.plugins import exceptions as ex
+from sahara.plugins import utils as u
 from sahara.utils import general as gu
 
 LOG = logging.getLogger(__name__)
@@ -46,12 +46,12 @@ def validate_cluster_creating(cluster):
 
     rm_count = _get_inst_count(cluster, 'RESOURCEMANAGER')
     if rm_count not in [0, 1]:
-        raise ex.InvalidComponentCountException('RESOURCEMANAGER', '0 or 1',
+        raise ex.InvalidComponentCountException('RESOURCEMANAGER', _('0 or 1'),
                                                 rm_count)
 
     hs_count = _get_inst_count(cluster, 'JOBHISTORY')
     if hs_count not in [0, 1]:
-        raise ex.InvalidComponentCountException('JOBHISTORY', '0 or 1',
+        raise ex.InvalidComponentCountException('JOBHISTORY', _('0 or 1'),
                                                 hs_count)
 
     if rm_count > 0 and hs_count < 1:
@@ -67,7 +67,7 @@ def validate_cluster_creating(cluster):
     oo_count = _get_inst_count(cluster, 'OOZIE_SERVER')
     dn_count = _get_inst_count(cluster, 'DATANODE')
     if oo_count not in [0, 1]:
-        raise ex.InvalidComponentCountException('OOZIE_SERVER', '0 or 1',
+        raise ex.InvalidComponentCountException('OOZIE_SERVER', _('0 or 1'),
                                                 oo_count)
 
     if oo_count == 1:
@@ -82,6 +82,142 @@ def validate_cluster_creating(cluster):
         if hs_count != 1:
             raise ex.RequiredServiceMissingException(
                 'JOBHISTORY', required_by='OOZIE_SERVER')
+
+    hms_count = _get_inst_count(cluster, 'HIVEMETASTORE')
+    hvs_count = _get_inst_count(cluster, 'HIVESERVER2')
+    whc_count = _get_inst_count(cluster, 'WEBHCAT')
+
+    if hms_count and rm_count < 1:
+        raise ex.RequiredServiceMissingException(
+            'RESOURCEMANAGER', required_by='HIVEMETASTORE')
+
+    if hms_count and not hvs_count:
+        raise ex.RequiredServiceMissingException(
+            'HIVESERVER2', required_by='HIVEMETASTORE')
+
+    if hvs_count and not hms_count:
+        raise ex.RequiredServiceMissingException(
+            'HIVEMETASTORE', required_by='HIVESERVER2')
+
+    if whc_count and not hms_count:
+        raise ex.RequiredServiceMissingException(
+            'HIVEMETASTORE', required_by='WEBHCAT')
+
+    hue_count = _get_inst_count(cluster, 'HUE_SERVER')
+    if hue_count not in [0, 1]:
+        raise ex.InvalidComponentCountException('HUE_SERVER', '0 or 1',
+                                                hue_count)
+
+    shs_count = _get_inst_count(cluster, 'SPARK_YARN_HISTORY_SERVER')
+    if shs_count not in [0, 1]:
+        raise ex.InvalidComponentCountException('SPARK_YARN_HISTORY_SERVER',
+                                                '0 or 1', shs_count)
+    if shs_count and not rm_count:
+        raise ex.RequiredServiceMissingException(
+            'RESOURCEMANAGER', required_by='SPARK_YARN_HISTORY_SERVER')
+
+    if oo_count < 1 and hue_count:
+        raise ex.RequiredServiceMissingException(
+            'OOZIE_SERVER', required_by='HUE_SERVER')
+
+    if hms_count < 1 and hue_count:
+        raise ex.RequiredServiceMissingException(
+            'HIVEMETASTORE', required_by='HUE_SERVER')
+
+    hbm_count = _get_inst_count(cluster, 'MASTER')
+    hbr_count = _get_inst_count(cluster, 'REGIONSERVER')
+    zk_count = _get_inst_count(cluster, 'SERVER')
+
+    if hbm_count >= 1:
+        if zk_count < 1:
+            raise ex.RequiredServiceMissingException('ZOOKEEPER',
+                                                     required_by='HBASE')
+        if hbr_count < 1:
+            raise ex.InvalidComponentCountException('REGIONSERVER',
+                                                    _('at least 1'), hbr_count)
+    elif hbr_count >= 1:
+        raise ex.InvalidComponentCountException('MASTER',
+                                                _('at least 1'), hbm_count)
+
+    a_count = _get_inst_count(cluster, 'AGENT')
+    if a_count >= 1:
+        if dn_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'DATANODE', required_by='FLUME_AGENT')
+
+    ss1_count = _get_inst_count(cluster, 'SENTRY_SERVER')
+    if ss1_count not in [0, 1]:
+        raise ex.InvalidComponentCountException('SENTRY_SERVER', _('0 or 1'),
+                                                ss1_count)
+    if ss1_count == 1:
+        if dn_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'DATANODE', required_by='SENTRY_SERVER')
+        if zk_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'ZOOKEEPER', required_by='SENTRY_SERVER')
+
+    ss2_count = _get_inst_count(cluster, 'SOLR_SERVER')
+    if ss2_count >= 1:
+        if dn_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'DATANODE', required_by='SOLR_SERVER')
+        if zk_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'ZOOKEEPER', required_by='SOLR_SERVER')
+
+    s2s_count = _get_inst_count(cluster, 'SQOOP_SERVER')
+    if s2s_count not in [0, 1]:
+        raise ex.InvalidComponentCountException('SQOOP_SERVER', _('0 or 1'),
+                                                s2s_count)
+    if s2s_count == 1:
+        if dn_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'DATANODE', required_by='SQOOP_SERVER')
+        if nm_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'NODEMANAGER', required_by='SQOOP_SERVER')
+        if hs_count != 1:
+            raise ex.RequiredServiceMissingException(
+                'JOBHISTORY', required_by='SQOOP_SERVER')
+
+    lhbi_count = _get_inst_count(cluster, 'HBASE_INDEXER')
+    if lhbi_count >= 1:
+        if dn_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'DATANODE', required_by='HBASE_INDEXER')
+        if zk_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'ZOOKEEPER', required_by='HBASE_INDEXER')
+        if ss2_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'SOLR_SERVER', required_by='HBASE_INDEXER')
+        if hbm_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'HBASE_MASTER', required_by='HBASE_INDEXER')
+
+    ics_count = _get_inst_count(cluster, 'CATALOGSERVER')
+    iss_count = _get_inst_count(cluster, 'STATESTORE')
+    id_count = _get_inst_count(cluster, 'IMPALAD')
+    if ics_count not in [0, 1]:
+        raise ex.InvalidComponentCountException('CATALOGSERVER', _('0 or 1'),
+                                                ics_count)
+    if iss_count not in [0, 1]:
+        raise ex.InvalidComponentCountException('STATESTORE', _('0 or 1'),
+                                                iss_count)
+    if ics_count == 1:
+        if iss_count != 1:
+            raise ex.RequiredServiceMissingException(
+                'STATESTORE', required_by='IMPALA')
+        if id_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'IMPALAD', required_by='IMPALA')
+        if dn_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'DATANODE', required_by='IMPALA')
+        if hms_count < 1:
+            raise ex.RequiredServiceMissingException(
+                'HIVEMETASTORE', required_by='IMPALA')
 
 
 def validate_additional_ng_scaling(cluster, additional):

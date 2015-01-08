@@ -1,27 +1,20 @@
 Sahara UI Dev Environment Setup
 ===============================
 
-This page describes how to setup the Sahara dashboard UI component by either
-installing it as part of DevStack or installing it in an isolated environment
+This page describes how to setup Horizon for developing Sahara by either
+installing it as part of DevStack with Sahara or installing it in an isolated environment
 and running from the command line.
 
 Install as a part of DevStack
 -----------------------------
 
-The easiest way to have a local Sahara UI environment with DevStack is to
-include the Sahara-Dashboard component in DevStack. This can be accomplished
-by modifying your DevStack ``local.conf`` file to enable ``sahara-dashboard``.
-See the `DevStack documentation <http://devstack.org>`_ for more information
-on installing and configuring DevStack.
+See the `DevStack guide <../devref/devstack.html>`_ for more information
+on installing and configuring DevStack with Sahara.
 
-If you are developing Sahara from an OSX environment you will need to run
-DevStack on a virtual machine. See
-`Setup VM for DevStack on OSX <../devref/devstack.html>`_ for more
-information.
-
-After Sahara-Dashboard installation as a part of DevStack, Horizon will contain
-a Sahara tab. Sahara-Dashboard source code will be located at
-``$DEST/sahara-dashboard`` which is usually ``/opt/stack/sahara-dashboard``.
+After Horizon installation, it will contain a Data Processing tab under Projects tab.
+Sahara UI source code will be located at
+``$DEST/horizon/openstack_dashboard/dashboards/project/data_processing``
+where ``$DEST/`` is usually ``/opt/stack/``.
 
 Isolated Dashboard for Sahara
 -----------------------------
@@ -38,12 +31,18 @@ using the following command:
 
     $ keystone endpoint-list
 
+You can list the registered services with this command:
+
+.. sourcecode:: console
+
+    $ keystone service-list
+
 1. Install prerequisites
 
   .. sourcecode:: console
 
       $ sudo apt-get update
-      $ sudo apt-get install git-core python-dev gcc python-setuptools python-virtualenv node-less libssl-dev libffi-dev
+      $ sudo apt-get install git-core python-dev gcc python-setuptools python-virtualenv node-less libssl-dev libffi-dev libxslt-dev
   ..
 
   On Ubuntu 12.10 and higher you have to install the following lib as well:
@@ -55,11 +54,11 @@ using the following command:
 
 2. Checkout Horizon from git and switch to your version of OpenStack
 
-  Here is an example for the Icehouse release:
+  Here is an example:
 
   .. sourcecode:: console
 
-      $ git clone https://github.com/openstack/horizon -b stable/icehouse
+      $ git clone https://github.com/openstack/horizon
   ..
 
   Then install the virtual environment:
@@ -83,73 +82,27 @@ using the following command:
   .. sourcecode:: python
 
      OPENSTACK_HOST = "ip of your controller"
-     SAHARA_URL = "url for sahara (e.g. "http://localhost:8386/v1.1")"
   ..
 
-  If you are using Neutron instead of Nova-Network:
+  If you are using Nova-Network with ``auto_assign_floating_ip=True`` add the following parameter:
 
   .. sourcecode:: python
 
-     SAHARA_USE_NEUTRON = True
+     SAHARA_AUTO_IP_ALLOCATION_ENABLED = True
   ..
 
-  If you are using Nova-Network with ``auto_assign_floating_ip=False`` or Neutron add
-  the following parameter:
+5. If Sahara is not registered with the keystone service catalog, it may be added
+   with the following commands.  To use Sahara from Horizon without keystone
+   registration, see `Using the Data Processing Dashboard without Keystone Registration`_.
 
-  .. sourcecode:: python
+   .. sourcecode:: console
 
-     AUTO_ASSIGNMENT_ENABLED = False
-  ..
+       $ keystone service-create --name sahara --type data-processing
+       $ keystone endpoint-create --region RegionOne --service sahara --publicurl 'http://localhost:8386/v1.1/%(tenant_id)s'
 
-5. Clone sahara-dashboard sources from ``https://github.com/openstack/sahara-dashboard.git``
+   **Note** you should replace the ip and port in with the appropriate values.
 
-  .. sourcecode:: console
-
-      $ git clone https://github.com/openstack/sahara-dashboard.git
-  ..
-
-6. Export SAHARA_DASHBOARD_HOME environment variable with a path to
-   sahara-dashboard folder
-
-  .. sourcecode:: console
-
-      $ export SAHARA_DASHBOARD_HOME=$(pwd)/sahara-dashboard
-  ..
-
-7. Create a symlink to sahara-dashboard source
-
-  .. sourcecode:: console
-
-     $ ln -s $SAHARA_DASHBOARD_HOME/saharadashboard .venv/lib/python2.7/site-packages/saharadashboard
-  ..
-
-8. Install python-saharaclient into venv
-
-  .. sourcecode:: console
-
-     $ .venv/bin/pip install python-saharaclient
-  ..
-
-9. Modify ``openstack_dashboard/settings.py``
-
-  Add sahara to to the Horizon config:
-
-  .. sourcecode:: python
-
-      HORIZON_CONFIG = {
-          'dashboards': ('nova', 'syspanel', 'settings', 'sahara'),
-  ..
-
-  and add saharadashboard to the installed apps:
-
-  .. sourcecode:: python
-
-      INSTALLED_APPS = (
-          'saharadashboard',
-          ....
-  ..
-
-10. Start Horizon
+6. Start Horizon
 
   .. sourcecode:: console
 
@@ -170,9 +123,69 @@ using the following command:
 
   **Note** It is not recommended to use Horizon in this mode for production.
 
-11. Applying changes
+7. Applying changes
 
-  If you have changed any ``*.py`` files in ``$SAHARA_DASHBOARD_HOME`` directory,
+  If you have changed any ``*.py`` files in
+  ``horizon/openstack_dashboard/dashboards/project/data_processing`` directory,
   Horizon will notice that and reload automatically. However changes made to
   non-python files may not be noticed, so you have to restart Horizon again
-  manually, as described in step 10.
+  manually, as described in step 6.
+
+Using the Data Processing Dashboard without Keystone Registration
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+**Note** These modifications are strictly for a development environment
+
+If Sahara is not registered as a service with keystone, Horizon must be
+modified so that the Sahara URL can be known and so service-based
+permissions do not prevent the Data Processing dashboard from displaying.
+
+
+1. Modify ``openstack_dashboard/api/sahara.py``:
+
+   Add the following lines before ``def client(request)``:
+
+   **Note** you should replace the ip and port in ``SAHARA_URL`` with the
+   appropriate values.
+
+   .. sourcecode:: python
+
+        SAHARA_URL = "http://localhost:8386/v1.1"
+
+        def get_sahara_url(request):
+
+            if SAHARA_URL:
+                url = SAHARA_URL.rstrip('/')
+                if url.split('/')[-1] in ['v1.0', 'v1.1']:
+                    url = SAHARA_URL + '/' + request.user.tenant_id
+                return url
+
+            return base.url_for(request, SAHARA_SERVICE)
+   ..
+
+   After that modify ``sahara_url`` provided in ``def client(request):``
+
+   .. sourcecode:: python
+
+        sahara_url=get_sahara_url(request)
+   ..
+
+
+2. Modify ``openstack_dashboard/dashboards/project/dashboard.py``:
+
+   Overload the ``register`` method in ``class Project`` to programmatically
+   remove ``data-processing`` permissions from all panels.
+
+   .. sourcecode:: python
+
+        @classmethod
+        def register(cls, panel):
+            if hasattr(panel, 'permissions'):
+               panel.permissions = tuple(
+                   [perm for perm in panel.permissions if not perm.startswith(
+                       'openstack.services.data_processing')])
+            super(Project, cls).register(panel)
+   ..
+
+   Alternatively the ``data-processing`` permissions can be removed
+   manually from each panel under ``openstack_dashboard/dashboards/project/data_processing``

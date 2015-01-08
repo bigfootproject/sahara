@@ -19,8 +19,8 @@ from eventlet.green import time
 from eventlet import greenpool
 from eventlet import semaphore
 from oslo.config import cfg
+from oslo_context import context
 
-from sahara.api import acl
 from sahara import exceptions as ex
 from sahara.i18n import _
 from sahara.i18n import _LE
@@ -32,12 +32,11 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
-# TODO(slukjanov): it'll be better to use common_context.RequestContext as base
-class Context(object):
+class Context(context.RequestContext):
     def __init__(self,
                  user_id=None,
                  tenant_id=None,
-                 token=None,
+                 auth_token=None,
                  service_catalog=None,
                  username=None,
                  tenant_name=None,
@@ -49,23 +48,27 @@ class Context(object):
         if kwargs:
             LOG.warn(_LW('Arguments dropped when creating context: %s'),
                      kwargs)
-        self.user_id = user_id
-        self.tenant_id = tenant_id
-        self.token = token
+
+        super(Context, self).__init__(auth_token=auth_token,
+                                      user=user_id,
+                                      tenant=tenant_id,
+                                      is_admin=is_admin)
         self.service_catalog = service_catalog
         self.username = username
         self.tenant_name = tenant_name
-        self.is_admin = is_admin
         self.remote_semaphore = remote_semaphore or semaphore.Semaphore(
             CONF.cluster_remote_threshold)
         self.roles = roles
-        self.auth_uri = auth_uri or acl.AUTH_URI
+        if auth_uri:
+            self.auth_uri = auth_uri
+        else:
+            self.auth_uri = _get_auth_uri()
 
     def clone(self):
         return Context(
             self.user_id,
             self.tenant_id,
-            self.token,
+            self.auth_token,
             self.service_catalog,
             self.username,
             self.tenant_name,
@@ -78,7 +81,7 @@ class Context(object):
         return {
             'user_id': self.user_id,
             'tenant_id': self.tenant_id,
-            'token': self.token,
+            'auth_token': self.auth_token,
             'service_catalog': self.service_catalog,
             'username': self.username,
             'tenant_name': self.tenant_name,
@@ -88,8 +91,27 @@ class Context(object):
         }
 
     def is_auth_capable(self):
-        return (self.service_catalog and self.token and self.tenant_id and
+        return (self.service_catalog and self.auth_token and self.tenant and
                 self.user_id)
+
+    # NOTE(adrienverge): The Context class uses the 'user' and 'tenant'
+    # properties internally (inherited from oslo.context), but Sahara code
+    # often uses 'user_id' and 'tenant_id'.
+    @property
+    def user_id(self):
+        return self.user
+
+    @user_id.setter
+    def user_id(self, value):
+        self.user = value
+
+    @property
+    def tenant_id(self):
+        return self.tenant
+
+    @tenant_id.setter
+    def tenant_id(self, value):
+        self.tenant = value
 
 
 def get_admin_context():
@@ -120,6 +142,28 @@ def set_ctx(new_ctx):
 
     if new_ctx:
         setattr(_CTX_STORE, _CTX_KEY, new_ctx)
+
+
+def _get_auth_uri():
+    if CONF.keystone_authtoken.auth_uri is not None:
+        auth_uri = CONF.keystone_authtoken.auth_uri
+    else:
+        if CONF.keystone_authtoken.identity_uri is not None:
+            identity_uri = CONF.keystone_authtoken.identity_uri
+        else:
+            host = CONF.keystone_authtoken.auth_host
+            port = CONF.keystone_authtoken.auth_port
+            protocol = CONF.keystone_authtoken.auth_protocol
+            identity_uri = '%s://%s:%s' % (protocol, host, port)
+
+        if CONF.use_identity_api_v3 is False:
+            auth_version = 'v2.0'
+        else:
+            auth_version = 'v3'
+
+        auth_uri = '%s/%s' % (identity_uri, auth_version)
+
+    return auth_uri
 
 
 def _wrapper(ctx, thread_description, thread_group, func, *args, **kwargs):

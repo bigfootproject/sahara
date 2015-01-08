@@ -21,8 +21,8 @@ import six
 
 from sahara import exceptions as e
 from sahara.i18n import _
-from sahara.plugins.general import exceptions as ex
-from sahara.plugins.general import utils
+from sahara.plugins import exceptions as ex
+from sahara.plugins import utils
 from sahara.swift import swift_helper as h
 from sahara.topology import topology_helper as th
 
@@ -388,8 +388,9 @@ class WebHCatService(Service):
 
         zk_servers = cluster_spec.determine_component_hosts('ZOOKEEPER_SERVER')
         if zk_servers:
+            zk_list = ['{0}:2181'.format(z.fqdn()) for z in zk_servers]
             self._replace_config_token(
-                cluster_spec, '%ZOOKEEPER_HOST%', zk_servers.pop().fqdn(),
+                cluster_spec, '%ZOOKEEPER_HOSTS%', ','.join(zk_list),
                 {'webhcat-site': ['templeton.zookeeper.hosts']})
 
     def finalize_ng_components(self, cluster_spec):
@@ -531,8 +532,9 @@ class HBaseService(Service):
 
         zk_servers = cluster_spec.determine_component_hosts('ZOOKEEPER_SERVER')
         if zk_servers:
+            zk_list = [z.fqdn() for z in zk_servers]
             self._replace_config_token(
-                cluster_spec, '%ZOOKEEPER_HOST%', zk_servers.pop().fqdn(),
+                cluster_spec, '%ZOOKEEPER_HOSTS%', ','.join(zk_list),
                 {'hbase-site': ['hbase.zookeeper.quorum']})
 
     def finalize_ng_components(self, cluster_spec):
@@ -559,9 +561,9 @@ class ZookeeperService(Service):
 
     def validate(self, cluster_spec, cluster):
         count = cluster_spec.get_deployed_node_group_count('ZOOKEEPER_SERVER')
-        if count != 1:
+        if count < 1:
             raise ex.InvalidComponentCountException(
-                'ZOOKEEPER_SERVER', 1, count)
+                'ZOOKEEPER_SERVER', '1+', count)
 
 
 class OozieService(Service):

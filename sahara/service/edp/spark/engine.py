@@ -19,10 +19,11 @@ from sahara import conductor as c
 from sahara import context
 from sahara import exceptions as e
 from sahara.i18n import _
-from sahara.plugins.general import utils as plugin_utils
 from sahara.plugins.spark import config_helper as c_helper
+from sahara.plugins import utils as plugin_utils
 from sahara.service.edp import base_engine
 from sahara.service.edp import job_utils
+from sahara.service.validations.edp import job_execution as j
 from sahara.utils import edp
 from sahara.utils import files
 from sahara.utils import general
@@ -165,6 +166,10 @@ class SparkJobEngine(base_engine.JobEngine):
             port,
             args)
 
+        job_execution = conductor.job_execution_get(ctx, job_execution.id)
+        if job_execution.info['status'] == edp.JOB_STATUS_TOBEKILLED:
+            return (None, edp.JOB_STATUS_KILLED, None)
+
         # If an exception is raised here, the job_manager will mark
         # the job failed and log the exception
         with remote.get_remote(master) as r:
@@ -189,6 +194,9 @@ class SparkJobEngine(base_engine.JobEngine):
         raise e.EDPError(_("Spark job execution failed. Exit status = "
                            "%(status)s, stdout = %(stdout)s") %
                          {'status': ret, 'stdout': stdout})
+
+    def validate_job_execution(self, cluster, job, data):
+        j.check_main_class_present(data, job)
 
     @staticmethod
     def get_possible_job_config(job_type):

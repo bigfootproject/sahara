@@ -38,6 +38,21 @@ COLUMN and DROP COLUMN commands required for DB migrations between versions.
 You can find more info about config file options in Sahara repository in file
 ``etc/sahara/sahara.conf.sample``.
 
+Sahara Dashboard was merged into OpenStack Dashboard
+++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+The Sahara Dashboard is not available in Juno release. Instead it's
+functionality is provided by OpenStack Dashboard out of the box.
+The Sahara UI is available in OpenStack Dashboard in
+"Project" -> "Data Processing" tab.
+
+Note that you have to properly register Sahara in Keystone in
+order for Sahara UI in the Dashboard to work. For details see
+:ref:`registering Sahara in installation guide <register-sahara-label>`.
+
+The `sahara-dashboard <https://git.openstack.org/cgit/openstack/sahara-dashboard>`_
+project is now used solely to host Sahara UI integration tests.
+
 VM user name changed for HEAT infrastructure engine
 +++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -68,3 +83,14 @@ perspective, but there are internal changes:
 
 Note, new implementation will be applied for new clusters only. Old
 implementation will be applied if user scales cluster created in Icehouse.
+
+Juno -> Kilo
+------------
+
+Sahara requires policy configuration
+++++++++++++++++++++++++++++++++++++
+
+Starting from Kilo Sahara requires policy configuration provided. Place
+``policy.json`` file near Sahara configuration file or specify ``policy_file``
+parameter. For details see :ref:`policy section in configuration guide <policy-configuration-label>`.
+

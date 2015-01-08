@@ -27,6 +27,7 @@ from sahara.service.edp import hdfs_helper as h
 from sahara.service.edp import job_utils
 from sahara.service.edp.oozie import oozie as o
 from sahara.service.edp.oozie.workflow_creator import workflow_factory
+from sahara.service.validations.edp import job_execution as j
 from sahara.utils import edp
 from sahara.utils import remote
 from sahara.utils import xmlutils as x
@@ -110,6 +111,9 @@ class OozieJobEngine(base_engine.JobEngine):
         client = self._get_client()
         oozie_job_id = client.add_job(x.create_hadoop_xml(job_params),
                                       job_execution)
+        job_execution = conductor.job_execution_get(ctx, job_execution.id)
+        if job_execution.info['status'] == edp.JOB_STATUS_TOBEKILLED:
+            return (None, edp.JOB_STATUS_KILLED, None)
         client.run_job(job_execution, oozie_job_id)
         try:
             status = client.get_job_status(job_execution,
@@ -142,6 +146,19 @@ class OozieJobEngine(base_engine.JobEngine):
     def get_resource_manager_uri(self, cluster):
         pass
 
+    def validate_job_execution(self, cluster, job, data):
+        # All types except Java require input and output objects
+        # and Java require main class
+        if job.type in [edp.JOB_TYPE_JAVA]:
+            j.check_main_class_present(data, job)
+        else:
+            j.check_data_sources(data, job)
+
+            job_type, subtype = edp.split_job_type(job.type)
+            if job_type == edp.JOB_TYPE_MAPREDUCE and (
+                    subtype == edp.JOB_SUBTYPE_STREAMING):
+                j.check_streaming_present(data, job)
+
     @staticmethod
     def get_possible_job_config(job_type):
         return workflow_factory.get_possible_job_config(job_type)
@@ -166,10 +183,11 @@ class OozieJobEngine(base_engine.JobEngine):
                 raw_data = dispatch.get_raw_binary(main, proxy_configs)
                 h.put_file_to_hdfs(r, raw_data, main.name, job_dir, hdfs_user)
                 uploaded_paths.append(job_dir + '/' + main.name)
-            for lib in libs:
-                raw_data = dispatch.get_raw_binary(lib, proxy_configs)
+            if len(libs) > 0:
                 # HDFS 2.2.0 fails to put file if the lib dir does not exist
                 self.create_hdfs_dir(r, job_dir + "/lib")
+            for lib in libs:
+                raw_data = dispatch.get_raw_binary(lib, proxy_configs)
                 h.put_file_to_hdfs(r, raw_data, lib.name, job_dir + "/lib",
                                    hdfs_user)
                 uploaded_paths.append(job_dir + '/lib/' + lib.name)

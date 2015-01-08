@@ -1,12 +1,13 @@
 {
     "AWSTemplateFormatVersion" : "2010-09-09",
-    "Description" : "Hadoop Cluster by Sahara",
+    "Description" : "Data Processing Cluster by Sahara",
 
     "Resources" : {
         "cluster-worker-001-port" : {
             "Type" : "OS::Neutron::Port",
             "Properties" : {
-               "network_id" : "private_net"
+               "network_id" : "private_net",
+               "replacement_policy": "AUTO"
             }
         },
         "cluster-worker-001-floating" : {
@@ -34,7 +35,8 @@
             "Type" : "OS::Cinder::Volume",
             "Properties" : {
                 "name" : "cluster-worker-001-volume-0",
-                "size" : "10"
+                "size" : "10",
+                "volume_type" : "vol_type"
             }
         },
         "cluster-worker-001-volume-attachment-0" : {
@@ -49,7 +51,8 @@
             "Type" : "OS::Cinder::Volume",
             "Properties" : {
                 "name" : "cluster-worker-001-volume-1",
-                "size" : "10"
+                "size" : "10",
+                "volume_type": "vol_type"
             }
         },
         "cluster-worker-001-volume-attachment-1" : {
@@ -63,7 +66,8 @@
         "cluster-master-001-port" : {
             "Type" : "OS::Neutron::Port",
             "Properties" : {
-               "network_id" : "private_net"
+               "network_id" : "private_net",
+               "replacement_policy": "AUTO"
             }
         },
         "cluster-master-001-floating" : {

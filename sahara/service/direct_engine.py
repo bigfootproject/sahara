@@ -21,6 +21,7 @@ from sahara import conductor as c
 from sahara import context
 from sahara import exceptions as exc
 from sahara.i18n import _
+from sahara.i18n import _LE
 from sahara.i18n import _LI
 from sahara.i18n import _LW
 from sahara.openstack.common import log as logging
@@ -28,6 +29,7 @@ from sahara.service import engine as e
 from sahara.service import networks
 from sahara.service import volumes
 from sahara.utils import general as g
+from sahara.utils.openstack import neutron
 from sahara.utils.openstack import nova
 
 
@@ -39,6 +41,9 @@ SSH_PORT = 22
 
 
 class DirectEngine(e.Engine):
+    def get_type_and_version(self):
+        return "direct.1.0"
+
     def create_cluster(self, cluster):
         ctx = context.ctx()
         self._update_rollback_strategy(cluster, shutdown=True)
@@ -220,8 +225,8 @@ class DirectEngine(e.Engine):
                 old_aa_groups = self._generate_anti_affinity_groups(cluster)
 
         instances_to_delete = []
-        node_groups_to_enlarge = []
-        node_groups_to_delete = []
+        node_groups_to_enlarge = set()
+        node_groups_to_delete = set()
 
         for node_group in cluster.node_groups:
             new_count = node_group_id_map[node_group.id]
@@ -230,9 +235,9 @@ class DirectEngine(e.Engine):
                 instances_to_delete += node_group.instances[new_count:
                                                             node_group.count]
                 if new_count == 0:
-                    node_groups_to_delete.append(node_group)
+                    node_groups_to_delete.add(node_group.id)
             elif new_count > node_group.count:
-                node_groups_to_enlarge.append(node_group)
+                node_groups_to_enlarge.add(node_group.id)
                 if node_group.count == 0 and node_group.auto_security_group:
                     self._create_auto_security_group(node_group)
 
@@ -243,30 +248,43 @@ class DirectEngine(e.Engine):
                 self._shutdown_instance(instance)
 
         self._await_deleted(cluster, instances_to_delete)
-        for ng in node_groups_to_delete:
-            self._delete_auto_security_group(ng)
+        for ng in cluster.node_groups:
+            if ng.id in node_groups_to_delete:
+                self._delete_auto_security_group(ng)
 
         cluster = conductor.cluster_get(ctx, cluster)
-
         instances_to_add = []
         if node_groups_to_enlarge:
             cluster = g.change_cluster_status(cluster, "Adding Instances")
-            for node_group in node_groups_to_enlarge:
-                count = node_group_id_map[node_group.id]
-                for idx in six.moves.xrange(node_group.count + 1, count + 1):
-                    instance_id = self._run_instance(
-                        cluster, node_group, idx,
-                        aa_group=aa_group, old_aa_groups=old_aa_groups)
-                    instances_to_add.append(instance_id)
+            for ng in cluster.node_groups:
+                if ng.id in node_groups_to_enlarge:
+                    count = node_group_id_map[ng.id]
+                    for idx in six.moves.xrange(ng.count + 1, count + 1):
+                        instance_id = self._run_instance(
+                            cluster, ng, idx,
+                            aa_group=aa_group, old_aa_groups=old_aa_groups)
+                        instances_to_add.append(instance_id)
 
         return instances_to_add
 
-    def _find_by_id(self, lst, id):
-        for obj in lst:
-            if obj.id == id:
-                return obj
+    def _map_security_groups(self, security_groups):
+        if not security_groups:
+            # Nothing to do here
+            return None
 
-        return None
+        if CONF.use_neutron:
+            # When using Neutron, ids work fine.
+            return security_groups
+        else:
+            # Nova Network requires that security groups are passed by names.
+            # security_groups.get method accepts both ID and names, so in case
+            # IDs are provided they will be converted, otherwise the names will
+            # just map to themselves.
+            names = []
+            for group_id_or_name in security_groups:
+                group = nova.client().security_groups.get(group_id_or_name)
+                names.append(group.name)
+            return names
 
     def _run_instance(self, cluster, node_group, idx, aa_group=None,
                       old_aa_groups=None):
@@ -289,9 +307,11 @@ class DirectEngine(e.Engine):
             hints = {'group': aa_group} if (
                 aa_group and self._need_aa_server_group(node_group)) else None
 
+        security_groups = self._map_security_groups(node_group.security_groups)
         nova_kwargs = {'scheduler_hints': hints, 'userdata': userdata,
                        'key_name': cluster.user_keypair_id,
-                       'security_groups': node_group.security_groups}
+                       'security_groups': security_groups,
+                       'availability_zone': node_group.availability_zone}
         if CONF.use_neutron:
             net_id = cluster.neutron_management_network
             nova_kwargs['nics'] = [{"net-id": net_id, "v4-fixed-ip": ""}]
@@ -315,17 +335,26 @@ class DirectEngine(e.Engine):
         return instance_id
 
     def _create_auto_security_group(self, node_group):
-        cluster = node_group.cluster
-        name = g.generate_auto_security_group_name(
-            cluster.name, node_group.name)
+        name = g.generate_auto_security_group_name(node_group)
         nova_client = nova.client()
         security_group = nova_client.security_groups.create(
             name, "Auto security group created by Sahara for Node Group '%s' "
-                  "of cluster '%s'." % (node_group.name, cluster.name))
+                  "of cluster '%s'." %
+                  (node_group.name, node_group.cluster.name))
 
         # ssh remote needs ssh port, agents are not implemented yet
         nova_client.security_group_rules.create(
             security_group.id, 'tcp', SSH_PORT, SSH_PORT, "0.0.0.0/0")
+
+        # open all traffic for private networks
+        if CONF.use_neutron:
+            for cidr in neutron.get_private_network_cidrs(node_group.cluster):
+                for protocol in ['tcp', 'udp']:
+                    nova_client.security_group_rules.create(
+                        security_group.id, protocol, 1, 65535, cidr)
+
+                nova_client.security_group_rules.create(
+                    security_group.id, 'icmp', -1, -1, cidr)
 
         # enable ports returned by plugin
         for port in node_group.open_ports:
@@ -434,12 +463,24 @@ class DirectEngine(e.Engine):
         if not node_group.auto_security_group:
             return
 
+        if not node_group.security_groups:
+            # node group has no security groups
+            # nothing to delete
+            return
+
         name = node_group.security_groups[-1]
 
         try:
-            nova.client().security_groups.delete(name)
+            client = nova.client().security_groups
+            security_group = client.get(name)
+            if (security_group.name !=
+                    g.generate_auto_security_group_name(node_group)):
+                LOG.warn(_LW("Auto security group for node group %s is not "
+                             "found"), node_group.name)
+                return
+            client.delete(name)
         except Exception:
-            LOG.exception("Failed to delete security group %s", name)
+            LOG.exception(_LE("Failed to delete security group %s"), name)
 
     def _shutdown_instance(self, instance):
         ctx = context.ctx()

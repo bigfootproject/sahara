@@ -103,14 +103,16 @@ class NodePlacementTest(AbstractInstanceTest):
                        scheduler_hints={'group': "123"},
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None),
+                       security_groups=None,
+                       availability_zone=None),
              mock.call("test_cluster-test_group-002",
                        "initial",
                        "test_flavor",
                        scheduler_hints={'group': "123"},
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None)],
+                       security_groups=None,
+                       availability_zone=None)],
             any_order=False)
 
         ctx = context.ctx()
@@ -135,14 +137,16 @@ class NodePlacementTest(AbstractInstanceTest):
                        scheduler_hints=None,
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None),
+                       security_groups=None,
+                       availability_zone=None),
              mock.call("test_cluster-test_group-002",
                        "initial",
                        "test_flavor",
                        scheduler_hints=None,
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None)],
+                       security_groups=None,
+                       availability_zone=None)],
             any_order=False)
 
         ctx = context.ctx()
@@ -168,21 +172,24 @@ class NodePlacementTest(AbstractInstanceTest):
                        scheduler_hints={'group': "123"},
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None),
+                       security_groups=None,
+                       availability_zone=None),
              mock.call('test_cluster-test_group_1-002',
                        "initial",
                        "test_flavor",
                        scheduler_hints={'group': "123"},
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None),
+                       security_groups=None,
+                       availability_zone=None),
              mock.call('test_cluster-test_group_2-001',
                        "initial",
                        "test_flavor",
                        scheduler_hints={'group': "123"},
                        userdata=userdata,
                        key_name='user_keypair',
-                       security_groups=None)],
+                       security_groups=None,
+                       availability_zone=None)],
             any_order=False)
 
         ctx = context.ctx()
@@ -225,10 +232,12 @@ class IpManagementTest(AbstractInstanceTest):
 class ShutdownClusterTest(AbstractInstanceTest):
 
     @mock.patch('sahara.service.direct_engine.DirectEngine._check_if_deleted')
-    def test_delete_floating_ips(self, deleted_checker):
+    @mock.patch('sahara.service.direct_engine.DirectEngine.'
+                '_map_security_groups')
+    def test_delete_floating_ips(self, map_mock, deleted_checker):
         node_groups = [_make_ng_dict("test_group_1", "test_flavor",
                                      ["data node", "test tracker"], 2, 'pool')]
-
+        map_mock.return_value = []
         ctx = context.ctx()
         cluster = _create_cluster_mock(node_groups, ["datanode"])
         self.engine._create_instances(cluster)
@@ -310,6 +319,8 @@ def _mock_ips(count):
 def _generate_user_data_script(cluster):
     script_template = """#!/bin/bash
 echo "%(public_key)s" >> %(user_home)s/.ssh/authorized_keys\n
+# ====== COMMENT OUT Defaults requiretty in /etc/sudoers ========
+sed '/^Defaults    requiretty*/ s/^/#/' -i /etc/sudoers\n
 """
     return script_template % {
         "public_key": cluster.management_public_key,

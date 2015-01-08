@@ -19,8 +19,8 @@ from sahara import conductor as c
 from sahara.i18n import _
 from sahara.i18n import _LI
 from sahara.openstack.common import log as logging
-from sahara.plugins.general import utils
 from sahara.plugins import provisioning as p
+from sahara.plugins import utils
 from sahara.topology import topology_helper as topology
 from sahara.utils import types as types
 from sahara.utils import xmlutils as x
@@ -379,9 +379,13 @@ def extract_name_values(configs):
     return dict((cfg['name'], cfg['value']) for cfg in configs)
 
 
+def make_hadoop_path(base_dirs, suffix):
+    return [base_dir + suffix for base_dir in base_dirs]
+
+
 def extract_hadoop_path(lst, hadoop_dir):
     if lst:
-        return ",".join([p + hadoop_dir for p in lst])
+        return ",".join(make_hadoop_path(lst, hadoop_dir))
 
 
 def _set_config(cfg, gen_cfg, name=None):

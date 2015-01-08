@@ -27,7 +27,6 @@ User guide
    userdoc/installation.guide
    userdoc/configuration.guide
    userdoc/advanced.configuration.guide
-   horizon/installation.guide
    userdoc/upgrade.guide
 
 **How To**
@@ -49,6 +48,7 @@ User guide
    userdoc/vanilla_plugin
    userdoc/hdp_plugin
    userdoc/spark_plugin
+   userdoc/cdh_plugin
 
 **Elastic Data Processing**
 
@@ -83,6 +83,7 @@ Developer Guide
 
     devref/development.guidelines
     devref/development.environment
+    devref/devstack
     horizon/dev.environment.guide
     devref/quickstart
     devref/how_to_participate

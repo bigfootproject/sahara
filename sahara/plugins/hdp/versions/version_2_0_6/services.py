@@ -23,8 +23,8 @@ from sahara.i18n import _
 from sahara.i18n import _LI
 from sahara.i18n import _LW
 from sahara.openstack.common import log as logging
-from sahara.plugins.general import exceptions as ex
-from sahara.plugins.general import utils
+from sahara.plugins import exceptions as ex
+from sahara.plugins import utils
 from sahara.swift import swift_helper as h
 from sahara.topology import topology_helper as th
 
@@ -130,10 +130,36 @@ class HdfsService(Service):
         return 'HDFS'
 
     def validate(self, cluster_spec, cluster):
-        # check for a single NAMENODE
-        count = cluster_spec.get_deployed_node_group_count('NAMENODE')
-        if count != 1:
-            raise ex.InvalidComponentCountException('NAMENODE', 1, count)
+        # Check NAMENODE and HDFS HA constraints
+        nn_count = cluster_spec.get_deployed_node_group_count('NAMENODE')
+        jn_count = cluster_spec.get_deployed_node_group_count('JOURNALNODE')
+        zkfc_count = cluster_spec.get_deployed_node_group_count('ZKFC')
+
+        if cluster_spec.is_hdfs_ha_enabled(cluster):
+            if nn_count != 2:
+                raise ex.NameNodeHAConfigurationError(
+                    "Hadoop cluster with HDFS HA enabled requires "
+                    "2 NAMENODE. Actual NAMENODE count is %s" % nn_count)
+            # Check the number of journalnodes
+            if not (jn_count >= 3 and (jn_count % 2 == 1)):
+                raise ex.NameNodeHAConfigurationError(
+                    "JOURNALNODE count should be an odd number "
+                    "greater than or equal 3 for NameNode High Availability. "
+                    "Actual JOURNALNODE count is %s" % jn_count)
+        else:
+            if nn_count != 1:
+                raise ex.InvalidComponentCountException('NAMENODE', 1,
+                                                        nn_count)
+            # make sure that JOURNALNODE is only used when HDFS HA is enabled
+            if jn_count > 0:
+                raise ex.NameNodeHAConfigurationError(
+                    "JOURNALNODE can only be added when "
+                    "NameNode High Availability is enabled.")
+            # make sure that ZKFC is only used when HDFS HA is enabled
+            if zkfc_count > 0:
+                raise ex.NameNodeHAConfigurationError(
+                    "ZKFC can only be added when "
+                    "NameNode High Availability is enabled.")
 
     def finalize_configuration(self, cluster_spec):
         nn_hosts = cluster_spec.determine_component_hosts('NAMENODE')
@@ -439,8 +465,9 @@ class WebHCatService(Service):
 
         zk_servers = cluster_spec.determine_component_hosts('ZOOKEEPER_SERVER')
         if zk_servers:
+            zk_list = ['{0}:2181'.format(z.fqdn()) for z in zk_servers]
             self._replace_config_token(
-                cluster_spec, '%ZOOKEEPER_HOST%', zk_servers.pop().fqdn(),
+                cluster_spec, '%ZOOKEEPER_HOSTS%', ','.join(zk_list),
                 {'webhcat-site': ['templeton.zookeeper.hosts']})
 
     def finalize_ng_components(self, cluster_spec):
@@ -584,8 +611,9 @@ class HBaseService(Service):
 
         zk_servers = cluster_spec.determine_component_hosts('ZOOKEEPER_SERVER')
         if zk_servers:
+            zk_list = [z.fqdn() for z in zk_servers]
             self._replace_config_token(
-                cluster_spec, '%ZOOKEEPER_HOST%', zk_servers.pop().fqdn(),
+                cluster_spec, '%ZOOKEEPER_HOSTS%', ','.join(zk_list),
                 {'hbase-site': ['hbase.zookeeper.quorum']})
 
     def finalize_ng_components(self, cluster_spec):
@@ -624,9 +652,18 @@ class ZookeeperService(Service):
 
     def validate(self, cluster_spec, cluster):
         count = cluster_spec.get_deployed_node_group_count('ZOOKEEPER_SERVER')
-        if count != 1:
+        if count < 1:
             raise ex.InvalidComponentCountException(
-                'ZOOKEEPER_SERVER', 1, count)
+                'ZOOKEEPER_SERVER', '1+', count)
+
+        # check if HDFS HA is enabled
+        if cluster_spec.is_hdfs_ha_enabled(cluster):
+            # check if we have an odd number of zookeeper_servers > 3
+            if not (count >= 3 and (count % 2 == 1)):
+                raise ex.NameNodeHAConfigurationError(
+                    "ZOOKEEPER_SERVER count should be an odd number "
+                    "greater than 3 for NameNode High Availability. "
+                    "Actual ZOOKEEPER_SERVER count is %s" % count)
 
     def is_mandatory(self):
         return True
@@ -1068,6 +1105,17 @@ class HueService(Service):
             r.write_file_to('/etc/hue/conf/hue.ini',
                             hue_ini,
                             True)
+            # update hue.ini if HDFS HA is enabled and restart hadoop-httpfs
+            # /tmp/hueini-hdfsha is written by versionhandler when HDFS is
+            # enabled
+            r.execute_command('[ -f /tmp/hueini-hdfsha ] && sed -i '
+                              '"s/hdfs.*.:8020/hdfs:\\/\\/`cat '
+                              '/tmp/hueini-hdfsha`/g" /etc/hue/conf/hue.ini',
+                              run_as_root=True)
+            r.execute_command('[ -f /tmp/hueini-hdfsha ] && sed -i '
+                              '"s/http.*.\\/webhdfs\\/v1\\//http:\\/\\'
+                              '/localhost:14000\\/webhdfs\\/v1\\//g" '
+                              '/etc/hue/conf/hue.ini', run_as_root=True)
 
             LOG.info(_LI('Uninstalling Shell, if it is installed '
                          'on {0}').format(instance.fqdn()))
@@ -1092,9 +1140,14 @@ class HueService(Service):
             else:
                 cmd = ''
 
-            cmd += '/etc/init.d/hue restart'
+            cmd += 'service hue start'
 
             r.execute_command(cmd, run_as_root=True)
+
+            # start httpfs if HDFS HA is enabled
+            r.execute_command('[ -f /tmp/hueini-hdfsha ] &&'
+                              'service hadoop-httpfs start',
+                              run_as_root=True)
 
     def finalize_configuration(self, cluster_spec):
         # add Hue-specific properties to the core-site file ideally only on

@@ -16,7 +16,8 @@
 import mock
 import pkg_resources as pkg
 
-from sahara.plugins.general import exceptions as ex
+from sahara.conductor import resource as rsc
+from sahara.plugins import exceptions as ex
 from sahara.plugins.hdp import clusterspec as cs
 from sahara.plugins.hdp.versions.version_2_0_6 import services as s2
 from sahara.plugins import provisioning
@@ -195,9 +196,13 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             'hcat_host.novalocal', 'hcat', '11111', 3,
             '111.11.8888', '222.11.8888')
 
-        zk_host = base.TestServer(
-            'zk_host.novalocal', 'zk', '11111', 3,
+        zk1_host = base.TestServer(
+            'zk1_host.novalocal', 'zk1', '11111', 3,
             '111.11.9999', '222.11.9999')
+
+        zk2_host = base.TestServer(
+            'zk2_host.novalocal', 'zk2', '11112', 3,
+            '111.11.9990', '222.11.9990')
 
         oozie_host = base.TestServer(
             'oozie_host.novalocal', 'oozie', '11111', 3,
@@ -242,9 +247,13 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             'hcat', [hcat_host], ["WEBHCAT_SERVER", "GANGLIA_MONITOR",
                                   "AMBARI_AGENT"])
 
-        zk_ng = TestNodeGroup(
-            'zk', [zk_host], ["ZOOKEEPER_SERVER", "GANGLIA_MONITOR",
-                              "AMBARI_AGENT"])
+        zk1_ng = TestNodeGroup(
+            'zk1', [zk1_host], ["ZOOKEEPER_SERVER", "GANGLIA_MONITOR",
+                                "AMBARI_AGENT"])
+
+        zk2_ng = TestNodeGroup(
+            'zk2', [zk2_host], ["ZOOKEEPER_SERVER", "GANGLIA_MONITOR",
+                                "AMBARI_AGENT"])
 
         oozie_ng = TestNodeGroup(
             'oozie', [oozie_host], ["OOZIE_SERVER", "GANGLIA_MONITOR",
@@ -262,7 +271,8 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
 
         cluster = base.TestCluster([master_ng, jt_ng, nn_ng, snn_ng, hive_ng,
                                     hive_ms_ng, hive_mysql_ng,
-                                    hcat_ng, zk_ng, oozie_ng, slave_ng])
+                                    hcat_ng, zk1_ng, zk2_ng, oozie_ng,
+                                    slave_ng])
         cluster_config = cs.ClusterSpec(cluster_config_file, version='2.0.6')
         cluster_config.create_operational_config(cluster, [user_input])
         config = cluster_config.configurations
@@ -299,8 +309,9 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             config['webhcat-site']['templeton.hive.properties'])
         self.assertEqual(config['core-site']['hadoop.proxyuser.hcat.hosts'],
                          'hcat_host.novalocal')
-        self.assertEqual(config['webhcat-site']['templeton.zookeeper.hosts'],
-                         'zk_host.novalocal:2181')
+        self.assertEqual(set(
+            config['webhcat-site']['templeton.zookeeper.hosts'].split(',')),
+            set(['zk1_host.novalocal:2181', 'zk2_host.novalocal:2181']))
 
         self.assertEqual(config['oozie-site']['oozie.base.url'],
                          'http://oozie_host.novalocal:11000/oozie')
@@ -357,9 +368,13 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             'hcat_host.novalocal', 'hcat', '11111', 3,
             '111.11.8888', '222.11.8888')
 
-        zk_host = base.TestServer(
-            'zk_host.novalocal', 'zk', '11111', 3,
+        zk1_host = base.TestServer(
+            'zk1_host.novalocal', 'zk1', '11111', 3,
             '111.11.9999', '222.11.9999')
+
+        zk2_host = base.TestServer(
+            'zk2_host.novalocal', 'zk2', '11112', 3,
+            '111.11.9990', '222.11.9990')
 
         oozie_host = base.TestServer(
             'oozie_host.novalocal', 'oozie', '11111', 3,
@@ -404,9 +419,13 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             'hcat', [hcat_host], ["WEBHCAT_SERVER", "GANGLIA_MONITOR",
                                   "AMBARI_AGENT"])
 
-        zk_ng = TestNodeGroup(
-            'zk', [zk_host], ["ZOOKEEPER_SERVER", "GANGLIA_MONITOR",
-                              "AMBARI_AGENT"])
+        zk1_ng = TestNodeGroup(
+            'zk1', [zk1_host], ["ZOOKEEPER_SERVER", "GANGLIA_MONITOR",
+                                "AMBARI_AGENT"])
+
+        zk2_ng = TestNodeGroup(
+            'zk2', [zk2_host], ["ZOOKEEPER_SERVER", "GANGLIA_MONITOR",
+                                "AMBARI_AGENT"])
 
         oozie_ng = TestNodeGroup(
             'oozie', [oozie_host], ["OOZIE_SERVER", "GANGLIA_MONITOR",
@@ -424,7 +443,8 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
 
         cluster = base.TestCluster([master_ng, jt_ng, nn_ng, snn_ng, hive_ng,
                                     hive_ms_ng, hive_mysql_ng,
-                                    hcat_ng, zk_ng, oozie_ng, slave_ng])
+                                    hcat_ng, zk1_ng, zk2_ng, oozie_ng,
+                                    slave_ng])
         cluster_config = cs.ClusterSpec(cluster_config_file, version='2.0.6')
         cluster_config.create_operational_config(cluster, [user_input])
         config = cluster_config.configurations
@@ -471,8 +491,9 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
                          '*')
         self.assertEqual(config['core-site']['hadoop.proxyuser.hue.groups'],
                          '*')
-        self.assertEqual(config['webhcat-site']['templeton.zookeeper.hosts'],
-                         'zk_host.novalocal:2181')
+        self.assertEqual(set(
+            config['webhcat-site']['templeton.zookeeper.hosts'].split(',')),
+            set(['zk1_host.novalocal:2181', 'zk2_host.novalocal:2181']))
         self.assertEqual(config['webhcat-site']['webhcat.proxyuser.hue.hosts'],
                          '*')
         self.assertEqual(config['webhcat-site']
@@ -1157,6 +1178,92 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             # expected
             pass
 
+    def test_validate_hdfs_ha(self, patched):
+        server1 = base.TestServer('host1', 'slave', '11111', 3,
+                                  '111.11.1111', '222.22.2222')
+        server2 = base.TestServer('host2', 'master', '11112', 3,
+                                  '111.11.1112', '222.22.2223')
+        server3 = base.TestServer('host3', 'master', '11113', 3,
+                                  '111.11.1113', '222.22.2224')
+
+        node_group1 = TestNodeGroup(
+            'slave', [server1], ["DATANODE", "NODEMANAGER", "HDFS_CLIENT",
+                                 "MAPREDUCE2_CLIENT"], 1)
+        node_group2 = TestNodeGroup(
+            'master1', [server2], ["NAMENODE", "ZOOKEEPER_SERVER",
+                                   "JOURNALNODE"], 1)
+        node_group3 = TestNodeGroup(
+            'master2', [server3], ["RESOURCEMANAGER", "HISTORYSERVER",
+                                   "ZOOKEEPER_SERVER", "AMBARI_SERVER",
+                                   "JOURNALNODE"], 1)
+
+        # Setup a cluster_configs resource with HDFS HA ON
+        cc = {'HDFSHA': {'hdfs.nnha': True}}
+        cc_r = rsc.Resource(cc)
+        cluster_config = base.create_clusterspec(hdp_version='2.0.6')
+
+        # Test namenodes
+        cluster1 = base.TestCluster([node_group1, node_group2, node_group3],
+                                    cc_r)
+        # should fail due to missing second namenode
+        self.assertRaises(ex.NameNodeHAConfigurationError,
+                          cluster_config.create_operational_config,
+                          cluster1, [])
+
+        # Test Journalnodes
+        node_group2 = TestNodeGroup(
+            'master1', [server2], ["NAMENODE", "ZOOKEEPER_SERVER"], 2)
+        cluster1 = base.TestCluster([node_group1, node_group2, node_group3],
+                                    cc_r)
+        # should fail due to missing odd number greater than 3 of journalnodes
+        self.assertRaises(ex.NameNodeHAConfigurationError,
+                          cluster_config.create_operational_config,
+                          cluster1, [])
+
+        # Test zookeepers
+        node_group2 = TestNodeGroup(
+            'master1', [server2], ["NAMENODE", "JOURNALNODE"], 2)
+        cluster1 = base.TestCluster([node_group1, node_group2, node_group3],
+                                    cc_r)
+        # should fail due to missing odd number greater than 3 of zookeepers
+        self.assertRaises(ex.NameNodeHAConfigurationError,
+                          cluster_config.create_operational_config,
+                          cluster1, [])
+
+        # should validate successfully now
+        node_group2 = TestNodeGroup(
+            'master1', [server2], ["NAMENODE", "JOURNALNODE",
+                                   "ZOOKEEPER_SERVER"], 2)
+        cluster1 = base.TestCluster([node_group1, node_group2, node_group3],
+                                    cc_r)
+        cluster_config.create_operational_config(cluster1, [])
+
+        # Test when HDFS HA disabled
+        cc = {'HDFSHA': {'hdfs.nnha': False}}
+        cc_r = rsc.Resource(cc)
+
+        node_group2 = TestNodeGroup(
+            'master1', [server2], ["NAMENODE", "JOURNALNODE",
+                                   "ZOOKEEPER_SERVER"], 1)
+        cluster1 = base.TestCluster([node_group1, node_group2, node_group3],
+                                    cc_r)
+
+        # should fail due to using journalnode in non HDFS HA case
+        self.assertRaises(ex.NameNodeHAConfigurationError,
+                          cluster_config.create_operational_config,
+                          cluster1, [])
+
+        node_group2 = TestNodeGroup(
+            'master1', [server2], ["NAMENODE", "ZKFC", "ZOOKEEPER_SERVER"], 1)
+
+        cluster1 = base.TestCluster([node_group1, node_group2, node_group3],
+                                    cc_r)
+
+        # should fail due to using zkfc in non HDFS HA case
+        self.assertRaises(ex.NameNodeHAConfigurationError,
+                          cluster_config.create_operational_config,
+                          cluster1, [])
+
     def test_validate_yarn(self, patched):
         server = base.TestServer('host1', 'slave', '11111', 3,
                                  '111.11.1111', '222.22.2222')
@@ -1275,6 +1382,8 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
                                  '111.11.1111', '222.22.2222')
         server2 = base.TestServer('host2', 'master', '11112', 3,
                                   '111.11.1112', '222.22.2223')
+        server3 = base.TestServer('host3', 'master', '11113', 3,
+                                  '111.11.1113', '222.22.2224')
 
         node_group = TestNodeGroup(
             'slave', [server], ["DATANODE", "NODEMANAGER",
@@ -1301,17 +1410,12 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
         # should validate successfully now
         cluster_config.create_operational_config(cluster, [])
 
-        # should cause validation exception due to 2 ZOOKEEPER_SERVER
+        # should allow multiple ZOOKEEPER_SERVER processes
         node_group3 = TestNodeGroup(
-            'master', [server2], ["ZOOKEEPER_SERVER"])
+            'zkserver', [server3], ["ZOOKEEPER_SERVER"])
         cluster = base.TestCluster([node_group, node_group2, node_group3])
         cluster_config = base.create_clusterspec(hdp_version='2.0.6')
-        try:
-            cluster_config.create_operational_config(cluster, [])
-            self.fail('Validation should have thrown an exception')
-        except ex.InvalidComponentCountException:
-            # expected
-            pass
+        cluster_config.create_operational_config(cluster, [])
 
     def test_validate_oozie(self, patched):
         server = base.TestServer('host1', 'slave', '11111', 3,
@@ -1708,7 +1812,7 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
         for component in service.components:
             found_components[component.name] = component
 
-        self.assertEqual(4, len(found_components))
+        self.assertEqual(6, len(found_components))
         self._assert_component('NAMENODE', 'MASTER', "1",
                                found_components['NAMENODE'])
         self._assert_component('DATANODE', 'SLAVE', "1+",
@@ -1717,6 +1821,10 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
                                found_components['SECONDARY_NAMENODE'])
         self._assert_component('HDFS_CLIENT', 'CLIENT', "1+",
                                found_components['HDFS_CLIENT'])
+        self._assert_component('JOURNALNODE', 'MASTER', "1+",
+                               found_components['JOURNALNODE'])
+        self._assert_component('ZKFC', 'MASTER', "1+",
+                               found_components['ZKFC'])
         # TODO(jspeidel) config
 
     def _assert_mrv2(self, service):
@@ -1825,7 +1933,7 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
             found_components[component.name] = component
 
         self.assertEqual(2, len(found_components))
-        self._assert_component('ZOOKEEPER_SERVER', 'MASTER', "1",
+        self._assert_component('ZOOKEEPER_SERVER', 'MASTER', "1+",
                                found_components['ZOOKEEPER_SERVER'])
         self._assert_component('ZOOKEEPER_CLIENT', 'CLIENT', "1+",
                                found_components['ZOOKEEPER_CLIENT'])
@@ -1882,7 +1990,7 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
         self.assertEqual(cardinality, component.cardinality)
 
     def _assert_configurations(self, configurations):
-        self.assertEqual(16, len(configurations))
+        self.assertEqual(17, len(configurations))
         self.assertIn('global', configurations)
         self.assertIn('core-site', configurations)
         self.assertIn('yarn-site', configurations)
@@ -1899,9 +2007,10 @@ class ClusterSpecTestForHDP2(sahara_base.SaharaTestCase):
         self.assertIn('hue-hdfs-site', configurations)
         self.assertIn('hue-webhcat-site', configurations)
         self.assertIn('hue-oozie-site', configurations)
+        self.assertIn('hdfsha', configurations)
 
 
-class TestNodeGroup:
+class TestNodeGroup(object):
     def __init__(self, name, instances, node_processes, count=1):
         self.name = name
         self.instances = instances
@@ -1915,7 +2024,7 @@ class TestNodeGroup:
         return ['']
 
 
-class TestUserInputConfig:
+class TestUserInputConfig(object):
     def __init__(self, tag, target, name):
         self.tag = tag
         self.applicable_target = target

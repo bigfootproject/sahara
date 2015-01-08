@@ -26,10 +26,15 @@ import ConfigParser
 import io
 import os
 
+import alembic
 from alembic import command
 from alembic import config as alembic_config
 from alembic import migration
+from alembic import script as alembic_script
 from oslo.config import cfg
+from oslo.db.sqlalchemy import test_migrations as t_m
+from oslo_concurrency import lockutils
+from oslo_concurrency import processutils
 import six.moves.urllib.parse as urlparse
 import sqlalchemy
 import sqlalchemy.exc
@@ -37,9 +42,8 @@ import testtools
 
 import sahara.db.migration
 from sahara.db.sqlalchemy import api as sa
-from sahara.openstack.common import lockutils
+from sahara.db.sqlalchemy import model_base
 from sahara.openstack.common import log as logging
-from sahara.openstack.common import processutils
 
 
 LOG = logging.getLogger(__name__)
@@ -79,14 +83,14 @@ def _is_backend_avail(backend, user, passwd, database):
         return True
 
 
-def _have_mysql(user, passwd, database):
+def have_mysql(user, passwd, database):
     present = os.environ.get('SAHARA_MYSQL_PRESENT')
     if present is None:
         return _is_backend_avail('mysql', user, passwd, database)
     return present.lower() in ('', 'true')
 
 
-def _have_postgresql(user, passwd, database):
+def have_postgresql(user, passwd, database):
     present = os.environ.get('SAHARA_TEST_POSTGRESQL_PRESENT')
     if present is None:
         return _is_backend_avail('postgres', user, passwd, database)
@@ -135,6 +139,8 @@ class CommonTestsMixIn(object):
             self._reset_database(key)
             self._walk_versions(engine, self.snake_walk, self.downgrade)
 
+
+class MySQLTestsMixIn(CommonTestsMixIn):
     def test_mysql_opportunistically(self):
         self._test_mysql_opportunistically()
 
@@ -147,6 +153,8 @@ class CommonTestsMixIn(object):
                              self.DATABASE):
             self.fail("Shouldn't have connected")
 
+
+class PostgresqlTestsMixIn(CommonTestsMixIn):
     def test_postgresql_opportunistically(self):
         self._test_postgresql_opportunistically()
 
@@ -254,11 +262,27 @@ class BaseMigrationTestCase(testtools.TestCase):
         # note(boris-42): We must create and drop database, we can't
         # drop database which we have connected to, so for such
         # operations there is a special database template1.
-        sqlcmd = ("psql -w -U %(user)s -h %(host)s -c"
-                  " '%(sql)s' -d template1")
+        sqlcmd = ('psql -w -U %(user)s -h %(host)s -c '
+                  '"%(sql)s" -d template1')
         sqldict = {'user': user, 'host': host}
+        # note(apavlov): We need to kill all connections before dropping
+        # database. Otherwise it does not happen.
+        sqldict['sql'] = "select version();"
+        getversion = sqlcmd % sqldict
+        out, err = processutils.trycmd(getversion, shell=True)
+        version = out.split()
 
-        sqldict['sql'] = ("drop database if exists %s;") % database
+        sqldict['sql'] = ("SELECT pg_terminate_backend(%s) FROM "
+                          "pg_stat_activity WHERE datname = "
+                          "'%s';")
+        if float(version[version.index('PostgreSQL')+1][:3]) < 9.2:
+            sqldict['sql'] = sqldict['sql'] % ('procpid', database)
+        else:
+            sqldict['sql'] = sqldict['sql'] % ('pid', database)
+        killconnections = sqlcmd % sqldict
+        self.execute_cmd(killconnections)
+
+        sqldict['sql'] = "drop database if exists %s;" % database
         droptable = sqlcmd % sqldict
         self.execute_cmd(droptable)
 
@@ -404,7 +428,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
 
     def _test_mysql_opportunistically(self):
         # Test that table creation on mysql only builds InnoDB tables
-        if not _have_mysql(self.USER, self.PASSWD, self.DATABASE):
+        if not have_mysql(self.USER, self.PASSWD, self.DATABASE):
             self.skipTest("mysql not available")
         # add this to the global lists to make reset work with it, it's removed
         # automatically in tearDown so no need to clean it up here.
@@ -435,7 +459,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
 
     def _test_postgresql_opportunistically(self):
         # Test postgresql database migration walk
-        if not _have_postgresql(self.USER, self.PASSWD, self.DATABASE):
+        if not have_postgresql(self.USER, self.PASSWD, self.DATABASE):
             self.skipTest("postgresql not available")
         # add this to the global lists to make reset work with it, it's removed
         # automatically in tearDown so no need to clean it up here.
@@ -467,22 +491,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         sa.cleanup()
         return res
 
-    def _get_alembic_versions(self, engine):
-        """Support of full testing of migrations.
-
-        An opportunity to run command step by step for each version in repo.
-        :returns list of alembic_versions by historical order.
-        """
-        full_history = self._alembic_command('history',
-                                             engine, self.ALEMBIC_CONFIG)
-        # The piece of output data with version can looked as:
-        # 'Rev: 17738166b91 (head)' or 'Rev: 43b1a023dfaa'
-        alembic_history = [r.split(' ')[1] for r in full_history.split("\n")
-                           if r.startswith("Rev")]
-        alembic_history.reverse()
-        return alembic_history
-
-    def _up_and_down_versions(self, engine):
+    def _up_and_down_versions(self):
         """Stores a tuple of versions.
 
         Since alembic version has a random algorithm of generation
@@ -490,8 +499,14 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         a tuple of versions (version for upgrade and version for downgrade)
         for successful testing of migrations in up>down>up mode.
         """
-        versions = self._get_alembic_versions(engine)
-        return zip(versions, ['-1'] + versions)
+
+        env = alembic_script.ScriptDirectory.from_config(self.ALEMBIC_CONFIG)
+        versions = []
+        for rev in env.walk_revisions():
+            versions.append((rev.revision, rev.down_revision or '-1'))
+
+        versions.reverse()
+        return versions
 
     def _walk_versions(self, engine=None, snake_walk=False,
                        downgrade=True):
@@ -501,7 +516,7 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
         # upgrades successfully.
 
         self._configure(engine)
-        up_and_down_versions = self._up_and_down_versions(engine)
+        up_and_down_versions = self._up_and_down_versions()
         for ver_up, ver_down in up_and_down_versions:
             # upgrade -> downgrade -> upgrade
             self._migrate_up(engine, ver_up, with_data=True)
@@ -593,3 +608,42 @@ class BaseWalkMigrationTestCase(BaseMigrationTestCase):
             LOG.error("Failed to migrate to version %s on engine %s" %
                       (version, engine))
             raise
+
+
+class TestModelsMigrationsSync(t_m.ModelsMigrationsSync):
+    """Class for comparison of DB migration scripts and models.
+
+    Allows to check if the DB schema obtained by applying of migration
+    scripts is equal to the one produced from models definitions.
+    """
+
+    def __init__(self):
+        self.ALEMBIC_CONFIG = alembic_config.Config(
+            os.path.join(os.path.dirname(sahara.db.migration.__file__),
+                         'alembic.ini')
+        )
+        self.ALEMBIC_CONFIG.sahara_config = CONF
+
+    def db_sync(self, engine):
+        CONF.set_override('connection', str(engine.url), group='database')
+        alembic.command.upgrade(self.ALEMBIC_CONFIG, 'head')
+
+    def get_metadata(self):
+        metadata = model_base.SaharaBase.metadata
+        return metadata
+
+    def have_database(self):
+        '''return True if the database is available
+
+        This function should be overridden by subclasses to allow skipping of
+        tests based on the presence of the database server. Since this
+        implementation is a base class, there is no associated database and
+        this function will always return False.
+        '''
+        return False
+
+    def test_models_sync(self):
+        '''check for database and run test if available.'''
+        if not self.have_database():
+            self.skipTest('database not available')
+        super(TestModelsMigrationsSync, self).test_models_sync()

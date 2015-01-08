@@ -32,6 +32,12 @@ ssh_opts = [
     cfg.IntOpt('cluster_remote_threshold', default=70,
                help='The same as global_remote_threshold, but for '
                     'a single cluster.'),
+    cfg.StrOpt('proxy_command', default='',
+               help='Proxy command used to connect to instances. If set, this '
+               'command should open a netcat socket, that Sahara will use for '
+               'SSH and HTTP connections. Use {host} and {port} to describe '
+               'the destination. Other available keywords: {tenant_id}, '
+               '{network_id}, {router_id}.'),
 ]
 
 
@@ -55,6 +61,13 @@ class RemoteDriver(object):
     @abc.abstractmethod
     def get_userdata_template(self):
         """Returns userdata template preparing instance to work with driver."""
+
+    @abc.abstractmethod
+    def get_type_and_version(self):
+        """Returns engine type and version
+
+         Result should be in the form 'type.major.minor'.
+         """
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -116,6 +129,10 @@ def setup_remote(driver, engine):
 
     DRIVER = driver
     DRIVER.setup_remote(engine)
+
+
+def get_remote_type_and_version():
+    return DRIVER.get_type_and_version()
 
 
 def _check_driver_is_loaded():
