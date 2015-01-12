@@ -385,7 +385,8 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         self._setup_instances(cluster, instances)
         nn = utils.get_instance(cluster, "namenode")
-        run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
+        if remote.get_remote(nn) is not None:
+            run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
         self._start_slave_datanode_processes(instances)
 
         run.start_spark_master(r_master, self._spark_home(cluster))
