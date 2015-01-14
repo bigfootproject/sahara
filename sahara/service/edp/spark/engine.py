@@ -157,13 +157,13 @@ class SparkJobEngine(base_engine.JobEngine):
         args = " ".join(job_execution.job_configs.get('args', []))
 
         # The redirects of stdout and stderr will preserve output in the wf_dir
-        cmd = "%s %s --class %s %s --master spark://%s:%s %s" % (
+        cmd = "%s --class %s %s --master spark://%s:%s %s %s" % (
             spark_submit,
-            app_jar,
             job_class,
             additional_jars,
             host,
             port,
+            app_jar,
             args)
 
         job_execution = conductor.job_execution_get(ctx, job_execution.id)
