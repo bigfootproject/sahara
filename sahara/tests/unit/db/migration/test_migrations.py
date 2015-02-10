@@ -31,15 +31,13 @@ postgres=# create database openstack_citest with owner openstack_citest;
 
 import os
 
-from oslo.db.sqlalchemy import test_base
-from oslo.db.sqlalchemy import utils as db_utils
+from oslo_db.sqlalchemy import test_base
+from oslo_db.sqlalchemy import utils as db_utils
 
 from sahara.tests.unit.db.migration import test_migrations_base as base
 
 
 class SaharaMigrationsCheckers(object):
-
-    TIMEOUT_SCALING_FACTOR = 2
 
     snake_walk = True
     downgrade = True
@@ -436,12 +434,18 @@ class SaharaMigrationsCheckers(object):
         self.assertColumnCount(engine, 'cluster_events', events_columns)
         self.assertColumnsExists(engine, 'cluster_events', events_columns)
 
+    def _check_016(self, engine, date):
+        self.assertColumnExists(engine, 'node_group_templates',
+                                'is_proxy_gateway')
+        self.assertColumnExists(engine, 'node_groups', 'is_proxy_gateway')
+        self.assertColumnExists(engine, 'templates_relations',
+                                'is_proxy_gateway')
+
 
 class TestMigrationsMySQL(SaharaMigrationsCheckers,
                           base.BaseWalkMigrationTestCase,
                           base.TestModelsMigrationsSync,
-                          test_base.MySQLOpportunisticTestCase,
-                          ):
+                          test_base.MySQLOpportunisticTestCase):
     pass
 
 

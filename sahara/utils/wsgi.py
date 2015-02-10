@@ -24,12 +24,12 @@ from xml.parsers import expat
 from xml import sax
 from xml.sax import expatreader
 
-from oslo.serialization import jsonutils
+from oslo_log import log as logging
+from oslo_serialization import jsonutils
 import six
 
+from sahara import exceptions
 from sahara.i18n import _
-from sahara.openstack.common import exception
-from sahara.openstack.common import log as logging
 
 LOG = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ class JSONDeserializer(TextDeserializer):
             return jsonutils.loads(datastring)
         except ValueError:
             msg = _("cannot understand JSON")
-            raise exception.MalformedRequestBody(reason=msg)
+            raise exceptions.MalformedRequestBody(msg)
 
     def default(self, datastring):
         return {'body': self._from_json(datastring)}
@@ -264,7 +264,7 @@ class XMLDeserializer(TextDeserializer):
             return {node.nodeName: self._from_xml_node(node, plurals)}
         except expat.ExpatError:
             msg = _("cannot understand XML")
-            raise exception.MalformedRequestBody(reason=msg)
+            raise exceptions.MalformedRequestBody(msg)
 
     def _from_xml_node(self, node, listnames):
         """Convert a minidom node to a simple Python type.

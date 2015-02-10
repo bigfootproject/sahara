@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
-from sahara.openstack.common import log as logging
 from sahara.plugins.vanilla.hadoop2 import config_helper as c_helper
 from sahara.utils import xmlutils as x
 
@@ -39,12 +39,16 @@ YARN_DEFAULT = x.load_hadoop_xml_defaults(
 OOZIE_DEFAULT = x.load_hadoop_xml_defaults(
     'plugins/vanilla/v2_6_0/resources/oozie-default.xml')
 
+HIVE_DEFAULT = x.load_hadoop_xml_defaults(
+    'plugins/vanilla/v2_6_0/resources/hive-default.xml')
+
 XML_CONFS = {
     "Hadoop": [CORE_DEFAULT],
     "HDFS": [HDFS_DEFAULT],
     "YARN": [YARN_DEFAULT],
     "MapReduce": [MAPRED_DEFAULT],
-    "JobFlow": [OOZIE_DEFAULT]
+    "JobFlow": [OOZIE_DEFAULT],
+    "Hive": [HIVE_DEFAULT]
 }
 
 ENV_CONFS = {

@@ -48,13 +48,13 @@ class HDP2GatingTest(swift.SwiftTest, scaling.ScalingTest,
             'description': 'test node group template for HDP plugin',
             'node_processes': self.plugin_config.MASTER_NODE_PROCESSES,
             'floating_ip_pool': self.floating_ip_pool,
-            # TODO(sreshetniak): Enable auto security group when #1392738 is
-            # resolved
-            'auto_security_group': False,
+            'auto_security_group': True,
             'node_configs': {}
         }
         self.ng_tmpl_rm_nn_id = self.create_node_group_template(**template)
         self.ng_template_ids.append(self.ng_tmpl_rm_nn_id)
+        self.addCleanup(self.delete_objects,
+                        node_group_template_id_list=[self.ng_tmpl_rm_nn_id])
 
     @b.errormsg("Failure while 'nm-dn' node group template creation: ")
     def _create_nm_dn_ng_template(self):
@@ -69,6 +69,8 @@ class HDP2GatingTest(swift.SwiftTest, scaling.ScalingTest,
         }
         self.ng_tmpl_nm_dn_id = self.create_node_group_template(**template)
         self.ng_template_ids.append(self.ng_tmpl_nm_dn_id)
+        self.addCleanup(self.delete_objects,
+                        node_group_template_id_list=[self.ng_tmpl_nm_dn_id])
 
     @b.errormsg("Failure while cluster template creation: ")
     def _create_cluster_template(self):
@@ -96,6 +98,8 @@ class HDP2GatingTest(swift.SwiftTest, scaling.ScalingTest,
             'net_id': self.internal_neutron_net
         }
         self.cluster_template_id = self.create_cluster_template(**template)
+        self.addCleanup(self.delete_objects,
+                        cluster_template_id=self.cluster_template_id)
 
     @b.errormsg("Failure while cluster creation: ")
     def _create_cluster(self):
@@ -109,6 +113,7 @@ class HDP2GatingTest(swift.SwiftTest, scaling.ScalingTest,
             'cluster_configs': {}
         }
         cluster_id = self.create_cluster(**cluster)
+        self.addCleanup(self.delete_objects, cluster_id=cluster_id)
         self.poll_cluster_state(cluster_id)
         self.cluster_info = self.get_cluster_info(self.plugin_config)
         self.await_active_workers_for_namenode(self.cluster_info['node_info'],
@@ -212,6 +217,4 @@ class HDP2GatingTest(swift.SwiftTest, scaling.ScalingTest,
             self._check_edp_after_scaling()
 
     def tearDown(self):
-        self.delete_objects(self.cluster_id, self.cluster_template_id,
-                            self.ng_template_ids)
         super(HDP2GatingTest, self).tearDown()

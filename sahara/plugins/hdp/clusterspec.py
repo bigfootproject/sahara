@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oslo.serialization import jsonutils as json
+from oslo_log import log as logging
+from oslo_serialization import jsonutils as json
 
 from sahara.i18n import _
-from sahara.openstack.common import log as logging
 from sahara.plugins import exceptions as ex
 from sahara.plugins.hdp.versions import versionhandlerfactory as vhf
 

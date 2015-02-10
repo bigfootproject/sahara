@@ -14,18 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oslo.config import cfg
-from oslo import messaging
-from oslo.serialization import jsonutils
+from oslo_config import cfg
+from oslo_log import log as logging
+import oslo_messaging as messaging
+from oslo_serialization import jsonutils
 
 from sahara import context
-from sahara.i18n import _LE
 from sahara.i18n import _LI
-from sahara.openstack.common import log as logging
+
 
 TRANSPORT = None
 NOTIFIER = None
-SERIALIZER = None
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -64,9 +63,11 @@ class JsonPayloadSerializer(messaging.NoOpSerializer):
 
 class RPCClient(object):
     def __init__(self, target):
+        global TRANSPORT
+
         self.__client = messaging.RPCClient(
             target=target,
-            transport=messaging.get_transport(cfg.CONF),
+            transport=TRANSPORT,
         )
 
     def cast(self, name, **kwargs):
@@ -80,10 +81,12 @@ class RPCClient(object):
 
 class RPCServer(object):
     def __init__(self, target):
+        global TRANSPORT
+
         self.__server = messaging.get_rpc_server(
             target=target,
-            transport=messaging.get_transport(cfg.CONF),
-            endpoints=[ContextEndpointHandler(self)],
+            transport=TRANSPORT,
+            endpoints=[self],
             executor='eventlet')
 
     def start(self):
@@ -91,53 +94,23 @@ class RPCServer(object):
         self.__server.wait()
 
 
-class ContextEndpointHandler(object):
-    def __init__(self, endpoint):
-        self.__endpoint = endpoint
+def setup():
+    """Initialise the oslo_messaging layer."""
+    global TRANSPORT, NOTIFIER
 
-    def __getattr__(self, name):
-        try:
-            method = getattr(self.__endpoint, name)
+    messaging.set_transport_defaults('sahara')
 
-            def run_method(ctx, **kwargs):
-                context.set_ctx(context.Context(**ctx))
-                try:
-                    return method(**kwargs)
-                finally:
-                    context.set_ctx(None)
-
-            return run_method
-        except AttributeError:
-            LOG.error(_LE("No %(method)s method found implemented in "
-                      "%(class)s class"),
-                      {'method': name, 'class': self.__endpoint})
-
-
-def setup(url=None, optional=False):
-    """Initialise the oslo.messaging layer."""
-    global TRANSPORT, NOTIFIER, SERIALIZER
+    TRANSPORT = messaging.get_transport(cfg.CONF, aliases=_ALIASES)
 
     if not cfg.CONF.enable_notifications:
         LOG.info(_LI("Notifications disabled"))
         return
     LOG.info(_LI("Notifications enabled"))
 
-    messaging.set_transport_defaults('sahara')
-
-    SERIALIZER = ContextSerializer(JsonPayloadSerializer())
-
-    try:
-        TRANSPORT = messaging.get_transport(cfg.CONF, url,
-                                            aliases=_ALIASES)
-    except messaging.InvalidTransportURL as e:
-        TRANSPORT = None
-        if not optional or e.url:
-            raise
-
-    if TRANSPORT:
-        NOTIFIER = messaging.Notifier(TRANSPORT, serializer=SERIALIZER)
+    serializer = ContextSerializer(JsonPayloadSerializer())
+    NOTIFIER = messaging.Notifier(TRANSPORT, serializer=serializer)
 
 
 def get_notifier(publisher_id):
-    """Return a configured oslo.messaging notifier."""
+    """Return a configured oslo_messaging notifier."""
     return NOTIFIER.prepare(publisher_id=publisher_id)

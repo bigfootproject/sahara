@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oslo.config import cfg
+from oslo_config import cfg
+from oslo_log import log as logging
 
 from sahara import conductor
 from sahara import context
-from sahara.openstack.common import log as logging
 from sahara.plugins import utils
 from sahara.plugins.vanilla import abstractversionhandler as avm
 from sahara.plugins.vanilla.hadoop2 import config as c
@@ -50,7 +50,8 @@ class VersionHandler(avm.AbstractVersionHandler):
             "MapReduce": ["historyserver"],
             "HDFS": ["namenode", "datanode", "secondarynamenode"],
             "YARN": ["resourcemanager", "nodemanager"],
-            "JobFlow": ["oozie"]
+            "JobFlow": ["oozie"],
+            "Hive": ["hiveserver"]
         }
 
     def validate(self, cluster):
@@ -86,6 +87,10 @@ class VersionHandler(avm.AbstractVersionHandler):
         oo = vu.get_oozie(cluster)
         if oo:
             run.start_oozie_process(self.pctx, oo)
+
+        hiveserver = vu.get_hiveserver(cluster)
+        if hiveserver:
+            run.start_hiveserver_process(self.pctx, hiveserver)
 
         self._set_cluster_info(cluster)
 
