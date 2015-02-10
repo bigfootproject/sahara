@@ -154,10 +154,39 @@ class DirectEngine(e.Engine):
 
         return aa_groups
 
+    def _find_storage_cluster(self, context):
+        all_clusters = conductor.cluster_get_all(context) # Can filter on plugin name/version/etc
+        for c in all_clusters:
+            cluster_template = conductor.cluster_template_get(context, c.cluster_template_id)
+            LOG.debug("Candidate cluster template name: %s" % cluster_template.name)
+            if "storage" in cluster_template.name:
+                LOG.debug("Found cluster %s" % c.name)
+                return c
+#        conductor.cluster_get(ctx, "3054b9fc-f25d-4657-836d-f5fc6411eca6")
+
+    def _find_datanodes(self, cluster):
+        dn_ids = []
+        for node_group in cluster.node_groups:
+            if "datanode" in node_group.node_processes:
+                dn_ids += [ x.id for x in node_group.instances ]
+        LOG.debug("Data node IDs: %s" % str(dn_ids))
+        if len(dn_ids) == 0:
+            dn_ids = None
+        return dn_ids
+
     def _create_instances(self, cluster):
         ctx = context.ctx()
 
         cluster = self._create_auto_security_groups(cluster)
+
+        cluster_template = conductor.cluster_template_get(ctx, cluster.cluster_template_id)
+        LOG.debug("New cluster template name: %s" % cluster_template.name)
+        if "compute" in cluster_template.name:
+            LOG.debug("Trying SameHost filtering")
+            storage_cluster = self._find_storage_cluster(ctx)
+            dn_ids = self._find_datanodes(storage_cluster)
+        else:
+            dn_ids = None
 
         aa_group = None
         if cluster.anti_affinity:
@@ -167,7 +196,7 @@ class DirectEngine(e.Engine):
             count = node_group.count
             conductor.node_group_update(ctx, node_group, {'count': 0})
             for idx in six.moves.xrange(1, count + 1):
-                self._run_instance(cluster, node_group, idx, aa_group=aa_group)
+                self._run_instance(cluster, node_group, idx, aa_group=aa_group, same_host=dn_ids)
 
     def _create_aa_server_group(self, cluster):
         server_group_name = g.generate_aa_group_name(cluster.name)
@@ -287,12 +316,16 @@ class DirectEngine(e.Engine):
             return names
 
     def _run_instance(self, cluster, node_group, idx, aa_group=None,
-                      old_aa_groups=None):
+                      old_aa_groups=None, same_host=None):
         """Create instance using nova client and persist them into DB."""
         ctx = context.ctx()
         name = g.generate_instance_name(cluster.name, node_group.name, idx)
 
         userdata = self._generate_user_data_script(node_group, name)
+
+        hints = {}
+        if same_host:
+            hints["same_host"] = same_host
 
         if old_aa_groups:
             # aa_groups: node process -> instance ids
@@ -302,9 +335,9 @@ class DirectEngine(e.Engine):
 
             # create instances only at hosts w/ no instances
             # w/ aa-enabled processes
-            hints = {'different_host': sorted(set(aa_ids))} if aa_ids else None
+            hints['different_host'] = sorted(set(aa_ids)) if aa_ids else None
         else:
-            hints = {'group': aa_group} if (
+            hints['group'] = aa_group if (
                 aa_group and self._need_aa_server_group(node_group)) else None
 
         security_groups = self._map_security_groups(node_group.security_groups)
