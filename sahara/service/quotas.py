@@ -149,14 +149,14 @@ def _get_neutron_limits():
         usage_fip = neutron.list_floatingips(
             tenant_id=tenant_id)['floatingips']
         limits['floatingips'] = total_lim['floatingip'] - len(usage_fip)
-    usage_sg = (
-        neutron.list_security_groups(tenant_id=tenant_id)['security_groups'])
-    limits['security_groups'] = total_lim['security_group'] - len(usage_sg)
+#    usage_sg = (
+#        neutron.list_security_groups(tenant_id=tenant_id)['security_groups'])
+#    limits['security_groups'] = total_lim['security_group'] - len(usage_sg)
 
-    usage_sg_rules = (neutron.list_security_group_rules(
-        tenant_id=tenant_id)['security_group_rules'])
-    limits['security_group_rules'] = (
-        total_lim['security_group_rule'] - len(usage_sg_rules))
+#    usage_sg_rules = (neutron.list_security_group_rules(
+#        tenant_id=tenant_id)['security_group_rules'])
+#    limits['security_group_rules'] = (
+#        total_lim['security_group_rule'] - len(usage_sg_rules))
     usage_ports = neutron.list_ports(tenant_id=tenant_id)['ports']
     limits['ports'] = total_lim['port'] - len(usage_ports)
     return limits
