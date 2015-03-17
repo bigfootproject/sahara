@@ -406,7 +406,7 @@ def generate_spark_executor_classpath(cluster):
 def generate_spark_defaults_conf(cluster):
     sp_conf = generate_spark_executor_classpath(cluster)
 
-    el_enable = get_config_value("Spark", "Event log enable", cluster)
+    el_enable = get_config_value("Spark", "Event log", cluster)
     if el_enable:
         if el_enable == "enabled":
             sp_conf += 'spark.eventLog.enabled  true'
