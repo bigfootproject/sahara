@@ -260,7 +260,7 @@ class DirectEngine(e.Engine):
         return total_count
 
     def _start_instance(self, cluster, node_group, idx, aa_group,
-                        old_aa_groups=None):
+                        old_aa_groups=None, same_host=None):
 
         instance_name = g.generate_instance_name(
             cluster.name, node_group.name, idx)
@@ -271,7 +271,8 @@ class DirectEngine(e.Engine):
         with context.InstanceInfoManager(current_instance_info):
             instance_id = self._run_instance(
                 cluster, node_group, idx,
-                aa_group=aa_group, old_aa_groups=old_aa_groups)
+                aa_group=aa_group, old_aa_groups=old_aa_groups,
+		 same_host=same_host)
 
         return instance_id
 
