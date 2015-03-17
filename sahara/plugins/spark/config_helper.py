@@ -60,6 +60,24 @@ SPARK_CONFS = {
                 'priority': 2,
             },
             {
+                'name': 'HDFS NameNode',
+                'description': 'HDFS NameNode hostname or IP address in case an external HDFS cluster is used',
+                'default': '',
+                'priority': 1,
+            },
+            {
+                'name': 'Event log',
+                'description': 'Spark Event log (default: enabled)',
+                'default': 'enabled',
+                'priority': 1,
+            },
+            {
+                'name': 'Event log location',
+                'description': 'Spark Event log location (default: file:///tmp/spark-events)',
+                'default': 'file:///tmp/spark-events',
+                'priority': 2,
+            },
+            {
                 'name': 'Master port',
                 'description': 'Start the master on a different port'
                 ' (default: 7077)',
@@ -376,11 +394,30 @@ def generate_spark_slaves_configs(workernames):
     return '\n'.join(workernames)
 
 
+# Any node that might be used to run spark-submit will need
+# these libs for swift integration
 def generate_spark_executor_classpath(cluster):
     cp = get_config_value("Spark", "Executor extra classpath", cluster)
     if cp:
         return "spark.executor.extraClassPath " + cp
     return "\n"
+
+
+def generate_spark_defaults_conf(cluster):
+    sp_conf = generate_spark_executor_classpath(cluster)
+
+    el_enable = get_config_value("Spark", "Event log enable", cluster)
+    if el_enable:
+        if el_enable == "enabled":
+            sp_conf += 'spark.eventLog.enabled  true'
+        else:
+            sp_conf += 'spark.eventLog.enabled  false'
+
+    el_dir = get_config_value("Spark", "Event log location", cluster)
+    if el_enable:
+        sp_conf += 'spark.eventLog.dir ' + el_dir
+
+    return sp_conf
 
 
 def extract_hadoop_environment_confs(configs):
@@ -507,6 +544,10 @@ def is_swift_enabled(configs):
 
 def get_decommissioning_timeout(cluster):
     return _get_general_cluster_config_value(cluster, DECOMMISSIONING_TIMEOUT)
+
+
+def get_conf_hdfs_url(cluster):
+    return get_config_value("Spark", "HDFS NameNode", cluster)
 
 
 def get_port_from_config(service, name, cluster=None):

@@ -120,10 +120,14 @@ class SparkProvider(p.ProvisioningPluginBase):
     @cpo.event_wrapper(
         True, step=utils.start_process_event_message("SparkMasterNode"))
     def _start_spark(self, cluster, sm_instance):
+        eventlog = c_helper.get_config_value("Spark", "Event log location", cluster)
         with remote.get_remote(sm_instance) as r:
             run.start_spark_master(r, self._spark_home(cluster))
-            LOG.info(_LI("Spark service at {host} has been started").format(
+            LOG.info(_LI("Spark master at {host} has been started").format(
                      host=sm_instance.hostname()))
+            run.start_spark_history_server(r, self._spark_home(cluster), eventlog)
+            LOG.info(_LI("Spark history server at {host} has been started").format(
+                host=sm_instance.hostname()))
 
     def start_cluster(self, cluster):
         nn_instance = utils.get_instance(cluster, "namenode")
@@ -173,18 +177,22 @@ class SparkProvider(p.ProvisioningPluginBase):
         else:
             config_slaves = "\n"
 
-        # Any node that might be used to run spark-submit will need
-        # these libs for swift integration
-        config_defaults = c_helper.generate_spark_executor_classpath(cluster)
+        config_defaults = c_helper.generate_spark_defaults_conf(cluster)
+
+        hdfs_url = c_helper.get_conf_hdfs_url(cluster)
+        if nn is None and hdfs_url == '':
+            hdfs_url = 'CHANGEME'
+        elif nn is not None and hdfs_url == '':
+            hdfs_url = nn.hostname()
 
         extra['job_cleanup'] = c_helper.generate_job_cleanup_config(cluster)
         for ng in cluster.node_groups:
-            if nn != None:
+            if nn is not None:
                 extra[ng.id] = {
                     'xml': c_helper.generate_xml_configs(
                         ng.configuration(),
                         ng.storage_paths(),
-                        nn.hostname(), None,
+                        hdfs_url, None,
                     ),
                     'setup_script': c_helper.generate_hadoop_setup_script(
                         ng.storage_paths(),
@@ -200,7 +208,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                     'xml': c_helper.generate_xml_configs(
                         ng.configuration(),
                         ng.storage_paths(),
-                        "CHANGEME", None,
+                        hdfs_url, None,
                     ),
                     'setup_script': c_helper.generate_hadoop_setup_script(
                         ng.storage_paths(),
