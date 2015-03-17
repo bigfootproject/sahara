@@ -48,7 +48,7 @@ class SparkProvider(p.ProvisioningPluginBase):
             "Spark": ["master", "slave"]
         }
 
-     def get_title(self):
+    def get_title(self):
         return "Apache Spark"
 
     def get_description(self):
