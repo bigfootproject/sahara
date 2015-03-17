@@ -15,21 +15,15 @@
 
 import functools
 
-# cm_api client is not present in OS requirements
-try:
-    from cm_api import api_client
-    from cm_api.endpoints import services
-except ImportError:
-    api_client = None
-    services = None
-
 from oslo_log import log as logging
 from oslo_utils import timeutils
 
 from sahara import context
 from sahara.i18n import _
-from sahara.i18n import _LE
+from sahara.plugins.cdh.client import api_client
+from sahara.plugins.cdh.client import services
 from sahara.plugins import exceptions as ex
+from sahara.utils import cluster_progress_ops as cpo
 
 
 LOG = logging.getLogger(__name__)
@@ -68,15 +62,6 @@ class ClouderaUtils(object):
         # pu will be defined in derived class.
         self.pu = None
 
-    def have_cm_api_libs(self):
-        return api_client and services
-
-    def validate_cm_api_libs(self):
-        if not self.have_cm_api_libs():
-            LOG.error(_LE("For provisioning cluster with CDH plugin install"
-                          " 'cm_api' package version 6.0.2 or later."))
-            raise ex.HadoopProvisionError(_("'cm_api' is not installed."))
-
     def get_api_client(self, cluster):
         manager_ip = self.pu.get_manager(cluster).management_ip
         return api_client.ApiResource(manager_ip,
@@ -93,6 +78,7 @@ class ClouderaUtils(object):
         cm_cluster = self.get_cloudera_cluster(cluster)
         yield cm_cluster.start()
 
+    @cpo.event_wrapper(True, step=_("Delete instances"), param=('cluster', 1))
     def delete_instances(self, cluster, instances):
         api = self.get_api_client(cluster)
         cm_cluster = self.get_cloudera_cluster(cluster)
@@ -103,14 +89,26 @@ class ClouderaUtils(object):
                 cm_cluster.remove_host(host.hostId)
                 api.delete_host(host.hostId)
 
+    @cpo.event_wrapper(
+        True, step=_("Decommission nodes"), param=('cluster', 1))
     def decommission_nodes(self, cluster, process, role_names):
         service = self.get_service_by_role(process, cluster)
         service.decommission(*role_names).wait()
         for role_name in role_names:
             service.delete_role(role_name)
 
+    @cpo.event_wrapper(
+        True, step=_("Refresh DataNodes"), param=('cluster', 1))
+    def refresh_datanodes(self, cluster):
+        self._refresh_nodes(cluster, 'DATANODE', self.HDFS_SERVICE_NAME)
+
+    @cpo.event_wrapper(
+        True, step=_("Refresh YARNNodes"), param=('cluster', 1))
+    def refresh_yarn_nodes(self, cluster):
+        self._refresh_nodes(cluster, 'NODEMANAGER', self.YARN_SERVICE_NAME)
+
     @cloudera_cmd
-    def refresh_nodes(self, cluster, process, service_name):
+    def _refresh_nodes(self, cluster, process, service_name):
         cm_cluster = self.get_cloudera_cluster(cluster)
         service = cm_cluster.get_service(service_name)
         nds = [n.name for n in service.get_roles_by_type(process)]
@@ -118,13 +116,24 @@ class ClouderaUtils(object):
             for st in service.refresh(nd):
                 yield st
 
+    @cpo.event_wrapper(True, step=_("Deploy configs"), param=('cluster', 1))
     @cloudera_cmd
     def deploy_configs(self, cluster):
         cm_cluster = self.get_cloudera_cluster(cluster)
         yield cm_cluster.deploy_client_config()
 
+    def update_configs(self, instances):
+        # instances non-empty
+        cpo.add_provisioning_step(
+            instances[0].cluster_id, _("Update configs"), len(instances))
+        with context.ThreadGroup as tg:
+            for instance in instances:
+                tg.spawn("update-configs-%s" % instances.instance_name,
+                         self._update_configs, instance)
+
+    @cpo.event_wrapper(True)
     @cloudera_cmd
-    def update_configs(self, instance):
+    def _update_configs(self, instance):
         for process in instance.node_group.node_processes:
             process = self.pu.convert_role_showname(process)
             service = self.get_service_by_role(process, instance=instance)
@@ -147,6 +156,8 @@ class ClouderaUtils(object):
         for role in service.start_roles(*role_names):
             yield role
 
+    @cpo.event_wrapper(
+        True, step=_("Create mgmt service"), param=('cluster', 1))
     def create_mgmt_service(self, cluster):
         api = self.get_api_client(cluster)
         cm = api.get_cloudera_manager()
@@ -168,7 +179,7 @@ class ClouderaUtils(object):
         if cluster:
             cm_cluster = self.get_cloudera_cluster(cluster)
         elif instance:
-            cm_cluster = self.get_cloudera_cluster(instance.node_group.cluster)
+            cm_cluster = self.get_cloudera_cluster(instance.cluster)
         else:
             raise ValueError(_("'cluster' or 'instance' argument missed"))
 
@@ -193,11 +204,12 @@ class ClouderaUtils(object):
                 _("Process %(process)s is not supported by CDH plugin") %
                 {'process': process})
 
-    def await_agents(self, instances):
-        api = self.get_api_client(instances[0].node_group.cluster)
+    @cpo.event_wrapper(True, step=_("Await agents"), param=('cluster', 1))
+    def await_agents(self, cluster, instances):
+        api = self.get_api_client(instances[0].cluster)
         timeout = 300
-        LOG.debug("Waiting %(timeout)s seconds for agent connected to manager"
-                  % {'timeout': timeout})
+        LOG.debug("Waiting {timeout} seconds for agent connected to manager"
+                  .format(timeout=timeout))
         s_time = timeutils.utcnow()
         while timeutils.delta_seconds(s_time, timeutils.utcnow()) < timeout:
             hostnames = [i.fqdn() for i in instances]
@@ -218,9 +230,13 @@ class ClouderaUtils(object):
                                             " to Cloudera Manager"))
 
     def configure_instances(self, instances, cluster=None):
+        # instances non-empty
+        cpo.add_provisioning_step(
+            instances[0].cluster_id, _("Configure instances"), len(instances))
         for inst in instances:
             self.configure_instance(inst, cluster)
 
+    @cpo.event_wrapper(True)
     def configure_instance(self, instance, cluster=None):
         for process in instance.node_group.node_processes:
             self._add_role(instance, process, cluster)

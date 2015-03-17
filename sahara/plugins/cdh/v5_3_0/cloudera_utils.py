@@ -13,14 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# cm_api client is not present in OS requirements
-try:
-    from cm_api import api_client
-    from cm_api.endpoints import services
-except ImportError:
-    api_client = None
-    services = None
-
 import six
 
 from sahara.i18n import _
@@ -29,6 +21,7 @@ from sahara.plugins.cdh.v5_3_0 import config_helper as c_helper
 from sahara.plugins.cdh.v5_3_0 import plugin_utils as pu
 from sahara.plugins.cdh.v5_3_0 import validation as v
 from sahara.swift import swift_helper
+from sahara.utils import cluster_progress_ops as cpo
 from sahara.utils import xmlutils
 
 
@@ -78,19 +71,12 @@ class ClouderaUtilsV530(cu.ClouderaUtils):
         cu.ClouderaUtils.__init__(self)
         self.pu = pu.PluginUtilsV530()
 
-    def get_api_client(self, cluster):
-        manager_ip = self.pu.get_manager(cluster).management_ip
-        return api_client.ApiResource(manager_ip,
-                                      username=self.CM_DEFAULT_USERNAME,
-                                      password=self.CM_DEFAULT_PASSWD,
-                                      version=self.CM_API_VERSION)
-
     def get_service_by_role(self, process, cluster=None, instance=None):
         cm_cluster = None
         if cluster:
             cm_cluster = self.get_cloudera_cluster(cluster)
         elif instance:
-            cm_cluster = self.get_cloudera_cluster(instance.node_group.cluster)
+            cm_cluster = self.get_cloudera_cluster(instance.cluster)
         else:
             raise ValueError(_("'cluster' or 'instance' argument missed"))
 
@@ -110,11 +96,14 @@ class ClouderaUtilsV530(cu.ClouderaUtils):
             return super(ClouderaUtilsV530, self).get_service_by_role(
                 process, cluster, instance)
 
+    @cpo.event_wrapper(
+        True, step=_("First run cluster"), param=('cluster', 1))
     @cu.cloudera_cmd
     def first_run(self, cluster):
         cm_cluster = self.get_cloudera_cluster(cluster)
         yield cm_cluster.first_run()
 
+    @cpo.event_wrapper(True, step=_("Create services"), param=('cluster', 1))
     def create_services(self, cluster):
         api = self.get_api_client(cluster)
 
@@ -159,6 +148,8 @@ class ClouderaUtilsV530(cu.ClouderaUtils):
             cm_cluster.create_service(self.IMPALA_SERVICE_NAME,
                                       IMPALA_SERVICE_TYPE)
 
+    @cpo.event_wrapper(
+        True, step=_("Configure services"), param=('cluster', 1))
     def configure_services(self, cluster):
         cm_cluster = self.get_cloudera_cluster(cluster)
 

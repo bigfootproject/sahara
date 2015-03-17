@@ -327,5 +327,29 @@ class MalformedRequestBody(SaharaException):
     message = _("Malformed message body: %(reason)s")
 
     def __init__(self, reason):
-        self.message = self.message % reason
+        self.message = self.message % {"reason": reason}
         super(MalformedRequestBody, self).__init__()
+
+
+class QuotaException(SaharaException):
+    code = "QUOTA_ERROR"
+    message = _("Quota exceeded for %(resource)s: Requested %(requested)s,"
+                " but available %(available)s")
+
+    def __init__(self, resource, requested, available):
+        self.message = self.message % {'resource': resource,
+                                       'requested': requested,
+                                       'available': available}
+        super(QuotaException, self).__init__()
+
+
+class UpdateFailedException(SaharaException):
+    message = _("Object '%s' could not be updated")
+    # Object was unable to be updated
+
+    def __init__(self, value, message=None):
+        self.code = "UPDATE_FAILED"
+        if message:
+            self.message = message
+        self.message = self.message % value
+        super(UpdateFailedException, self).__init__()

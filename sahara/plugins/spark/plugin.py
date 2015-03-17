@@ -30,6 +30,7 @@ from sahara.plugins.spark import run_scripts as run
 from sahara.plugins.spark import scaling as sc
 from sahara.plugins import utils
 from sahara.topology import topology_helper as th
+from sahara.utils import cluster_progress_ops as cpo
 from sahara.utils import files as f
 from sahara.utils import general as ug
 from sahara.utils import remote
@@ -41,7 +42,13 @@ CONF = cfg.CONF
 
 
 class SparkProvider(p.ProvisioningPluginBase):
-    def get_title(self):
+    def __init__(self):
+        self.processes = {
+            "HDFS": ["namenode", "datanode"],
+            "Spark": ["master", "slave"]
+        }
+
+     def get_title(self):
         return "Apache Spark"
 
     def get_description(self):
@@ -55,10 +62,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         return c_helper.get_plugin_configs()
 
     def get_node_processes(self, hadoop_version):
-        return {
-            "HDFS": ["namenode", "datanode"],
-            "Spark": ["master", "slave"]
-        }
+        return self.processes
 
     def validate(self, cluster):
         nn_count = sum([ng.count for ng
@@ -71,6 +75,15 @@ class SparkProvider(p.ProvisioningPluginBase):
             if dn_count < 1:
                 raise ex.InvalidComponentCountException("datanode", _("1 or more"),
                                                         nn_count)
+
+            rep_factor = c_helper.get_config_value('HDFS', "dfs.replication",
+                                                   cluster)
+            if dn_count < rep_factor:
+                raise ex.InvalidComponentCountException(
+                    'datanode', _('%s or more') % rep_factor, dn_count,
+                    _('Number of %(dn)s instances should not be less '
+                      'than %(replication)s')
+                    % {'dn': 'datanode', 'replication': 'dfs.replication'})
 
         # validate Spark Master Node and Spark Slaves
         sm_count = sum([ng.count for ng
@@ -92,22 +105,39 @@ class SparkProvider(p.ProvisioningPluginBase):
     def configure_cluster(self, cluster):
         self._setup_instances(cluster)
 
+    @cpo.event_wrapper(
+        True, step=utils.start_process_event_message("NameNode"))
+    def _start_namenode(self, nn_instance):
+        with remote.get_remote(nn_instance) as r:
+            run.format_namenode(r)
+            run.start_processes(r, "namenode")
+
+    def start_spark(self, cluster):
+        sm_instance = utils.get_instance(cluster, "master")
+        if sm_instance:
+            self._start_spark(cluster, sm_instance)
+
+    @cpo.event_wrapper(
+        True, step=utils.start_process_event_message("SparkMasterNode"))
+    def _start_spark(self, cluster, sm_instance):
+        with remote.get_remote(sm_instance) as r:
+            run.start_spark_master(r, self._spark_home(cluster))
+            LOG.info(_LI("Spark service at {host} has been started").format(
+                     host=sm_instance.hostname()))
+
     def start_cluster(self, cluster):
         nn_instance = utils.get_instance(cluster, "namenode")
-        sm_instance = utils.get_instance(cluster, "master")
         dn_instances = utils.get_instances(cluster, "datanode")
 
         # Start the name node
         if nn_instance is not None:
-            with remote.get_remote(nn_instance) as r:
-                run.format_namenode(r)
-                run.start_processes(r, "namenode")
+            self._start_namenode(nn_instance)
 
             # start the data nodes
-            self._start_slave_datanode_processes(dn_instances)
+            self._start_datanode_processes(dn_instances)
 
-            LOG.info(_LI("Hadoop services in cluster %s have been started"),
-                     cluster.name)
+            LOG.info(_LI("Hadoop services in cluster {cluster} have been started")
+                     .format(cluster=cluster.name))
 
             with remote.get_remote(nn_instance) as r:
                 r.execute_command("sudo -u hdfs hdfs dfs -mkdir -p /user/$USER/")
@@ -115,14 +145,10 @@ class SparkProvider(p.ProvisioningPluginBase):
                                   "/user/$USER/")
 
         # start spark nodes
-        if sm_instance:
-            with remote.get_remote(sm_instance) as r:
-                run.start_spark_master(r, self._spark_home(cluster))
-                LOG.info(_LI("Spark service at '%s' has been started"),
-                         sm_instance.hostname())
+        self.start_spark(cluster)
 
-        LOG.info(_LI('Cluster %s has been started successfully'),
-                 cluster.name)
+        LOG.info(_LI('Cluster {cluster} has been started successfully').format(
+                 cluster=cluster.name))
         self._set_cluster_info(cluster)
 
     def _spark_home(self, cluster):
@@ -166,7 +192,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                             ng.configuration())
                     ),
                     'sp_master': config_master,
-                    'sp_slaves': config_slaves
+                    'sp_slaves': config_slaves,
+                    'sp_defaults': config_defaults
                 }
             else:
                 extra[ng.id] = {
@@ -181,7 +208,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                             ng.configuration())
                     ),
                     'sp_master': config_master,
-                    'sp_slaves': config_slaves
+                    'sp_slaves': config_slaves,
+                    'sp_defaults': config_defaults
                 }
 
         if c_helper.is_data_locality_enabled(cluster):
@@ -192,12 +220,20 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         return extra
 
-    def _start_slave_datanode_processes(self, dn_instances):
+    def _start_datanode_processes(self, dn_instances):
+        if len(dn_instances) == 0:
+            return
+
+        cpo.add_provisioning_step(
+            dn_instances[0].cluster_id,
+            utils.start_process_event_message("DataNodes"), len(dn_instances))
+
         with context.ThreadGroup() as tg:
             for i in dn_instances:
                 tg.spawn('spark-start-dn-%s' % i.instance_name,
                          self._start_datanode, i)
 
+    @cpo.event_wrapper(mark_successful_on_exit=True)
     def _start_datanode(self, instance):
         with instance.remote() as r:
             run.start_processes(r, "datanode")
@@ -212,6 +248,8 @@ class SparkProvider(p.ProvisioningPluginBase):
 
     def _push_configs_to_nodes(self, cluster, extra, new_instances):
         all_instances = utils.get_instances(cluster)
+        cpo.add_provisioning_step(
+            cluster.id, _("Push configs to nodes"), len(all_instances))
         with context.ThreadGroup() as tg:
             for instance in all_instances:
                 if instance in new_instances:
@@ -223,6 +261,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                              self._push_configs_to_existing_node, cluster,
                              extra, instance)
 
+    @cpo.event_wrapper(mark_successful_on_exit=True)
     def _push_configs_to_new_node(self, cluster, extra, instance):
         ng_extra = extra[instance.node_group.id]
 
@@ -237,8 +276,8 @@ class SparkProvider(p.ProvisioningPluginBase):
         files_spark = {
             os.path.join(sp_home, 'conf/spark-env.sh'): ng_extra['sp_master'],
             os.path.join(sp_home, 'conf/slaves'): ng_extra['sp_slaves'],
-#            os.path.join(sp_home,
-#                         'conf/spark-defaults.conf'): ng_extra['sp_defaults']
+            os.path.join(sp_home,
+                         'conf/spark-defaults.conf'): ng_extra['sp_defaults']
         }
 
         files_init = {
@@ -297,6 +336,7 @@ class SparkProvider(p.ProvisioningPluginBase):
             self._push_master_configs(r, cluster, extra, instance)
             self._push_cleanup_job(r, cluster, extra, instance)
 
+    @cpo.event_wrapper(mark_successful_on_exit=True)
     def _push_configs_to_existing_node(self, cluster, extra, instance):
         node_processes = instance.node_group.node_processes
         need_update_hadoop = (c_helper.is_data_locality_enabled(cluster) or
@@ -311,9 +351,9 @@ class SparkProvider(p.ProvisioningPluginBase):
                 os.path.join(sp_home,
                              'conf/spark-env.sh'): ng_extra['sp_master'],
                 os.path.join(sp_home, 'conf/slaves'): ng_extra['sp_slaves'],
-#                os.path.join(
-#                    sp_home,
-#                    'conf/spark-defaults.conf'): ng_extra['sp_defaults']
+                os.path.join(
+                    sp_home,
+                    'conf/spark-defaults.conf'): ng_extra['sp_defaults']
             }
             r = remote.get_remote(instance)
             r.write_files_to(files)
@@ -350,6 +390,7 @@ class SparkProvider(p.ProvisioningPluginBase):
         r.write_file_to('/etc/hadoop/dn.incl',
                         utils.generate_fqdn_host_names(
                             utils.get_instances(cluster, "datanode")))
+        r.write_file_to('/etc/hadoop/dn.excl', '')
 
     def _set_cluster_info(self, cluster):
         nn = utils.get_instance(cluster, "namenode")
@@ -413,11 +454,13 @@ class SparkProvider(p.ProvisioningPluginBase):
         nn = utils.get_instance(cluster, "namenode")
         if nn is not None:
             run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
-        self._start_slave_datanode_processes(instances)
+            dn_instances = [instance for instance in instances if
+                            'datanode' in instance.node_group.node_processes]
+            self._start_datanode_processes(dn_instances)
 
         run.start_spark_master(r_master, self._spark_home(cluster))
-        LOG.info(_LI("Spark master service at '%s' has been restarted"),
-                 master.hostname())
+        LOG.info(_LI("Spark master service at {host} has been restarted")
+                 .format(host=master.hostname()))
 
     def _get_scalable_processes(self):
         return ["datanode", "slave"]

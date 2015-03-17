@@ -24,7 +24,6 @@ from oslo_log import log as logging
 
 from sahara import exceptions as ex
 from sahara.i18n import _
-from sahara.i18n import _LE
 from sahara.i18n import _LW
 
 
@@ -49,8 +48,8 @@ class Context(context.RequestContext):
                  overwrite=True,
                  **kwargs):
         if kwargs:
-            LOG.warn(_LW('Arguments dropped when creating context: %s'),
-                     kwargs)
+            LOG.warning(_LW('Arguments dropped when creating context: '
+                            '{args}').format(args=kwargs))
 
         super(Context, self).__init__(auth_token=auth_token,
                                       user=user_id,
@@ -73,7 +72,7 @@ class Context(context.RequestContext):
         if current_instance_info is not None:
             self.current_instance_info = current_instance_info
         else:
-            self.current_instance_info = []
+            self.current_instance_info = InstanceInfo()
 
     def clone(self):
         return Context(
@@ -189,9 +188,9 @@ def _wrapper(ctx, thread_description, thread_group, func, *args, **kwargs):
         set_ctx(ctx)
         func(*args, **kwargs)
     except BaseException as e:
-        LOG.exception(
-            _LE("Thread '%(thread)s' fails with exception: '%(exception)s'"),
-            {'thread': thread_description, 'exception': e})
+        LOG.debug(
+            "Thread {thread} failed with exception: {exception}".format(
+                thread=thread_description, exception=e))
         if thread_group and not thread_group.exc:
             thread_group.exc = e
             thread_group.failed_thread = thread_description
@@ -271,6 +270,15 @@ class ThreadGroup(object):
 
 def sleep(seconds=0):
     time.sleep(seconds)
+
+
+class InstanceInfo(object):
+    def __init__(self, cluster_id=None, instance_id=None, instance_name=None,
+                 node_group_id=None):
+        self.cluster_id = cluster_id
+        self.instance_id = instance_id
+        self.instance_name = instance_name
+        self.node_group_id = node_group_id
 
 
 class InstanceInfoManager(object):

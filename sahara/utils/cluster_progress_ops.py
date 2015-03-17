@@ -15,6 +15,7 @@
 
 import functools
 
+from oslo_config import cfg
 from oslo_utils import excutils
 from oslo_utils import timeutils
 import six
@@ -22,27 +23,37 @@ import six
 from sahara import conductor as c
 from sahara.conductor import resource
 from sahara import context
-from sahara import exceptions
-from sahara.i18n import _
+from sahara.utils import general as g
 
 conductor = c.API
+CONF = cfg.CONF
+
+event_log_opts = [
+    cfg.BoolOpt('disable_event_log',
+                default=False,
+                help="Disables event log feature.")
+]
+
+
+CONF.register_opts(event_log_opts)
 
 
 def add_successful_event(instance):
-    cluster_id = instance.node_group.cluster_id
+    cluster_id = instance.cluster_id
     step_id = get_current_provisioning_step(cluster_id)
     if step_id:
         conductor.cluster_event_add(context.ctx(), step_id, {
             'successful': True,
             'node_group_id': instance.node_group_id,
-            'instance_id': instance.id,
+            'instance_id': instance.instance_id,
             'instance_name': instance.instance_name,
             'event_info': None,
         })
+        update_provisioning_steps(cluster_id)
 
 
 def add_fail_event(instance, exception):
-    cluster_id = instance.node_group.cluster_id
+    cluster_id = instance.cluster_id
     step_id = get_current_provisioning_step(cluster_id)
     event_info = six.text_type(exception)
 
@@ -50,13 +61,17 @@ def add_fail_event(instance, exception):
         conductor.cluster_event_add(context.ctx(), step_id, {
             'successful': False,
             'node_group_id': instance.node_group_id,
-            'instance_id': instance.id,
+            'instance_id': instance.instance_id,
             'instance_name': instance.instance_name,
             'event_info': event_info,
         })
+        update_provisioning_steps(cluster_id)
 
 
 def add_provisioning_step(cluster_id, step_name, total):
+    if CONF.disable_event_log or not g.check_cluster_exists(cluster_id):
+        return
+
     update_provisioning_steps(cluster_id)
     return conductor.cluster_provision_step_add(context.ctx(), cluster_id, {
         'step_name': step_name,
@@ -67,6 +82,9 @@ def add_provisioning_step(cluster_id, step_name, total):
 
 
 def get_current_provisioning_step(cluster_id):
+    if CONF.disable_event_log or not g.check_cluster_exists(cluster_id):
+        return None
+
     update_provisioning_steps(cluster_id)
     ctx = context.ctx()
     cluster = conductor.cluster_get(ctx, cluster_id)
@@ -80,6 +98,9 @@ def get_current_provisioning_step(cluster_id):
 
 
 def update_provisioning_steps(cluster_id):
+    if CONF.disable_event_log or not g.check_cluster_exists(cluster_id):
+        return
+
     ctx = context.ctx()
     cluster = conductor.cluster_get(ctx, cluster_id)
 
@@ -118,42 +139,36 @@ def update_provisioning_steps(cluster_id):
                 ctx, step.id)
 
 
-def get_cluster_events(cluster_id, provision_step=None):
-    update_provisioning_steps(cluster_id)
-    if provision_step:
-        return conductor.cluster_provision_step_get_events(
-            context.ctx(), provision_step)
-    else:
-        cluster = conductor.cluster_get(context.ctx(), cluster_id)
-        events = []
-        for step in cluster['provision_progress']:
-            step_id = step['id']
-            events += conductor.cluster_provision_step_get_events(
-                context.ctx(), step_id)
-        return events
+def event_wrapper(mark_successful_on_exit, **spec):
+    """"General event-log wrapper
 
+    :param mark_successful_on_exit: should we send success event
+    after execution of function
 
-def event_wrapper(mark_successful_on_exit):
+    :param spec: extra specification
+    :parameter step: provisioning step name (only for provisioning
+    steps with only one event)
+    :parameter param: tuple (name, pos) with parameter specification,
+    where 'name' is the name of the parameter of function, 'pos' is the
+    position of the parameter of function. This parameter is used to
+    extract info about Instance or Cluster.
+    """
+
     def decorator(func):
         @functools.wraps(func)
         def handler(*args, **kwargs):
-            # NOTE (vgridnev): We should know information about instance,
-            #                  so we should find instance in args or kwargs.
-            #                  Also, we import sahara.conductor.resource
-            #                  to check some object is Instance
+            if CONF.disable_event_log:
+                return func(*args, **kwargs)
+            step_name = spec.get('step', None)
+            instance = _find_in_args(spec, *args, **kwargs)
+            cluster_id = instance.cluster_id
 
-            instance = None
-            for arg in args:
-                if isinstance(arg, resource.InstanceResource):
-                    instance = arg
+            if not g.check_cluster_exists(cluster_id):
+                return func(*args, **kwargs)
 
-            for kw_arg in kwargs.values():
-                if isinstance(kw_arg, resource.InstanceResource):
-                    instance = kw_arg
-
-            if instance is None:
-                raise exceptions.InvalidDataException(
-                    _("Function should have an Instance as argument"))
+            if step_name:
+                # It's single process, let's add provisioning step here
+                add_provisioning_step(cluster_id, step_name, 1)
 
             try:
                 value = func(*args, **kwargs)
@@ -169,39 +184,50 @@ def event_wrapper(mark_successful_on_exit):
     return decorator
 
 
-def event_wrapper_without_instance(mark_successful_on_exit):
-    def decorator(func):
-        @functools.wraps(func)
-        def handler(*args, **kwargs):
-            ctx = context.ctx()
-            (cluster_id, instance_id, instance_name,
-                node_group_id) = ctx.current_instance_info
-            step_id = get_current_provisioning_step(cluster_id)
+def _get_info_from_instance(arg):
+    if isinstance(arg, resource.InstanceResource):
+        return arg
+    return None
 
-            try:
-                value = func(*args, **kwargs)
-            except Exception as e:
-                with excutils.save_and_reraise_exception():
-                    conductor.cluster_event_add(
-                        context.ctx(),
-                        step_id, {
-                            'successful': False,
-                            'node_group_id': node_group_id,
-                            'instance_id': instance_id,
-                            'instance_name': instance_name,
-                            'event_info': six.text_type(e),
-                        })
 
-            if mark_successful_on_exit:
-                conductor.cluster_event_add(
-                    context.ctx(),
-                    step_id, {
-                        'successful': True,
-                        'node_group_id': node_group_id,
-                        'instance_id': instance_id,
-                        'instance_name': instance_name,
-                    })
+def _get_info_from_cluster(arg):
+    if isinstance(arg, resource.ClusterResource):
+        return context.InstanceInfo(arg.id)
+    return None
 
+
+def _get_info_from_obj(arg):
+    functions = [_get_info_from_instance, _get_info_from_cluster]
+
+    for func in functions:
+        value = func(arg)
+        if value:
             return value
-        return handler
-    return decorator
+    return None
+
+
+def _find_in_args(spec, *args, **kwargs):
+    param_values = spec.get('param', None)
+
+    if param_values:
+        p_name, p_pos = param_values
+        obj = kwargs.get(p_name, None)
+        if obj:
+            return _get_info_from_obj(obj)
+        return _get_info_from_obj(args[p_pos])
+
+    # If param is not specified, let's search instance in args
+
+    for arg in args:
+        val = _get_info_from_instance(arg)
+        if val:
+            return val
+
+    for arg in kwargs.values():
+        val = _get_info_from_instance(arg)
+        if val:
+            return val
+
+    # If instance not found in args, let's get instance info from context
+
+    return context.ctx().current_instance_info

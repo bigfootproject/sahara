@@ -19,12 +19,13 @@ import uuid
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging as messaging
+import six
 
 from sahara import conductor as c
 from sahara import context
 from sahara import exceptions
+from sahara.i18n import _
 from sahara.i18n import _LE
-from sahara.i18n import _LI
 from sahara.plugins import base as plugin_base
 from sahara.service.edp import job_manager
 from sahara.service import trusts
@@ -150,48 +151,58 @@ class OpsServer(rpc_utils.RPCServer):
         return INFRA.get_type_and_version()
 
 
-def ops_error_handler(f):
-    @functools.wraps(f)
-    def wrapper(cluster_id, *args, **kwds):
-        try:
-            f(cluster_id, *args, **kwds)
-        except Exception as ex:
-            # something happened during cluster operation
+def ops_error_handler(description):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(cluster_id, *args, **kwds):
             ctx = context.ctx()
-            cluster = conductor.cluster_get(ctx, cluster_id)
-            # check if cluster still exists (it might have been removed)
-            if cluster is None or cluster.status == 'Deleting':
-                LOG.info(_LI("Cluster %s was deleted or marked for "
-                             "deletion. Canceling current operation."),
-                         cluster_id)
-                return
-
-            LOG.exception(
-                _LE("Error during operating cluster '%(name)s' (reason: "
-                    "%(reason)s)"), {'name': cluster.name, 'reason': ex})
-
             try:
-                # trying to rollback
-                if _rollback_cluster(cluster, ex):
-                    g.change_cluster_status(cluster, "Active")
-                else:
-                    g.change_cluster_status(cluster, "Error")
-            except Exception as rex:
+                # Clearing status description before executing
+                g.change_cluster_status_description(cluster_id, "")
+                f(cluster_id, *args, **kwds)
+            except Exception as ex:
+                # something happened during cluster operation
                 cluster = conductor.cluster_get(ctx, cluster_id)
-                # check if cluster still exists (it might have been
-                # removed during rollback)
-                if cluster is None:
-                    LOG.info(_LI("Cluster with %s was deleted. Canceling "
-                                 "current operation."), cluster_id)
+                # check if cluster still exists (it might have been removed)
+                if cluster is None or cluster.status == 'Deleting':
+                    LOG.debug(
+                        "Cluster id={id} was deleted or marked for "
+                        "deletion. Canceling current operation.".format(
+                            id=cluster_id))
                     return
 
-                LOG.exception(
-                    _LE("Error during rollback of cluster '%(name)s' (reason: "
-                        "%(reason)s)"), {'name': cluster.name, 'reason': rex})
+                msg = six.text_type(ex)
+                LOG.error(
+                    _LE("Error during operating on cluster {name} (reason: "
+                        "{reason})").format(name=cluster.name, reason=msg))
 
-                g.change_cluster_status(cluster, "Error")
+                try:
+                    # trying to rollback
+                    desc = description.format(reason=msg)
+                    if _rollback_cluster(cluster, ex):
+                        g.change_cluster_status(cluster, "Active", desc)
+                    else:
+                        g.change_cluster_status(cluster, "Error", desc)
+                except Exception as rex:
+                    cluster = conductor.cluster_get(ctx, cluster_id)
+                    # check if cluster still exists (it might have been
+                    # removed during rollback)
+                    if cluster is None or cluster.status == 'Deleting':
+                        LOG.debug(
+                            "Cluster id={id} was deleted or marked for "
+                            "deletion. Canceling current operation."
+                            .format(id=cluster_id))
+                        return
 
-    return wrapper
+                    LOG.error(
+                        _LE("Error during rollback of cluster {name} (reason:"
+                            " {reason})").format(name=cluster.name,
+                                                 reason=six.text_type(rex)))
+                    desc = "{0}, {1}".format(msg, six.text_type(rex))
+                    g.change_cluster_status(
+                        cluster, "Error", description.format(reason=desc))
+        return wrapper
+    return decorator
 
 
 def _rollback_cluster(cluster, reason):
@@ -207,8 +218,6 @@ def _prepare_provisioning(cluster_id):
         update_dict = {}
         update_dict["image_username"] = INFRA.get_node_group_image_username(
             nodegroup)
-        if nodegroup.auto_security_group:
-            update_dict["open_ports"] = plugin.get_open_ports(nodegroup)
         conductor.node_group_update(ctx, nodegroup, update_dict)
 
     cluster = conductor.cluster_get(ctx, cluster_id)
@@ -225,7 +234,8 @@ def _update_sahara_info(ctx, cluster):
         ctx, cluster,  {'sahara_info': sahara_info})
 
 
-@ops_error_handler
+@ops_error_handler(
+    _("Creating cluster failed for the following reason(s): {reason}"))
 def _provision_cluster(cluster_id):
     ctx, cluster, plugin = _prepare_provisioning(cluster_id)
 
@@ -258,7 +268,8 @@ def _provision_cluster(cluster_id):
         job_manager.run_job(je.id)
 
 
-@ops_error_handler
+@ops_error_handler(
+    _("Scaling cluster failed for the following reason(s): {reason}"))
 def _provision_scaled_cluster(cluster_id, node_group_id_map):
     ctx, cluster, plugin = _prepare_provisioning(cluster_id)
 
@@ -290,7 +301,8 @@ def _provision_scaled_cluster(cluster_id, node_group_id_map):
     g.change_cluster_status(cluster, "Active")
 
 
-@ops_error_handler
+@ops_error_handler(
+    _("Terminating cluster failed for the following reason(s): {reason}"))
 def terminate_cluster(cluster_id):
     ctx = context.ctx()
     cluster = conductor.cluster_get(ctx, cluster_id)
@@ -321,6 +333,6 @@ def _delete_job_execution(job_execution_id):
             # job_execution was deleted already, nothing to do
             return
     except exceptions.CancelingFailed:
-        LOG.error(_LE("Job execution %s can't be cancelled in time. "
-                      "Deleting it anyway."), job_execution_id)
+        LOG.error(_LE("Job execution {j_id} can't be cancelled in time. "
+                      "Deleting it anyway.").format(j_id=job_execution_id))
     conductor.job_execution_destroy(context.ctx(), job_execution_id)

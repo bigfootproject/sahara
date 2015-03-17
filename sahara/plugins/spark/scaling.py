@@ -24,9 +24,11 @@ from sahara.plugins import exceptions as ex
 from sahara.plugins.spark import config_helper as c_helper
 from sahara.plugins.spark import run_scripts as run
 from sahara.plugins import utils
+from sahara.utils import cluster_progress_ops as cpo
 from sahara.utils import remote
 
 
+@cpo.event_wrapper(True, step=_("Decommission %s") % "Slaves")
 def decommission_sl(master, inst_to_be_deleted, survived_inst):
     if survived_inst is not None:
         slavenames = []
@@ -36,7 +38,7 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     else:
         slaves_content = "\n"
 
-    cluster = master.node_group.cluster
+    cluster = master.cluster
     sp_home = c_helper.get_config_value("Spark", "Spark home", cluster)
     r_master = remote.get_remote(master)
     run.stop_spark(r_master, sp_home)
@@ -53,6 +55,7 @@ def decommission_sl(master, inst_to_be_deleted, survived_inst):
     run.start_spark_master(r_master, sp_home)
 
 
+@cpo.event_wrapper(True, step=_("Decommission %s") % "DataNodes")
 def decommission_dn(nn, inst_to_be_deleted, survived_inst):
     with remote.get_remote(nn) as r:
         r.write_file_to('/etc/hadoop/dn.excl',
@@ -61,8 +64,7 @@ def decommission_dn(nn, inst_to_be_deleted, survived_inst):
         run.refresh_nodes(remote.get_remote(nn), "dfsadmin")
         context.sleep(3)
 
-        timeout = c_helper.get_decommissioning_timeout(
-            nn.node_group.cluster)
+        timeout = c_helper.get_decommissioning_timeout(nn.cluster)
         s_time = timeutils.utcnow()
         all_found = False
 
@@ -91,8 +93,7 @@ def decommission_dn(nn, inst_to_be_deleted, survived_inst):
             ex.DecommissionError(
                 _("Cannot finish decommission of cluster %(cluster)s in "
                   "%(seconds)d seconds") %
-                {"cluster": nn.node_group.cluster,
-                 "seconds": timeout})
+                {"cluster": nn.cluster, "seconds": timeout})
 
 
 def parse_dfs_report(cmd_output):

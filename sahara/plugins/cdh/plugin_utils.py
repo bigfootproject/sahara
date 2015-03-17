@@ -28,6 +28,7 @@ from sahara.i18n import _LI
 from sahara.plugins.cdh import commands as cmd
 from sahara.plugins import exceptions as ex
 from sahara.plugins import utils as u
+from sahara.utils import cluster_progress_ops as cpo
 from sahara.utils import edp as edp_u
 
 
@@ -170,38 +171,54 @@ class AbstractPluginUtils(object):
         return name_dict.get(showname, showname)
 
     def install_packages(self, instances, packages):
+        # instances non-empty
+        cpo.add_provisioning_step(
+            instances[0].cluster_id, _("Install packages"), len(instances))
+
         with context.ThreadGroup() as tg:
             for i in instances:
                 tg.spawn('cdh-inst-pkgs-%s' % i.instance_name,
                          self._install_pkgs, i, packages)
 
+    @cpo.event_wrapper(True)
     def _install_pkgs(self, instance, packages):
         with instance.remote() as r:
             cmd.install_packages(r, packages)
 
     def start_cloudera_agents(self, instances):
+        # instances non-empty
+        cpo.add_provisioning_step(
+            instances[0].cluster_id, _("Start Cloudera Agents"),
+            len(instances))
+
         with context.ThreadGroup() as tg:
             for i in instances:
                 tg.spawn('cdh-agent-start-%s' % i.instance_name,
-                         self.start_cloudera_agent, i)
+                         self._start_cloudera_agent, i)
 
-    def start_cloudera_agent(self, instance):
-        mng_hostname = self.get_manager(instance.node_group.cluster).hostname()
+    @cpo.event_wrapper(True)
+    def _start_cloudera_agent(self, instance):
+        mng_hostname = self.get_manager(instance.cluster).hostname()
         with instance.remote() as r:
             cmd.start_ntp(r)
             cmd.configure_agent(r, mng_hostname)
             cmd.start_agent(r)
 
-    def configure_swift(self, cluster):
+    def configure_swift(self, cluster, instances=None):
         if self.c_helper.is_swift_enabled(cluster):
-            instances = u.get_instances(cluster)
+            if not instances:
+                instances = u.get_instances(cluster)
+            cpo.add_provisioning_step(
+                cluster.id, _("Configure Swift"), len(instances))
+
             with context.ThreadGroup() as tg:
                 for i in instances:
                     tg.spawn('cdh-swift-conf-%s' % i.instance_name,
-                             self.configure_swift_to_inst, i)
+                             self._configure_swift_to_inst, i)
 
-    def configure_swift_to_inst(self, instance):
-        cluster = instance.node_group.cluster
+    @cpo.event_wrapper(True)
+    def _configure_swift_to_inst(self, instance):
+        cluster = instance.cluster
         with instance.remote() as r:
             r.execute_command('sudo curl %s -o %s/hadoop-openstack.jar' % (
                 self.c_helper.get_swift_lib_url(cluster), HADOOP_LIB_DIR))
@@ -245,6 +262,8 @@ class AbstractPluginUtils(object):
                     extjs_vm_location_path, extjs_vm_location_dir),
                     run_as_root=True)
 
+    @cpo.event_wrapper(
+        True, step=_("Start Cloudera manager"), param=('cluster', 1))
     def start_cloudera_manager(self, cluster):
         manager = self.get_manager(cluster)
         with manager.remote() as r:
@@ -252,8 +271,8 @@ class AbstractPluginUtils(object):
             cmd.start_manager(r)
 
         timeout = 300
-        LOG.debug("Waiting %(timeout)s seconds for Manager to start : " % {
-            'timeout': timeout})
+        LOG.debug("Waiting {timeout} seconds for Manager to start: "
+                  .format(timeout=timeout))
         s_time = timeutils.utcnow()
         while timeutils.delta_seconds(s_time, timeutils.utcnow()) < timeout:
             try:
@@ -274,15 +293,19 @@ class AbstractPluginUtils(object):
         LOG.info(_LI("Cloudera Manager has been started"))
 
     def configure_os(self, instances):
+        # instances non-empty
+        cpo.add_provisioning_step(
+            instances[0].cluster_id, _("Configure OS"), len(instances))
         with context.ThreadGroup() as tg:
             for inst in instances:
                 tg.spawn('cdh-repo-conf-%s' % inst.instance_name,
                          self._configure_repo_from_inst, inst)
 
+    @cpo.event_wrapper(True)
     def _configure_repo_from_inst(self, instance):
-        LOG.debug("Configure repos from instance '%(instance)s'" % {
-                  'instance': instance.instance_name})
-        cluster = instance.node_group.cluster
+        LOG.debug("Configure repos from instance {instance}".format(
+                  instance=instance.instance_name))
+        cluster = instance.cluster
 
         cdh5_key = self.c_helper.get_cdh5_key_url(cluster)
         cm5_key = self.c_helper.get_cm5_key_url(cluster)

@@ -60,3 +60,15 @@ def get_port_from_address(address):
         return parse_result.port
     else:
         return netutils.parse_host_port(address)[1]
+
+
+def instances_with_services(instances, node_processes):
+    node_processes = set(node_processes)
+    return filter(
+        lambda x: node_processes.intersection(
+            x.node_group.node_processes), instances)
+
+
+def start_process_event_message(process):
+    return _("Start the following process(es): {process}").format(
+        process=process)

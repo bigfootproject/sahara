@@ -153,9 +153,9 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                 service_dict[ci.name] = entry.value
                 cluster_configs[target] = service_dict
             else:
-                LOG.debug('Template based input "{0}" is being filtered out as'
-                          ' it is not considered a user input'
-                          .format(entry.config.name))
+                LOG.debug('Template based input "{entry_name}" is being'
+                          ' filtered out as it is not considered a user input'
+                          .format(entry_name=entry.config.name))
 
         ctx = context.ctx()
         return cluster_template_create(ctx,
@@ -164,11 +164,6 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                                         "hadoop_version": version,
                                         "node_groups": node_groups,
                                         "cluster_configs": cluster_configs})
-
-    def get_edp_engine(self, cluster, job_type):
-        version_handler = (
-            self.version_factory.get_version_handler(cluster.hadoop_version))
-        return version_handler.get_edp_engine(cluster, job_type)
 
     def update_infra(self, cluster):
         pass
@@ -183,9 +178,6 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                            servers, version):
         # TODO(jspeidel): encapsulate in another class
 
-        LOG.info(_LI('Provisioning Cluster via Ambari Server: {0} ...')
-                 .format(ambari_info.get_address()))
-
         for server in servers:
             self._spawn(
                 "hdp-provision-instance-%s" % server.instance.hostname(),
@@ -199,6 +191,9 @@ class AmbariPlugin(p.ProvisioningPluginBase):
 
         ambari_client.provision_cluster(
             cluster_spec, servers, ambari_info, name)
+
+        LOG.info(_LI('Cluster provisioned via Ambari Server: {server_ip}')
+                 .format(server_ip=ambari_info.get_address()))
 
     # TODO(jspeidel): invoke during scale cluster.  Will need to handle dups
     def _set_cluster_info(self, cluster, cluster_spec):
@@ -252,8 +247,8 @@ class AmbariPlugin(p.ProvisioningPluginBase):
                 ambari_info.user = admin_user.name
                 ambari_info.password = admin_user.password
 
-        LOG.info(_LI('Using "{0}" as admin user for scaling of cluster')
-                 .format(ambari_info.user))
+        LOG.info(_LI('Using "{username}" as admin user for scaling of cluster')
+                 .format(username=ambari_info.user))
 
     # PLUGIN SPI METHODS:
     def get_versions(self):
@@ -333,9 +328,28 @@ class AmbariPlugin(p.ProvisioningPluginBase):
 
         ambari_client.cleanup(ambari_info)
 
+    def get_edp_engine(self, cluster, job_type):
+        version_handler = (
+            self.version_factory.get_version_handler(cluster.hadoop_version))
+        return version_handler.get_edp_engine(cluster, job_type)
+
+    def get_edp_job_types(self, versions=[]):
+        res = {}
+        for vers in self.version_factory.get_versions():
+            if not versions or vers in versions:
+                vh = self.version_factory.get_version_handler(vers)
+                res[vers] = vh.get_edp_job_types()
+        return res
+
+    def get_edp_config_hints(self, job_type, version):
+        version_handler = (
+            self.version_factory.get_version_handler(version))
+        return version_handler.get_edp_config_hints(job_type)
+
     def decommission_nodes(self, cluster, instances):
         LOG.info(_LI('AmbariPlugin: decommission_nodes called for '
-                 'HDP version = %s'), cluster.hadoop_version)
+                 'HDP version = {version}')
+                 .format(version=cluster.hadoop_version))
 
         handler = self.version_factory.get_version_handler(
             cluster.hadoop_version)
@@ -411,5 +425,4 @@ class AmbariInfo(object):
 
     def get_cluster(self):
         sahara_instance = self.host.sahara_instance
-        cluster_id = sahara_instance.node_group.cluster_id
-        return conductor.cluster_get(context.ctx(), cluster_id)
+        return sahara_instance.cluster

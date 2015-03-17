@@ -15,6 +15,8 @@
 
 import uuid
 
+import mock
+
 from sahara import conductor
 from sahara import context
 from sahara.tests.unit import base
@@ -26,6 +28,7 @@ class FakeInstance(object):
     def __init__(self):
         self.id = uuid.uuid4()
         self.name = uuid.uuid4()
+        self.cluster_id = uuid.uuid4()
 
 
 class ClusterProgressOpsTest(base.SaharaWithDbTestCase):
@@ -125,20 +128,18 @@ class ClusterProgressOpsTest(base.SaharaWithDbTestCase):
             "event_info": "INFO",
             'successful': True,
         })
+        cluster = self.api.cluster_get(context.ctx(), cluster.id, True)
+        for step in cluster.provision_progress:
+            self.assertEqual(1, len(step.events))
 
-        self.assertEqual(2, len(cpo.get_cluster_events(cluster.id)))
-        self.assertEqual(1, len(cpo.get_cluster_events(cluster.id, step_id1)))
-        self.assertEqual(1, len(cpo.get_cluster_events(cluster.id, step_id2)))
-
-    def _make_checks(self, instance, sleep=True):
+    def _make_checks(self, instance_info, sleep=True):
         ctx = context.ctx()
 
         if sleep:
             context.sleep(2)
 
         current_instance_info = ctx.current_instance_info
-        expected = [None, instance.id, instance.name, None]
-        self.assertEqual(expected, current_instance_info)
+        self.assertEqual(instance_info, current_instance_info)
 
     def test_instance_context_manager(self):
         fake_instances = [FakeInstance() for _ in range(50)]
@@ -146,14 +147,50 @@ class ClusterProgressOpsTest(base.SaharaWithDbTestCase):
         # check that InstanceContextManager works fine sequentially
 
         for instance in fake_instances:
-            info = [None, instance.id, instance.name, None]
+            info = context.InstanceInfo(
+                None, instance.id, instance.name, None)
             with context.InstanceInfoManager(info):
-                self._make_checks(instance, sleep=False)
+                self._make_checks(info, sleep=False)
 
         # check that InstanceContextManager works fine in parallel
 
         with context.ThreadGroup() as tg:
             for instance in fake_instances:
-                info = [None, instance.id, instance.name, None]
+                info = context.InstanceInfo(
+                    None, instance.id, instance.name, None)
                 with context.InstanceInfoManager(info):
-                    tg.spawn("make_checks", self._make_checks, instance)
+                    tg.spawn("make_checks", self._make_checks, info)
+
+    @cpo.event_wrapper(True)
+    def _do_nothing(self):
+        pass
+
+    @mock.patch('sahara.utils.cluster_progress_ops._find_in_args')
+    @mock.patch('sahara.utils.general.check_cluster_exists')
+    def test_event_wrapper(self, p_check_cluster_exists, p_find):
+        self.override_config("disable_event_log", True)
+        self._do_nothing()
+
+        self.assertEqual(0, p_find.call_count)
+
+        self.override_config("disable_event_log", False)
+        p_find.return_value = FakeInstance()
+        p_check_cluster_exists.return_value = False
+        self._do_nothing()
+
+        self.assertEqual(1, p_find.call_count)
+        self.assertEqual(1, p_check_cluster_exists.call_count)
+
+    def test_cluster_get_with_events(self):
+        ctx, cluster = self._make_sample()
+
+        step_id = cpo.add_provisioning_step(cluster.id, "Some name", 3)
+        self.api.cluster_event_add(ctx, step_id, {
+            'event_info': "INFO", 'successful': True})
+        cluster = self.api.cluster_get(ctx, cluster.id, True)
+
+        steps = cluster.provision_progress
+        step = steps[0]
+        self.assertEqual("Some name", step.step_name)
+        self.assertEqual(3, step.total)
+        self.assertEqual("INFO", step.events[0].event_info)
