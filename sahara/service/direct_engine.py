@@ -184,7 +184,10 @@ class DirectEngine(e.Engine):
         if "compute" in cluster_template.name:
             LOG.debug("Trying SameHost filtering")
             storage_cluster = self._find_storage_cluster(ctx)
-            dn_ids = self._find_datanodes(storage_cluster)
+	    if not storage_cluster is None:
+                dn_ids = self._find_datanodes(storage_cluster)
+	    else:
+		dn_ids = None
         else:
             dn_ids = None
 
