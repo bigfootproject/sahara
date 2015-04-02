@@ -409,13 +409,13 @@ def generate_spark_defaults_conf(cluster):
     el_enable = get_config_value("Spark", "Event log", cluster)
     if el_enable:
         if el_enable == "enabled":
-            sp_conf += 'spark.eventLog.enabled  true'
+            sp_conf += '\nspark.eventLog.enabled  true'
         else:
-            sp_conf += 'spark.eventLog.enabled  false'
+            sp_conf += '\nspark.eventLog.enabled  false'
 
     el_dir = get_config_value("Spark", "Event log location", cluster)
     if el_enable:
-        sp_conf += 'spark.eventLog.dir ' + el_dir
+        sp_conf += '\nspark.eventLog.dir ' + el_dir
 
     return sp_conf
 
