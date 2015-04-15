@@ -157,8 +157,8 @@ class DirectEngine(e.Engine):
     def _find_storage_cluster(self, context, cluster_name):
         all_clusters = conductor.cluster_get_all(context) # Can filter on plugin name/version/etc
         for c in all_clusters:
-            cluster_template = conductor.cluster_template_get(context, c.cluster_template_id)
-            if cluster_name == cluster_template.name:
+	    LOG.debug("------> CCN: %s" % c.name)
+            if cluster_name == c.name:
                 LOG.debug("Found cluster %s" % c.name)
                 return c
 #        conductor.cluster_get(ctx, "3054b9fc-f25d-4657-836d-f5fc6411eca6")
@@ -167,7 +167,7 @@ class DirectEngine(e.Engine):
         dn_ids = []
         for node_group in cluster.node_groups:
             if "datanode" in node_group.node_processes:
-                dn_ids += [ x.id for x in node_group.instances ]
+                dn_ids += [ x.instance_id for x in node_group.instances ]
         LOG.debug("Data node IDs: %s" % str(dn_ids))
         if len(dn_ids) == 0:
             dn_ids = None
@@ -179,17 +179,20 @@ class DirectEngine(e.Engine):
         cluster = self._create_auto_security_groups(cluster)
 
         cluster_template = conductor.cluster_template_get(ctx, cluster.cluster_template_id)
-        storage_cluster = cluster_template.cluster_configs.get("HDFS cluster name")
-        if storage_cluster is not None:
-            LOG.debug("Trying SameHost filtering with cluster %s".format(storage_cluster))
-            storage_cluster_id = self._find_storage_cluster(ctx, storage_cluster)
-            if storage_cluster_id is not None:
-                dn_ids = self._find_datanodes(storage_cluster_id)
+        storage_cluster_name = cluster_template.cluster_configs.get("Spark")["HDFS cluster name"]
+        LOG.debug("Storage cluster name: {}".format(storage_cluster_name))
+        if storage_cluster_name is not None:
+            LOG.debug("Trying SameHost filtering with cluster {}".format(storage_cluster_name))
+            storage_cluster = self._find_storage_cluster(ctx, storage_cluster_name)
+            if storage_cluster is not None:
+                dn_ids = self._find_datanodes(storage_cluster)
             else:
+		LOG.warning("Could not find a cluster id for '{}'".format(storage_cluster))
                 dn_ids = None
         else:
             dn_ids = None
 
+	LOG.info("Applying SameHost filter with datanodes: {}".format(dn_ids))
         aa_group = None
         if cluster.anti_affinity:
             aa_group = self._create_aa_server_group(cluster)
