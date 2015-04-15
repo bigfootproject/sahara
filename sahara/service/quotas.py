@@ -73,8 +73,8 @@ def _check_limits(req_limits):
     avail_limits = _get_avail_limits()
     for quota, quota_name in six.iteritems(limits_name_map):
         if avail_limits[quota] != UNLIMITED:
-        if avail_limits[quota] < req_limits[quota]:
-            raise ex.QuotaException(quota_name, req_limits[quota],
+            if avail_limits[quota] < req_limits[quota]:
+                raise ex.QuotaException(quota_name, req_limits[quota],
                                     avail_limits[quota])
 
 
