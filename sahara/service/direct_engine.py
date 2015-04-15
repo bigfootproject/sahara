@@ -157,7 +157,6 @@ class DirectEngine(e.Engine):
     def _find_storage_cluster(self, context, cluster_name):
         all_clusters = conductor.cluster_get_all(context) # Can filter on plugin name/version/etc
         for c in all_clusters:
-	    LOG.debug("------> CCN: %s" % c.name)
             if cluster_name == c.name:
                 LOG.debug("Found cluster %s" % c.name)
                 return c
@@ -179,9 +178,10 @@ class DirectEngine(e.Engine):
         cluster = self._create_auto_security_groups(cluster)
 
         cluster_template = conductor.cluster_template_get(ctx, cluster.cluster_template_id)
-        storage_cluster_name = cluster_template.cluster_configs.get("Spark")["HDFS cluster name"]
-        LOG.debug("Storage cluster name: {}".format(storage_cluster_name))
-        if storage_cluster_name is not None:
+        cluster_conf = cluster_template.cluster_configs.get("Spark")
+	if "HDFS cluster name" in cluster_conf:
+	    storage_cluster_name = cluster_conf["HDFS cluster name"]
+	    LOG.debug("Storage cluster name: {}".format(storage_cluster_name))
             LOG.debug("Trying SameHost filtering with cluster {}".format(storage_cluster_name))
             storage_cluster = self._find_storage_cluster(ctx, storage_cluster_name)
             if storage_cluster is not None:
