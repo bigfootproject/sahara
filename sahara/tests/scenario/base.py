@@ -112,7 +112,7 @@ class BaseTestCase(base.BaseTestCase):
         self.ng_id_map = self._create_node_group_templates()
         cl_tmpl_id = self._create_cluster_template()
         self.cluster_id = self._create_cluster(cl_tmpl_id)
-        self._poll_cluster_status(self.cluster_id)
+        self._poll_cluster_status_tracked(self.cluster_id)
 
     @track_result("Check transient")
     def check_transient(self):
@@ -365,6 +365,10 @@ class BaseTestCase(base.BaseTestCase):
 
         return self.__create_cluster(**kwargs)
 
+    @track_result("Check cluster state")
+    def _poll_cluster_status_tracked(self, cluster_id):
+        self._poll_cluster_status(cluster_id)
+
     def _poll_cluster_status(self, cluster_id):
         # TODO(sreshetniak): make timeout configurable
         with fixtures.Timeout(1800, gentle=True):
@@ -448,6 +452,8 @@ class BaseTestCase(base.BaseTestCase):
             if check['status'] == CHECK_FAILED_STATUS:
                 tbs.extend(check['traceback'])
                 tbs.append("")
+        print("Results of testing plugin", self.plugin_opts['plugin_name'],
+              self.plugin_opts['hadoop_version'])
         print(table)
         print("\n".join(tbs), file=sys.stderr)
 
