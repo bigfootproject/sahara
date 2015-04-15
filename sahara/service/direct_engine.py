@@ -154,12 +154,11 @@ class DirectEngine(e.Engine):
 
         return aa_groups
 
-    def _find_storage_cluster(self, context):
+    def _find_storage_cluster(self, context, cluster_name):
         all_clusters = conductor.cluster_get_all(context) # Can filter on plugin name/version/etc
         for c in all_clusters:
             cluster_template = conductor.cluster_template_get(context, c.cluster_template_id)
-            LOG.debug("Candidate cluster template name: %s" % cluster_template.name)
-            if "storage" in cluster_template.name:
+            if cluster_name == cluster_template.name:
                 LOG.debug("Found cluster %s" % c.name)
                 return c
 #        conductor.cluster_get(ctx, "3054b9fc-f25d-4657-836d-f5fc6411eca6")
@@ -180,14 +179,14 @@ class DirectEngine(e.Engine):
         cluster = self._create_auto_security_groups(cluster)
 
         cluster_template = conductor.cluster_template_get(ctx, cluster.cluster_template_id)
-        LOG.debug("New cluster template name: %s" % cluster_template.name)
-        if "compute" in cluster_template.name:
-            LOG.debug("Trying SameHost filtering")
-            storage_cluster = self._find_storage_cluster(ctx)
-	    if not storage_cluster is None:
-                dn_ids = self._find_datanodes(storage_cluster)
-	    else:
-		dn_ids = None
+        storage_cluster = cluster_template.cluster_configs.get("HDFS cluster name")
+        if storage_cluster is not None:
+            LOG.debug("Trying SameHost filtering with cluster %s".format(storage_cluster))
+            storage_cluster_id = self._find_storage_cluster(ctx, storage_cluster)
+            if storage_cluster_id is not None:
+                dn_ids = self._find_datanodes(storage_cluster_id)
+            else:
+                dn_ids = None
         else:
             dn_ids = None
 

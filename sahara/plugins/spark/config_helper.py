@@ -60,6 +60,12 @@ SPARK_CONFS = {
                 'priority': 2,
             },
             {
+                'name': 'HDFS cluster name',
+                'description': 'Storage cluster name to use for VM co-location and data locality',
+                'default': '',
+                'priority': 1,
+            },
+            {
                 'name': 'HDFS NameNode',
                 'description': 'HDFS NameNode hostname or IP address in case an external HDFS cluster is used',
                 'default': '',
