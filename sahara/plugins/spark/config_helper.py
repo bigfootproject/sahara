@@ -405,7 +405,7 @@ def generate_spark_slaves_configs(workernames):
 def generate_spark_executor_classpath(cluster):
     cp = get_config_value("Spark", "Executor extra classpath", cluster)
     if cp:
-        return "spark.executor.extraClassPath " + cp
+        return "spark.driver.extraClassPath " + cp
     return "\n"
 
 
