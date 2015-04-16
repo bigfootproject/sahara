@@ -47,7 +47,7 @@ def clean_port_hadoop(nn_remote):
 
 
 def start_spark_history_server(nn_remote, sp_home, eventlog):
-    if eventlog.startsWith("file://"):
+    if eventlog.startswith("file://"):
         nn_remote.execute_command("mkdir " + eventlog[7:])
     nn_remote.execute_command("bash " + os.path.join(sp_home,
                                                      "sbin/start-history-server.sh " + eventlog))
