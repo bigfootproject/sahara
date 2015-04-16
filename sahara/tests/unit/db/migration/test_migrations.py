@@ -39,9 +39,6 @@ from sahara.tests.unit.db.migration import test_migrations_base as base
 
 class SaharaMigrationsCheckers(object):
 
-    snake_walk = True
-    downgrade = True
-
     def assertColumnExists(self, engine, table, column):
         t = db_utils.get_table(engine, table)
         self.assertIn(column, t.c)
@@ -52,7 +49,7 @@ class SaharaMigrationsCheckers(object):
 
     def assertColumnCount(self, engine, table, columns):
         t = db_utils.get_table(engine, table)
-        self.assertEqual(len(t.columns), len(columns))
+        self.assertEqual(len(columns), len(t.columns))
 
     def assertColumnNotExists(self, engine, table, column):
         t = db_utils.get_table(engine, table)
@@ -76,7 +73,7 @@ class SaharaMigrationsCheckers(object):
         self.assertEqual(sorted(members), sorted(index_columns))
 
     def test_walk_versions(self):
-        self.walk_versions(self.engine, self.snake_walk, self.downgrade)
+        self.walk_versions(self.engine)
 
     def _pre_upgrade_001(self, engine):
         # Anything returned from this method will be
@@ -455,6 +452,14 @@ class SaharaMigrationsCheckers(object):
     def _check_019(self, engine, data):
         self.assertColumnExists(engine, 'node_group_templates', 'is_default')
         self.assertColumnExists(engine, 'cluster_templates', 'is_default')
+
+    def _check_020(self, engine, data):
+        self.assertColumnNotExists(engine, 'cluster_provision_steps',
+                                   'completed')
+        self.assertColumnNotExists(engine, 'cluster_provision_steps',
+                                   'completed_at')
+        self.assertColumnNotExists(engine, 'cluster_provision_steps',
+                                   'started_at')
 
 
 class TestMigrationsMySQL(SaharaMigrationsCheckers,

@@ -56,7 +56,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                  "CDH cluster without any management consoles.")
 
     def get_versions(self):
-        return ['1.0.0', '0.9.1']
+        return ['1.3.0', '1.0.0']
 
     def get_configs(self, hadoop_version):
         return c_helper.get_plugin_configs()
@@ -515,6 +515,19 @@ class SparkProvider(p.ProvisioningPluginBase):
             return edp_engine.EdpEngine(cluster)
 
         return None
+
+    def get_edp_job_types(self, versions=[]):
+        res = {}
+        for vers in self.get_versions():
+            if not versions or vers in versions:
+                if edp_engine.EdpEngine.edp_supported(vers):
+                    res[vers] = edp_engine.EdpEngine.get_supported_job_types()
+        return res
+
+    def get_edp_config_hints(self, job_type, version):
+        if edp_engine.EdpEngine.edp_supported(version):
+            return edp_engine.EdpEngine.get_possible_job_config(job_type)
+        return {}
 
     def get_open_ports(self, node_group):
         cluster = node_group.cluster
