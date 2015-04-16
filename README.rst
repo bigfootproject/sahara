@@ -1,23 +1,19 @@
 OpenStack Data Processing ("Sahara") project (Spark experimental fork)
 ======================================================================
 
-This repository is a fork of the main Openstack Sahara repo. This fork relates mainly to the Spark plugin development, with bug fixes, optimizations and updates related
-to the ongioing work of the Bigfoot project: http://bigfootproject.eu/
+This repository is a fork of the main `Openstack Sahara repo <https://github.com/openstack/sahara>`_. This fork relates mainly to the Spark plugin development, with bug fixes, optimizations and updates related to the work of the Bigfoot project: http://bigfootproject.eu/
 
-To use this version of Sahara, you will need images created with this version of the image builder: https://github.com/bigfootproject/savanna-image-elements
+To use this version of Sahara, you will need images created with this fork of the image builder: https://github.com/bigfootproject/savanna-image-elements
 
+The main changes from the standard Sahara are:
 
-Sahara at wiki.openstack.org: https://wiki.openstack.org/wiki/Sahara
+- Support for more recent Spark versions, currently we are supporting Spark 1.3.0
+- Relaxed checks to let the user create HDFS-only and Spark-only clusters: this allows the concept of storage-only clusters, relatively static, and compute-only clusters that come and go.
+- Spark clusters can be configured with a default HDFS location
+- Data locality: by using the cluster-level "HDFS storage cluster" option a compute cluster will be co-located on the same phisical hosts on which the datanodes for that storage cluster are found
+- Smaller fixes and workarounds for bugs, while waiting for a proper fix in upstream Sahara
 
-Launchpad project: https://launchpad.net/sahara
-
-Sahara docs site: http://docs.openstack.org/developer/sahara
-
-Roadmap: https://wiki.openstack.org/wiki/Sahara/Roadmap
-
-Quickstart guide: http://docs.openstack.org/developer/sahara/devref/quickstart.html
-
-How to participate: http://docs.openstack.org/developer/sahara/devref/how_to_participate.html
+This repository is periodically merged with the upstream Sahara master branch.
 
 
 License
