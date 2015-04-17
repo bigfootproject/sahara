@@ -303,7 +303,6 @@ class SparkJobEngine(base_engine.JobEngine):
             r.write_file_to(launch, self._job_script())
             r.execute_command("chmod +x %s" % launch)
             if job_has_swift:
-                r.execute_command()
                 ret, stdout = r.execute_command("export SPARK_CONF_DIR=" + os.path.join(wf_dir, "conf") + ";"
                                                 "cd %s; ./launch_command %s > /dev/null 2>&1 & echo $!"
                                                 % (wf_dir, cmd))
