@@ -75,4 +75,4 @@ def configure_master_for_swift_with_spark(master, wf, spark_home, configs):
                               spark_defaults)
             r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
                               spark_defaults)
-            r.execute_command("export SPARK_CONF_DIR=" + os.path.join(wf, "conf"))
+    return True
