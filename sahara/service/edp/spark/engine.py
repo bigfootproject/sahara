@@ -201,6 +201,14 @@ class SparkJobEngine(base_engine.JobEngine):
         wf_dir = job_utils.create_workflow_dir(master, '/tmp/spark-edp', job,
                                                job_execution.id, "700")
 
+        spark_home = c_helper.get_config_value("Spark", "Spark home", self.cluster)
+
+        for data_source in additional_sources:
+            if data_source and data_source.type == 'swift':
+                sw.configure_master_for_swift_with_spark(master, wf_dir, spark_home,
+                                                         updated_job_configs['configs'])
+                break
+
         paths, builtin_paths = self._upload_job_files(
             master, wf_dir, job, updated_job_configs)
 
@@ -239,11 +247,7 @@ class SparkJobEngine(base_engine.JobEngine):
         # Launch the spark job using spark-submit and deploy_mode = client
         host = master.hostname()
         port = c_helper.get_config_value("Spark", "Master port", self.cluster)
-        spark_submit = os.path.join(
-            c_helper.get_config_value("Spark",
-                                      "Spark home",
-                                      self.cluster),
-            "bin/spark-submit")
+        spark_submit = os.path.join(spark_home, "bin/spark-submit")
 
         # TODO(tmckay): we need to clean up wf_dirs on long running clusters
         # TODO(tmckay): probably allow for general options to spark-submit
