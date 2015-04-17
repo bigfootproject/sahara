@@ -242,11 +242,11 @@ class SparkJobEngine(base_engine.JobEngine):
         spark_home = c_helper.get_config_value("Spark", "Spark home", self.cluster)
 
         export_spark_conf_dir = ""
-        for data_source in additional_sources:
-            if data_source and data_source.type == 'swift':
-                export_spark_conf_dir = sw.configure_master_for_swift_with_spark(master, wf_dir, spark_home,
-                                                                                 updated_job_configs['configs'])
-                break
+        swift_username = updated_job_configs["configs"].get(sw.HADOOP_SWIFT_USERNAME, None)
+        swift_password = updated_job_configs["configs"].get(sw.HADOOP_SWIFT_PASSWORD, None)
+        if swift_username is not None and swift_password is not None:
+            export_spark_conf_dir = sw.configure_swift_credentials_for_spark_on_master(master, wf_dir, spark_home,
+                                                                                       swift_username, swift_password)
 
         spark_submit = os.path.join(spark_home, "bin/spark-submit")
 

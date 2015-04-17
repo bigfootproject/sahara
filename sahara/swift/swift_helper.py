@@ -59,20 +59,17 @@ def read_default_swift_configs():
     return x.load_hadoop_xml_defaults('swift/resources/conf-template.xml')
 
 
-def configure_master_for_swift_with_spark(master, wf, spark_home, configs):
-
+def configure_swift_credentials_for_spark_on_master(master, wf, spark_home, swift_username, swift_password):
     # Copy conf/ directory of spark inside job directory
-    swift_username = configs.get(HADOOP_SWIFT_USERNAME, None)
-    swift_password = configs.get(HADOOP_SWIFT_PASSWORD, None)
     org = os.path.join(spark_home, "conf")
     cp_command = "cp -r " + org + " " + wf
     with remote.get_remote(master) as r:
         r.execute_command(cp_command)
         spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
-        if swift_username is not None and swift_password is not None:
-            r.execute_command("echo '' >> " + spark_defaults)
-            r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "' >> " +
-                              spark_defaults)
-            r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
-                              spark_defaults)
+        r.execute_command("echo '' >> " + spark_defaults)
+        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "' >> " +
+                          spark_defaults)
+        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
+                          spark_defaults)
+
     return "export SPARK_CONF_DIR=" + os.path.join(wf, "conf") + ";"
