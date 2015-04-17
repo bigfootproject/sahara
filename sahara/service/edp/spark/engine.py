@@ -203,10 +203,10 @@ class SparkJobEngine(base_engine.JobEngine):
 
         spark_home = c_helper.get_config_value("Spark", "Spark home", self.cluster)
 
-        job_has_swift = False
+        export_spark_conf_dir = ""
         for data_source in additional_sources:
             if data_source and data_source.type == 'swift':
-                job_has_swift = sw.configure_master_for_swift_with_spark(master, wf_dir, spark_home,
+                export_spark_conf_dir = sw.configure_master_for_swift_with_spark(master, wf_dir, spark_home,
                                                          updated_job_configs['configs'])
                 break
 
@@ -302,14 +302,9 @@ class SparkJobEngine(base_engine.JobEngine):
             launch = os.path.join(wf_dir, "launch_command")
             r.write_file_to(launch, self._job_script())
             r.execute_command("chmod +x %s" % launch)
-            if job_has_swift:
-                ret, stdout = r.execute_command("export SPARK_CONF_DIR=" + os.path.join(wf_dir, "conf") + ";"
-                                                "cd %s; ./launch_command %s > /dev/null 2>&1 & echo $!"
-                                                % (wf_dir, cmd))
-            else:
-                ret, stdout = r.execute_command(
-                    "cd %s; ./launch_command %s > /dev/null 2>&1 & echo $!"
-                    % (wf_dir, cmd))
+            ret, stdout = r.execute_command(export_spark_conf_dir +
+                                            "cd %s; ./launch_command %s > /dev/null 2>&1 & echo $!"
+                                            % (wf_dir, cmd))
 
         if ret == 0:
             # Success, we'll add the wf_dir in job_execution.extra and store
