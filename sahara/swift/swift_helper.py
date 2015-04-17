@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -20,7 +22,7 @@ from sahara import context
 from sahara.i18n import _LI
 from sahara.swift import utils as su
 from sahara.utils import xmlutils as x
-
+from sahara.utils import remote
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -55,3 +57,19 @@ def get_swift_configs():
 
 def read_default_swift_configs():
     return x.load_hadoop_xml_defaults('swift/resources/conf-template.xml')
+
+
+def configure_swift_credentials_for_spark_on_master(master, wf, spark_home, swift_username, swift_password):
+    # Copy conf/ directory of spark inside job directory
+    org = os.path.join(spark_home, "conf")
+    cp_command = "cp -r " + org + " " + wf
+    with remote.get_remote(master) as r:
+        r.execute_command(cp_command)
+        spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
+        r.execute_command("echo '' >> " + spark_defaults)
+        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "' >> " +
+                          spark_defaults)
+        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
+                          spark_defaults)
+
+    return "export SPARK_CONF_DIR=" + os.path.join(wf, "conf") + ";"

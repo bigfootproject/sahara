@@ -239,11 +239,16 @@ class SparkJobEngine(base_engine.JobEngine):
         # Launch the spark job using spark-submit and deploy_mode = client
         host = master.hostname()
         port = c_helper.get_config_value("Spark", "Master port", self.cluster)
-        spark_submit = os.path.join(
-            c_helper.get_config_value("Spark",
-                                      "Spark home",
-                                      self.cluster),
-            "bin/spark-submit")
+        spark_home = c_helper.get_config_value("Spark", "Spark home", self.cluster)
+
+        export_spark_conf_dir = ""
+        swift_username = updated_job_configs["configs"].get(sw.HADOOP_SWIFT_USERNAME, None)
+        swift_password = updated_job_configs["configs"].get(sw.HADOOP_SWIFT_PASSWORD, None)
+        if swift_username is not None and swift_password is not None:
+            export_spark_conf_dir = sw.configure_swift_credentials_for_spark_on_master(master, wf_dir, spark_home,
+                                                                                       swift_username, swift_password)
+
+        spark_submit = os.path.join(spark_home, "bin/spark-submit")
 
         # TODO(tmckay): we need to clean up wf_dirs on long running clusters
         # TODO(tmckay): probably allow for general options to spark-submit
@@ -297,9 +302,9 @@ class SparkJobEngine(base_engine.JobEngine):
             launch = os.path.join(wf_dir, "launch_command")
             r.write_file_to(launch, self._job_script())
             r.execute_command("chmod +x %s" % launch)
-            ret, stdout = r.execute_command(
-                "cd %s; ./launch_command %s > /dev/null 2>&1 & echo $!"
-                % (wf_dir, cmd))
+            ret, stdout = r.execute_command(export_spark_conf_dir +
+                                            "cd %s; ./launch_command %s > /dev/null 2>&1 & echo $!"
+                                            % (wf_dir, cmd))
 
         if ret == 0:
             # Success, we'll add the wf_dir in job_execution.extra and store
