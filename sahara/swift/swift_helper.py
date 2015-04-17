@@ -68,12 +68,10 @@ def configure_master_for_swift_with_spark(master, wf, spark_home, configs):
     cp_command = "cp -r " + org + " " + wf
     with remote.get_remote(master) as r:
         r.execute_command(cp_command)
-
-    spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
-    if swift_username is not None and swift_password is not None:
-        LOG.info("----> " + swift_password + " " + swift_username)
-        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "' >> " +
-                          spark_defaults)
-        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
-                          spark_defaults)
-    r.execute_command("export SPARK_CONF_DIR=" + os.path.join(wf, "conf"))
+        spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
+        if swift_username is not None and swift_password is not None:
+            r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "' >> " +
+                              spark_defaults)
+            r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
+                              spark_defaults)
+            r.execute_command("export SPARK_CONF_DIR=" + os.path.join(wf, "conf"))
