@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from oslo_config import cfg
 from oslo_log import log as logging
 import six
@@ -26,6 +28,7 @@ from sahara.topology import topology_helper as topology
 from sahara.utils import files as f
 from sahara.utils import types as types
 from sahara.utils import xmlutils as x
+from sahara.utils import remote
 
 
 conductor = c.API
@@ -559,3 +562,26 @@ def get_conf_hdfs_url(cluster):
 def get_port_from_config(service, name, cluster=None):
     address = get_config_value(service, name, cluster)
     return utils.get_port_from_address(address)
+
+
+def copy_config_folder(master, wf, spark_home):
+    # Copy conf/ directory of spark inside job directory
+    org = os.path.join(spark_home, "conf")
+    cp_command = "cp -r " + org + " " + wf
+    with remote.get_remote(master) as r:
+        r.execute_command(cp_command)
+        spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
+        # Add newline to the end of the file
+        r.execute_command("echo '' >> " + spark_defaults)
+
+    return "export SPARK_CONF_DIR=" + os.path.join(wf, "conf") + ";"
+
+
+def set_extra_configuration_properties(master, wf, configuration):
+    with remote.get_remote(master) as r:
+        spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
+        properties_to_add = ""
+        for key, value in configuration.iteritems():
+            properties_to_add += key + "=" + value + "\n"
+
+        r.execute_command("echo $'" + properties_to_add + "' >> " + spark_defaults)
