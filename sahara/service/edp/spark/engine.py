@@ -246,8 +246,7 @@ class SparkJobEngine(base_engine.JobEngine):
         swift_username = updated_job_configs["configs"].pop(sw.HADOOP_SWIFT_USERNAME, None)
         swift_password = updated_job_configs["configs"].pop(sw.HADOOP_SWIFT_PASSWORD, None)
         if swift_username is not None and swift_password is not None:
-            export_spark_conf_dir = sw.configure_swift_credentials_for_spark_on_master(master, wf_dir,
-                                                                                       swift_username, swift_password)
+            sw.configure_swift_credentials_for_spark_on_master(master, wf_dir, swift_username, swift_password)
 
         c_helper.set_extra_configuration_properties(master, wf_dir, updated_job_configs["configs"])
 
