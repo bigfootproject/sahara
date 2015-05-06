@@ -582,6 +582,7 @@ def set_extra_configuration_properties(master, wf, configuration):
         spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
         properties_to_add = ""
         for key, value in configuration.iteritems():
-            properties_to_add += key + "=" + value + "\n"
+            if key.startswith("spark"):
+                properties_to_add += key + "=" + value + "\n"
 
         r.execute_command("echo $'" + properties_to_add + "' >> " + spark_defaults)
