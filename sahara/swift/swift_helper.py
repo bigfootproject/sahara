@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,7 +51,7 @@ def get_swift_configs():
 
     result = [cfg for cfg in configs if cfg['value']]
     LOG.info(_LI("Swift would be integrated with the following "
-             "params: {result}").format(result=result))
+                 "params: {result}").format(result=result))
     return result
 
 
@@ -59,17 +59,9 @@ def read_default_swift_configs():
     return x.load_hadoop_xml_defaults('swift/resources/conf-template.xml')
 
 
-def configure_swift_credentials_for_spark_on_master(master, wf, spark_home, swift_username, swift_password):
-    # Copy conf/ directory of spark inside job directory
-    org = os.path.join(spark_home, "conf")
-    cp_command = "cp -r " + org + " " + wf
+def configure_swift_credentials_for_spark_on_master(master, wf, swift_username, swift_password):
     with remote.get_remote(master) as r:
-        r.execute_command(cp_command)
         spark_defaults = os.path.join(wf, "conf/spark-defaults.conf")
-        r.execute_command("echo '' >> " + spark_defaults)
-        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "' >> " +
-                          spark_defaults)
-        r.execute_command("echo 'spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "' >> " +
-                          spark_defaults)
-
-    return "export SPARK_CONF_DIR=" + os.path.join(wf, "conf") + ";"
+        properties_to_add = "spark.hadoop." + HADOOP_SWIFT_USERNAME + "=" + swift_username + "\n" + \
+                            "spark.hadoop." + HADOOP_SWIFT_PASSWORD + "=" + swift_password + "\n"
+        r.execute_command("echo $'" + properties_to_add + "' >> " + spark_defaults)
