@@ -301,17 +301,17 @@ class SparkProvider(p.ProvisioningPluginBase):
                    'sudo chmod 600 $HOME/.ssh/id_rsa')
 
         storage_paths = instance.node_group.storage_paths()
-        dn_path = ' '.join(c_helper.make_hadoop_path(storage_paths,
-                                                     '/dfs/dn'))
-        nn_path = ' '.join(c_helper.make_hadoop_path(storage_paths,
-                                                     '/dfs/nn'))
+        hdfs_path = ' '.join(c_helper.make_hadoop_path(storage_paths,
+                                                       '/dfs'))
+        dn_path = os.path.join(hdfs_path, 'dn')
+        nn_path = os.path.join(hdfs_path, 'nn')
 
         hdfs_dir_cmd = ('sudo mkdir -p %(nn_path)s %(dn_path)s &&'
                         'sudo chown -R hdfs:hadoop %(nn_path)s %(dn_path)s &&'
                         'sudo chmod 755 %(nn_path)s %(dn_path)s' %
                         {"nn_path": nn_path, "dn_path": dn_path})
 
-        add_user_to_hdfs_group = ('sudo adduser $USER hadoop')
+        enable_user_write_hdfs = 'sudo adduser $USER hadoop && sudo chmod -R 775 ' + hdfs_path
 
         with remote.get_remote(instance) as r:
             r.execute_command(
@@ -341,7 +341,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                 r.execute_command(
                     'sudo chmod +x /etc/hadoop/topology.sh'
                 )
-            r.execute_command(add_user_to_hdfs_group)
+
+            r.execute_command(enable_user_write_hdfs)
 
             self._write_topology_data(r, cluster, extra)
             self._push_master_configs(r, cluster, extra, instance)
