@@ -307,11 +307,11 @@ class SparkProvider(p.ProvisioningPluginBase):
         nn_path = os.path.join(hdfs_path, 'nn')
 
         hdfs_dir_cmd = ('sudo mkdir -p %(nn_path)s %(dn_path)s &&'
-                        'sudo chown -R hdfs:hadoop %(nn_path)s %(dn_path)s &&'
-                        'sudo chmod 755 %(nn_path)s %(dn_path)s' %
-                        {"nn_path": nn_path, "dn_path": dn_path})
+                        'sudo chown -R hdfs:hadoop %(hdfs_path)s &&'
+                        'sudo chmod -R 775 %(hdfs_path)s' %
+                        {"nn_path": nn_path, "dn_path": dn_path, "hdfs_path": hdfs_path})
 
-        enable_user_write_hdfs = 'sudo adduser $USER hadoop && sudo chmod -R 775 ' + hdfs_path
+        enable_user_write_hdfs = 'sudo adduser $USER hadoop'
 
         with remote.get_remote(instance) as r:
             r.execute_command(
