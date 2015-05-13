@@ -311,6 +311,8 @@ class SparkProvider(p.ProvisioningPluginBase):
                         'sudo chmod 755 %(nn_path)s %(dn_path)s' %
                         {"nn_path": nn_path, "dn_path": dn_path})
 
+        add_user_to_hdfs_group = ('sudo adduser $USER hadoop')
+
         with remote.get_remote(instance) as r:
             r.execute_command(
                 'sudo chown -R $USER:$USER /etc/hadoop'
@@ -339,6 +341,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                 r.execute_command(
                     'sudo chmod +x /etc/hadoop/topology.sh'
                 )
+            r.execute_command(add_user_to_hdfs_group)
 
             self._write_topology_data(r, cluster, extra)
             self._push_master_configs(r, cluster, extra, instance)
