@@ -16,6 +16,19 @@ The main changes from the standard Sahara are:
 
 This repository is periodically merged with the upstream Sahara master branch.
 
+Virtual Machine image
+---------------------
+
+An image ready to be used with this version of Sahara is available here:
+https://drive.google.com/open?id=0B2TbBvh6BGVcQzFUbEo2cHJJcWc
+
+Contact us
+----------
+
+This fork of Sahara is developed and maintained by the Distributed Systems Group at Eurecom (http://www.eurecom.fr).
+
+* Pietro Michiardi (http://www.eurecom.fr/~michiard/)
+* Daniele Venzano (http://www.eurecom.fr/en/people/venzano-daniele)
 
 License
 -------
