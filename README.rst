@@ -3,7 +3,7 @@ OpenStack Data Processing ("Sahara") project (Spark experimental fork)
 
 This repository is a fork of the main `OpenStack Sahara repo <https://github.com/openstack/sahara>`_. This fork relates mainly to the Spark plugin development, with bug fixes, optimizations and updates related to the work of the Bigfoot project: http://bigfootproject.eu/
 
-To use this version of Sahara, you will need images created with this fork of the image builder: https://github.com/bigfootproject/savanna-image-elements
+To use this version of Sahara, you will need images created with this fork of the image builder: https://github.com/bigfootproject/sahara-image-elements
 
 The main changes from the standard Sahara are:
 
