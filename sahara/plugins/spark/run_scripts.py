@@ -64,4 +64,4 @@ def stop_spark(nn_remote, sp_home):
 
 
 def start_spark_notebook(nb_remote):
-    nb_remote.execute_command("bash " + os.path.join("bash /tmp/sahara_notebook_start.sh"))
+    nb_remote.execute_command("bash /tmp/sahara_notebook_start.sh")

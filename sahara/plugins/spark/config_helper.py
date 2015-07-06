@@ -606,15 +606,15 @@ def get_conf_spark_notebook_home(cluster):
 
 def get_notebook_startup_script(cluster):
     sp_master = utils.get_instance(cluster, "master")
-    sp_master_ip = sp_master.management_ip
+    sp_master_name = sp_master.instance_name
     sp_master_port = get_config_value("Spark", "Master port", cluster)
-    sp_master_url = "spark://%s:%s" % (sp_master_ip, sp_master_port)
-    nb_path = get_config_value("Spark notebook", "Notebook home", cluster)
+    sp_master_url = "spark://%s:%s" % (sp_master_name, sp_master_port)
+    nb_path = get_config_value("Spark Notebook", "Notebook home", cluster)
 
     script = '''#!/bin/sh
 cd %s
 export MASTER="%s"
-./bin/spark-notebook
+./bin/spark-notebook >/tmp/notebook.log 2>&1 &
 ''' % (nb_path, sp_master_url)
 
     return script

@@ -45,7 +45,8 @@ class SparkProvider(p.ProvisioningPluginBase):
     def __init__(self):
         self.processes = {
             "HDFS": ["namenode", "datanode"],
-            "Spark": ["master", "slave", "notebook"]
+            "Spark": ["master", "slave"],
+            "Spark Notebook": ["notebook"]
         }
 
     def get_title(self):
