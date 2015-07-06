@@ -147,10 +147,11 @@ class SparkProvider(p.ProvisioningPluginBase):
     def _start_notebook(self, cluster):
         nb_instance = utils.get_instance(cluster, "notebook")
 
-        with remote.get_remote(nb_instance) as r:
-            run.start_spark_notebook(r)
-            LOG.info(_LI("Spark notebook at {host} has been started").format(
-                     host=nb_instance.hostname()))
+        if nb_instance is not None:
+            with remote.get_remote(nb_instance) as r:
+                run.start_spark_notebook(r)
+                LOG.info(_LI("Spark notebook at {host} has been started").format(
+                         host=nb_instance.hostname()))
 
     def start_cluster(self, cluster):
         nn_instance = utils.get_instance(cluster, "namenode")
