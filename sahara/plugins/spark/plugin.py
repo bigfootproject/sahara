@@ -45,7 +45,7 @@ class SparkProvider(p.ProvisioningPluginBase):
     def __init__(self):
         self.processes = {
             "HDFS": ["namenode", "datanode"],
-            "Spark": ["master", "slave"]
+            "Spark": ["master", "slave", "notebook"]
         }
 
     def get_title(self):
@@ -65,6 +65,17 @@ class SparkProvider(p.ProvisioningPluginBase):
         return self.processes
 
     def validate(self, cluster):
+        # validate Notebooks
+        nb_count = sum([ng.count for ng
+                        in utils.get_node_groups(cluster, "notebook")])
+        if cluster.hadoop_version != "1.4" and nb_count > 0:
+            raise ex.InvalidComponentCountException("notebook", _('0'), nb_count,
+                        _('Notebooks are not supported on Spark %(spark_version)')
+                        % {'spark_version': cluster.hadoop_version})
+        elif nb_count > 1:
+            raise ex.InvalidComponentCountException("notebook", _('1 at most'), nb_count)
+
+        # validate HDFS node definitions
         nn_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "namenode")])
         if nn_count > 1:
@@ -89,8 +100,10 @@ class SparkProvider(p.ProvisioningPluginBase):
         sm_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "master")])
 
-        if sm_count > 1:
+        if sm_count == 0:
             raise ex.RequiredServiceMissingException("Spark master")
+        elif sm_count > 1:
+            raise ex.InvalidComponentCountException("master", _('1 at most'), sm_count)
         elif sm_count == 1:
             sl_count = sum([ng.count for ng
                             in utils.get_node_groups(cluster, "slave")])
@@ -129,6 +142,15 @@ class SparkProvider(p.ProvisioningPluginBase):
             LOG.info(_LI("Spark history server at {host} has been started").format(
                 host=sm_instance.hostname()))
 
+    @cpo.event_wrapper(True, step=utils.start_process_event_message("SparkNotebook"))
+    def _start_notebook(self, cluster):
+        nb_instance = utils.get_instance(cluster, "notebook")
+
+        with remote.get_remote(nb_instance) as r:
+            run.start_spark_notebook(r)
+            LOG.info(_LI("Spark notebook at {host} has been started").format(
+                     host=nb_instance.hostname()))
+
     def start_cluster(self, cluster):
         nn_instance = utils.get_instance(cluster, "namenode")
         dn_instances = utils.get_instances(cluster, "datanode")
@@ -150,6 +172,9 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         # start spark nodes
         self.start_spark(cluster)
+
+        # start notebook
+        self._start_notebook(cluster)
 
         LOG.info(_LI('Cluster {cluster} has been started successfully').format(
                  cluster=cluster.name))
@@ -348,6 +373,11 @@ class SparkProvider(p.ProvisioningPluginBase):
             self._push_master_configs(r, cluster, extra, instance)
             self._push_cleanup_job(r, cluster, extra, instance)
 
+            if "notebook" in instance.node_group.node_processes:
+                r.write_file_to('/tmp/sahara_notebook_start.sh',
+                                c_helper.get_notebook_startup_script(cluster))
+                r.execute_command('sudo chmod +x /tmp/sahara_notebook_start.sh')
+
     @cpo.event_wrapper(mark_successful_on_exit=True)
     def _push_configs_to_existing_node(self, cluster, extra, instance):
         node_processes = instance.node_group.node_processes
@@ -407,6 +437,7 @@ class SparkProvider(p.ProvisioningPluginBase):
     def _set_cluster_info(self, cluster):
         nn = utils.get_instance(cluster, "namenode")
         sp_master = utils.get_instance(cluster, "master")
+        notebook = utils.get_instance(cluster, "notebook")
         info = {}
 
         if nn:
@@ -426,6 +457,11 @@ class SparkProvider(p.ProvisioningPluginBase):
                     'Web UI': 'http://%s:%s' % (sp_master.management_ip, port),
                     'Job history server': 'http://%s:18080' % (sp_master.management_ip)
                 }
+
+        if notebook:
+            info['Notebook'] = {
+                'Web UI': 'http://%s:9000' % notebook.management_ip
+            }
         ctx = context.ctx()
         conductor.cluster_update(ctx, cluster, {'info': info})
 
@@ -547,7 +583,8 @@ class SparkProvider(p.ProvisioningPluginBase):
             'slave': [
                 int(c_helper.get_config_value("Spark", "Worker webui port",
                                               cluster))
-            ]
+            ],
+            'notebook': [9000],
         }
 
         ports = []
