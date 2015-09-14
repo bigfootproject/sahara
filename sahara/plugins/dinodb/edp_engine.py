@@ -1,4 +1,4 @@
-# Copyright (c) 2015 P. Michiardi, D. Venzano
+# Copyright (c) 2014 Mirantis Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,27 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sahara.service.edp import base_engine
-from sahara.utils import edp
+from sahara import exceptions as ex
+from sahara.i18n import _
+from sahara.service.edp.spark import engine as edp_engine
 
 
-class NullJobEngine(base_engine.JobEngine):
-    def cancel_job(self, job_execution):
-        pass
+class EdpEngine(edp_engine.SparkJobEngine):
 
-    def get_job_status(self, job_execution):
-        pass
+    edp_base_version = "1.0.0"
 
-    def run_job(self, job_execution):
-        return 'oozie_job_id', edp.JOB_STATUS_SUCCEEDED, None
+    @staticmethod
+    def edp_supported(version):
+        return version >= EdpEngine.edp_base_version
 
     def validate_job_execution(self, cluster, job, data):
-        pass
+        if not self.edp_supported(cluster.hadoop_version):
+            raise ex.InvalidDataException(
+                _('Spark {base} or higher required to run {type} jobs').format(
+                    base=EdpEngine.edp_base_version, type=job.type))
 
-    @staticmethod
-    def get_possible_job_config(job_type):
-        return None
-
-    @staticmethod
-    def get_supported_job_types():
-        return edp.JOB_TYPES_ALL
+        super(EdpEngine, self).validate_job_execution(cluster, job, data)
