@@ -57,7 +57,7 @@ class SparkProvider(p.ProvisioningPluginBase):
                  "CDH cluster without any management consoles.")
 
     def get_versions(self):
-        return ['1.4', '1.3.0', '1.0.0']
+        return ['1.5', '1.4', '1.3.0']
 
     def get_configs(self, hadoop_version):
         return c_helper.get_plugin_configs()
