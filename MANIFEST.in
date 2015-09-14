@@ -47,6 +47,9 @@ include sahara/plugins/mapr/services/oozie/resources/*.json
 include sahara/plugins/mapr/services/swift/resources/*.jar
 include sahara/plugins/mapr/services/swift/resources/*.json
 include sahara/plugins/mapr/services/yarn/resources/*.json
+include sahara/plugins/dinodb/resources/*.xml
+include sahara/plugins/dinodb/resources/*.sh
+include sahara/plugins/dinodb/resources/*.template
 include sahara/plugins/spark/resources/*.xml
 include sahara/plugins/spark/resources/*.sh
 include sahara/plugins/spark/resources/*.template
