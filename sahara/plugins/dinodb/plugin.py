@@ -47,7 +47,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             "HDFS": ["namenode", "datanode"],
             "Spark": ["master", "slave"],
             "Spark Notebook": ["notebook"],
-            "DiNoDB": ["dinodb"]
+            "DiNoDB": ["dinodb-master", "dinodb-node"]
         }
 
     def get_title(self):
@@ -59,7 +59,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                  " consoles.")
 
     def get_versions(self):
-        return ['1.4', '1.3.0']
+        return ['0.9']
 
     def get_configs(self, hadoop_version):
         return c_helper.get_plugin_configs()
@@ -81,11 +81,11 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         # validate HDFS node definitions
         nn_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "namenode")])
+        dn_count = sum([ng.count for ng
+                        in utils.get_node_groups(cluster, "datanode")])
         if nn_count > 1:
             raise ex.InvalidComponentCountException("namenode", 1, nn_count)
         elif nn_count == 1:
-            dn_count = sum([ng.count for ng
-                            in utils.get_node_groups(cluster, "datanode")])
             if dn_count < 1:
                 raise ex.InvalidComponentCountException("datanode", _("1 or more"),
                                                         nn_count)
@@ -114,6 +114,17 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                 raise ex.InvalidComponentCountException("Spark slave",
                                                         _("1 or more"),
                                                         sl_count)
+
+        # DiNoDB validation
+        dm_count = sum([ng.count for ng
+                        in utils.get_node_groups(cluster, "dinodb-master")])
+        dnode_count = sum([ng.count for ng
+                        in utils.get_node_groups(cluster, "dinodb-node")])
+
+        if dm_count != 1:
+            raise ex.RequiredServiceMissingException("DiNoDB master")
+        elif dnode_count != dn_count:
+            raise ex.InvalidComponentCountException("dinodb-node", _('same number of datanodes'), dnode_count)
 
     def update_infra(self, cluster):
         pass
