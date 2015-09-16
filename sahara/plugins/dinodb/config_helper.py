@@ -487,7 +487,7 @@ def generate_dinodb_master_config(slavenames):
     diconf = '\nxdb.nodecount=' + num + '\n'
     i = 1
     for slave in slavenames:
-        diconf += 'xdb.node.' + i + '.dbhost=' + slave + '\n'
+        diconf += 'xdb.node.' + str(i) + '.dbhost=' + slave + '\n'
         i += 1
     return DINODB_MASTER_DEFAULT + diconf
 
