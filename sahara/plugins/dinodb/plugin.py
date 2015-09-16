@@ -390,6 +390,8 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         # needed for dinodb:
         dinodb_master_home = self._dinodb_master_home(cluster)
         dinodb_metastore_home = self._dinodb_metastore_home(cluster)
+        LOG.info(_LI("dinodb_master_home:{dmh}").format(dmh=dinodb_master_home))
+        LOG.info(_LI("dinodb_metastore_home:{dmeh}").format(dmeh=dinodb_metastore_home))
         files_dinodb = {
             os.path.join(dinodb_master_home, 'config/stado.config'): ng_extra['di_master'],
             os.path.join(dinodb_metastore_home, 'metastore.conf'): ng_extra['di_metastore'],
