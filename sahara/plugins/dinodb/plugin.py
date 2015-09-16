@@ -214,13 +214,13 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         return c_helper.get_config_value("Spark", "Spark home", cluster)
 
     def _dinodb_master_home(self, cluster):
-        return c_helper.get_config_value("DiNoDB", "Dinodb master home", cluster)
+        return c_helper.get_config_value("DiNoDB", "DiNoDB master home", cluster)
 
     def _dinodb_metastore_home(self, cluster):
-        return c_helper.get_config_value("DiNoDB", "Dinodb metastore home", cluster)
+        return c_helper.get_config_value("DiNoDB", "DiNoDB metastore home", cluster)
 
     def _dinodb_node_home(self, cluster):
-        return c_helper.get_config_value("DiNoDB", "Dinodb node home", cluster)
+        return c_helper.get_config_value("DiNoDB", "DiNoDB node home", cluster)
 
     def _extract_configs_to_extra(self, cluster):
         nn = utils.get_instance(cluster, "namenode")

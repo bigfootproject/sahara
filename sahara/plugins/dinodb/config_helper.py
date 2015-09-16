@@ -494,14 +494,14 @@ def generate_dinodb_master_config(slavenames):
 def generate_dinodb_metastore_config(storage_path, slavenames, nn_hostname, nn_port=None):
     if nn_port is None:
         nn_port = 50070
-    get_config_value("DiNoDB", "Dinodb node home")
+    # get_config_value("DiNoDB", "DiNoDB node home")
     cfg = {
         'metastore.hdfs.namenode': '%s:%s' % (nn_hostname, str(nn_port)),
         'metastore.hdfs.datanode': ",".join(slavenames),
         'metastore.hdfs.dir': extract_hadoop_path(storage_path,
                                                      '/dfs/dn/current'),
         'metastore.datanode.port': '8888',
-        'postgresraw.path': get_config_value("DiNoDB", "Dinodb node home"),
+        'postgresraw.path': get_config_value("DiNoDB", "DiNoDB node home"),
         'postgresraw.num': '1'
     }
     return x.create_hadoop_xml(cfg)
