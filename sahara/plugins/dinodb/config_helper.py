@@ -67,15 +67,15 @@ DINODB_CONFS = {
             {
                 'name': 'DiNoDB master home',
                 'description': 'The location of the dinodb master installation'
-                ' (default: /opt/dinodb/master)',
-                'default': '/opt/dinodb/master',
+                ' (default: /opt/dinodb/stado)',
+                'default': '/opt/dinodb/stado',
                 'priority': 2,
             },
             {
                 'name': 'DiNoDB node home',
                 'description': 'The location of the dinodb node installation'
-                ' (default: /opt/dinodb/node)',
-                'default': '/opt/dinodb/node',
+                ' (default: /opt/dinodb/dinodbnode)',
+                'default': '/opt/dinodb/dinodbnode',
                 'priority': 2,
             },
         ]
