@@ -24,17 +24,16 @@ from sahara.i18n import _
 from sahara.i18n import _LI
 from sahara.plugins import exceptions as ex
 from sahara.plugins import provisioning as p
-from sahara.plugins.spark import config_helper as c_helper
-from sahara.plugins.spark import edp_engine
-from sahara.plugins.spark import run_scripts as run
-from sahara.plugins.spark import scaling as sc
+from sahara.plugins.dinodb import config_helper as c_helper
+from sahara.plugins.dinodb import edp_engine
+from sahara.plugins.dinodb import run_scripts as run
+from sahara.plugins.dinodb import scaling as sc
 from sahara.plugins import utils
 from sahara.topology import topology_helper as th
 from sahara.utils import cluster_progress_ops as cpo
 from sahara.utils import files as f
 from sahara.utils import general as ug
 from sahara.utils import remote
-
 
 conductor = conductor.API
 LOG = logging.getLogger(__name__)
@@ -73,8 +72,8 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                         in utils.get_node_groups(cluster, "notebook")])
         if cluster.hadoop_version != "1.4" and nb_count > 0:
             raise ex.InvalidComponentCountException("notebook", _('0'), nb_count,
-                        _('Notebooks are not supported on Spark %(spark_version)')
-                        % {'spark_version': cluster.hadoop_version})
+                                                    _('Notebooks are not supported on Spark %(spark_version)')
+                                                    % {'spark_version': cluster.hadoop_version})
         elif nb_count > 1:
             raise ex.InvalidComponentCountException("notebook", _('1 at most'), nb_count)
 
@@ -95,9 +94,9 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             if dn_count < rep_factor:
                 raise ex.InvalidComponentCountException(
                     'datanode', _('%s or more') % rep_factor, dn_count,
-                    _('Number of %(dn)s instances should not be less '
-                      'than %(replication)s')
-                    % {'dn': 'datanode', 'replication': 'dfs.replication'})
+                                _('Number of %(dn)s instances should not be less '
+                                  'than %(replication)s')
+                                % {'dn': 'datanode', 'replication': 'dfs.replication'})
 
         # validate Spark Master Node and Spark Slaves
         sm_count = sum([ng.count for ng
@@ -119,7 +118,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         dm_count = sum([ng.count for ng
                         in utils.get_node_groups(cluster, "dinodb-master")])
         dnode_count = sum([ng.count for ng
-                        in utils.get_node_groups(cluster, "dinodb-node")])
+                           in utils.get_node_groups(cluster, "dinodb-node")])
 
         if dm_count != 1:
             raise ex.RequiredServiceMissingException("DiNoDB master")
@@ -151,10 +150,23 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         with remote.get_remote(sm_instance) as r:
             run.start_spark_master(r, self._spark_home(cluster))
             LOG.info(_LI("Spark master at {host} has been started").format(
-                     host=sm_instance.hostname()))
+                host=sm_instance.hostname()))
             run.start_spark_history_server(r, self._spark_home(cluster), eventlog)
             LOG.info(_LI("Spark history server at {host} has been started").format(
                 host=sm_instance.hostname()))
+
+    def start_dinodb(self, cluster):
+        dimaster_instance = utils.get_instance(cluster, "dinodb-master")
+        dinode_instances = utils.get_instances(cluster, "dinodb-node")
+        for instance in dinode_instances:
+            with remote.get_remote(instance) as r:
+                run.start_dinodb_node(r, self._dinodb_node_home(cluster), self._dinodb_metastore_home(cluster))
+                LOG.info(_LI("DiNoDB node at {host} has been started").format(
+                    host=instance.hostname()))
+        with remote.get_remote(dimaster_instance) as r:
+            run.start_dinodb_master(r, self._dinodb_node_home(cluster), self._dinodb_master_home(cluster))
+            LOG.info(_LI("DiNoDB master at {host} has been started").format(
+                host=dimaster_instance.hostname()))
 
     @cpo.event_wrapper(True, step=utils.start_process_event_message("SparkNotebook"))
     def _start_notebook(self, cluster):
@@ -164,7 +176,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             with remote.get_remote(nb_instance) as r:
                 run.start_spark_notebook(r)
                 LOG.info(_LI("Spark notebook at {host} has been started").format(
-                         host=nb_instance.hostname()))
+                    host=nb_instance.hostname()))
 
     def start_cluster(self, cluster):
         nn_instance = utils.get_instance(cluster, "namenode")
@@ -191,17 +203,31 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         # start notebook
         self._start_notebook(cluster)
 
+        # start dinodb
+        # self.start_dinodb(cluster)
+
         LOG.info(_LI('Cluster {cluster} has been started successfully').format(
-                 cluster=cluster.name))
+            cluster=cluster.name))
         self._set_cluster_info(cluster)
 
     def _spark_home(self, cluster):
         return c_helper.get_config_value("Spark", "Spark home", cluster)
 
+    def _dinodb_master_home(self, cluster):
+        return c_helper.get_config_value("DiNoDB", "Dinodb master home", cluster)
+
+    def _dinodb_metastore_home(self, cluster):
+        return c_helper.get_config_value("DiNoDB", "Dinodb metastore home", cluster)
+
+    def _dinodb_node_home(self, cluster):
+        return c_helper.get_config_value("DiNoDB", "Dinodb node home", cluster)
+
     def _extract_configs_to_extra(self, cluster):
         nn = utils.get_instance(cluster, "namenode")
         sp_master = utils.get_instance(cluster, "master")
         sp_slaves = utils.get_instances(cluster, "slave")
+        # di_master = utils.get_instance(cluster, "dinodb-master")
+        # di_nodes = utils.get_instances(cluster, "dinodb-nodes")
 
         extra = dict()
 
@@ -209,8 +235,8 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         if sp_master is not None:
             config_master = c_helper.generate_spark_env_configs(cluster)
 
+        slavenames = []
         if sp_slaves is not None:
-            slavenames = []
             for slave in sp_slaves:
                 slavenames.append(slave.hostname())
             config_slaves = c_helper.generate_spark_slaves_configs(slavenames)
@@ -224,6 +250,10 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             hdfs_url = 'CHANGEME'
         elif nn is not None and hdfs_url == '':
             hdfs_url = nn.hostname()
+
+        # config_dinodb_master = config_dinodb_metastore = ''
+        # config_dinodb_master = c_helper.generate_dinodb_master_config(slavenames)
+        # config_dinodb_metastore = c_helper.generate_dinodb_metastore_config(storage_path, slavenames, nn_hostname, nn_port=None)
 
         extra['job_cleanup'] = c_helper.generate_job_cleanup_config(cluster)
         for ng in cluster.node_groups:
@@ -241,7 +271,9 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                     ),
                     'sp_master': config_master,
                     'sp_slaves': config_slaves,
-                    'sp_defaults': config_defaults
+                    'sp_defaults': config_defaults,
+                    'di_master': c_helper.generate_dinodb_master_config(slavenames),
+                    'di_metastore': c_helper.generate_dinodb_metastore_config(ng.storage_paths(), slavenames, hdfs_url)
                 }
             else:
                 extra[ng.id] = {
@@ -257,7 +289,9 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                     ),
                     'sp_master': config_master,
                     'sp_slaves': config_slaves,
-                    'sp_defaults': config_defaults
+                    'sp_defaults': config_defaults,
+                    'di_master': c_helper.generate_dinodb_master_config(slavenames),
+                    'di_metastore': c_helper.generate_dinodb_metastore_config(ng.storage_paths(), slavenames, hdfs_url)
                 }
 
         if c_helper.is_data_locality_enabled(cluster):
@@ -353,6 +387,14 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
 
         enable_user_write_hdfs = 'sudo adduser $USER hadoop'
 
+        # needed for dinodb:
+        dinodb_master_home = self._dinodb_master_home(cluster)
+        dinodb_metastore_home = self._dinodb_metastore_home(cluster)
+        files_dinodb = {
+            os.path.join(dinodb_master_home, 'config/stado.config'): ng_extra['di_master'],
+            os.path.join(dinodb_metastore_home, 'metastore.conf'): ng_extra['di_metastore'],
+        }
+
         with remote.get_remote(instance) as r:
             r.execute_command(
                 'sudo chown -R $USER:$USER /etc/hadoop'
@@ -363,6 +405,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             r.write_files_to(files_hadoop)
             r.write_files_to(files_spark)
             r.write_files_to(files_init)
+            r.write_files_to(files_dinodb)
             r.execute_command(
                 'sudo chmod 0500 /tmp/sahara-hadoop-init.sh'
             )
@@ -538,7 +581,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                 raise ex.NodeGroupCannotBeScaled(
                     ng.name, _("Spark plugin cannot scale nodegroup"
                                " with processes: %s") %
-                    ' '.join(ng.node_processes))
+                             ' '.join(ng.node_processes))
 
     def _validate_existing_ng_scaling(self, cluster, existing):
         scalable_processes = self._get_scalable_processes()
@@ -546,13 +589,13 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         for ng in cluster.node_groups:
             if ng.id in existing:
                 if ng.count > existing[ng.id] and ("datanode" in
-                                                   ng.node_processes):
+                                                       ng.node_processes):
                     dn_to_delete += ng.count - existing[ng.id]
                 if not set(ng.node_processes).issubset(scalable_processes):
                     raise ex.NodeGroupCannotBeScaled(
                         ng.name, _("Spark plugin cannot scale nodegroup"
                                    " with processes: %s") %
-                        ' '.join(ng.node_processes))
+                                 ' '.join(ng.node_processes))
 
         dn_amount = len(utils.get_instances(cluster, "datanode"))
         rep_factor = c_helper.get_config_value('HDFS', "dfs.replication",
@@ -563,7 +606,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                 cluster.name, _("Spark plugin cannot shrink cluster because "
                                 "there would be not enough nodes for HDFS "
                                 "replicas (replication factor is %s)") %
-                rep_factor)
+                              rep_factor)
 
     def get_edp_engine(self, cluster, job_type):
         if job_type in edp_engine.EdpEngine.get_supported_job_types():

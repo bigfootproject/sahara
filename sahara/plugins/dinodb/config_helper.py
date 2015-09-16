@@ -36,10 +36,13 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 CORE_DEFAULT = x.load_hadoop_xml_defaults(
-    'plugins/spark/resources/core-default.xml')
+    'plugins/dinodb/resources/core-default.xml')
 
 HDFS_DEFAULT = x.load_hadoop_xml_defaults(
-    'plugins/spark/resources/hdfs-default.xml')
+    'plugins/dinodb/resources/hdfs-default.xml')
+
+DINODB_MASTER_DEFAULT = f.get_file_text(
+    'plugins/dinodb/resources/stado.config.template')
 
 SWIFT_DEFAULTS = swift.read_default_swift_configs()
 
@@ -50,6 +53,35 @@ XML_CONFS = {
 _default_executor_classpath = ":".join(
     ['/usr/lib/hadoop/lib/jackson-core-asl-1.8.8.jar',
      '/usr/lib/hadoop/hadoop-swift.jar'])
+
+DINODB_CONFS = {
+    'DiNoDB': {
+        "OPTIONS": [
+            {
+                'name': 'DiNoDB metastore home',
+                'description': 'The location of the dinodb metastore installation'
+                ' (default: /opt/dinodb/metastore)',
+                'default': '/opt/dinodb/metastore',
+                'priority': 2,
+            },
+            {
+                'name': 'DiNoDB master home',
+                'description': 'The location of the dinodb master installation'
+                ' (default: /opt/dinodb/master)',
+                'default': '/opt/dinodb/master',
+                'priority': 2,
+            },
+            {
+                'name': 'DiNoDB node home',
+                'description': 'The location of the dinodb node installation'
+                ' (default: /opt/dinodb/node)',
+                'default': '/opt/dinodb/node',
+                'priority': 2,
+            },
+        ]
+    }
+}
+
 
 SPARK_CONFS = {
     'Spark': {
@@ -261,6 +293,16 @@ def _initialise_configs():
                            priority=item["priority"])
             configs.append(cfg)
 
+    for service, config_items in DINODB_CONFS.iteritems():
+        for item in config_items['OPTIONS']:
+            cfg = p.Config(name=item["name"],
+                           description=item["description"],
+                           default_value=item["default"],
+                           applicable_target=service,
+                           scope="cluster", is_optional=True,
+                           priority=item["priority"])
+            configs.append(cfg)
+
     configs.append(DECOMMISSIONING_TIMEOUT)
     configs.append(ENABLE_SWIFT)
     if CONF.enable_data_locality:
@@ -439,6 +481,30 @@ def generate_spark_defaults_conf(cluster):
         sp_conf += '\nspark.eventLog.dir ' + el_dir
 
     return sp_conf
+
+def generate_dinodb_master_config(slavenames):
+    num = len(slavenames)
+    diconf = '\nxdb.nodecount=' + num + '\n'
+    i = 1
+    for slave in slavenames:
+        diconf += 'xdb.node.' + i + '.dbhost=' + slave + '\n'
+        i += 1
+    return DINODB_MASTER_DEFAULT + diconf
+
+def generate_dinodb_metastore_config(storage_path, slavenames, nn_hostname, nn_port=None):
+    if nn_port is None:
+        nn_port = 50070
+    get_config_value("DiNoDB", "Dinodb node home")
+    cfg = {
+        'metastore.hdfs.namenode': '%s:%s' % (nn_hostname, str(nn_port)),
+        'metastore.hdfs.datanode': ",".join(slavenames),
+        'metastore.hdfs.dir': extract_hadoop_path(storage_path,
+                                                     '/dfs/dn/current'),
+        'metastore.datanode.port': '8888',
+        'postgresraw.path': get_config_value("DiNoDB", "Dinodb node home"),
+        'postgresraw.num': '1'
+    }
+    return x.create_hadoop_xml(cfg)
 
 
 def extract_hadoop_environment_confs(configs):

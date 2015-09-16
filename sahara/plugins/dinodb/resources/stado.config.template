@@ -1,0 +1,172 @@
+###########################################################################
+# Copyright (c) 2010 EnterpriseDB Corporation
+# Copyright (c) 2011 Stado Global Development Group
+# 
+# stado.config
+#
+# Stado configuration file
+###########################################################################
+
+
+###
+### Server settings
+###
+
+xdb.port=6453
+xdb.maxconnections=10
+
+
+###
+### Node & JDBC Pool configuration
+### 
+
+### Set defaults for all nodes and MetaData database. 
+### These can be overriden.
+
+xdb.default.dbusername=stado
+xdb.default.dbpassword=stado
+
+xdb.default.dbport=5432
+
+
+### Connection thread defaults for each node
+### Note that these are pooled, so the number of clients connected 
+### to stado can be greater than pool size.
+
+xdb.default.threads.pool.initsize=1
+xdb.default.threads.pool.maxsize=1
+
+
+xdb.nodeFetchSize=0
+
+### Connectivity for MetaData database
+
+xdb.metadata.database=XDBSYS
+xdb.metadata.dbhost=127.0.0.1
+
+### The number of nodes in cluster
+
+#xdb.nodecount=4
+
+### The hosts of the underlying databases
+
+#xdb.node.1.dbhost=127.0.0.1
+#xdb.node.2.dbhost=127.0.0.1
+#xdb.node.3.dbhost=127.0.0.1
+#xdb.node.4.dbhost=127.0.0.1
+
+
+### Designate coordinator node number
+### In practice, the coordinator node should be the node where
+### Stado is running.
+
+xdb.coordinator.node=1
+
+###
+### The next few sections are required when wanting to run agents on the nodes.
+### Uncomment them and modify to communicate with agents
+###
+
+### Only for agent version
+### Port for node's SocketCommunicator 
+
+#xdb.node.1.port=6455
+#xdb.node.1.host=192.168.123.100
+#xdb.node.2.port=6455
+#xdb.node.2.host=192.168.123.101
+#xdb.node.3.port=6455
+#xdb.node.3.host=192.168.123.102
+#xdb.node.4.port=6455
+#xdb.node.4.host=192.168.123.103
+
+
+### Designate coordinator node
+### In practice, the coordinator node should be the node where
+### Stado is running.
+
+#xdb.coordinator.host=192.168.123.100
+#xdb.coordinator.port=6454
+
+# Specify protocol types.
+# Can use local connection between coordinator and node 1,
+# since they are the same system
+
+#xdb.connector.0.1=0
+#xdb.connector.1.0=0
+
+###
+### Logging Settings
+###
+
+### The log4j library is used. 
+### More info at http://logging.apache.org/log4j/docs/
+
+# rootLogger. Log warnings and errors.
+log4j.rootLogger=WARN, console
+
+# Define other characteristics for console log
+log4j.appender.console=org.apache.log4j.RollingFileAppender
+log4j.appender.console.maxFileSize=500KB
+log4j.appender.console.maxBackupIndex=10
+log4j.appender.console.layout=org.apache.log4j.PatternLayout
+log4j.appender.console.layout.ConversionPattern=%d{ISO8601} - %-5p %m%n
+log4j.appender.console.File=../log/console.log
+
+# Log Server messages to the console logger
+log4j.logger.Server=ALL, console
+
+# Query logger.
+# This logs all queries sent to the database. 
+log4j.logger.query=INFO, QUERY
+log4j.appender.QUERY=org.apache.log4j.RollingFileAppender
+log4j.appender.QUERY.File=../log/query.log
+log4j.appender.QUERY.maxFileSize=500KB
+log4j.appender.QUERY.maxBackupIndex=10
+log4j.appender.QUERY.layout=org.apache.log4j.PatternLayout
+log4j.appender.QUERY.layout.ConversionPattern=%d{ISO8601} - %m%n
+
+# Activity logger.
+# This logs grid activity 
+log4j.logger.activity=INFO, activity
+log4j.appender.activity=org.apache.log4j.RollingFileAppender
+log4j.appender.activity.File=../log/activity.log
+log4j.appender.activity.maxFileSize=10MB
+log4j.appender.activity.maxBackupIndex=10
+log4j.appender.activity.layout=org.apache.log4j.PatternLayout
+log4j.appender.activity.layout.ConversionPattern=%d{ISO8601} - %m%n
+
+# Uncomment this if you would like other SQL commands other
+# than SELECT to be logged in the query logger as well 
+# (e.g. INSERT, UPDATE, DELETE).
+
+#log4j.logger.command=INFO, QUERY
+
+# A separate "long query" log may be defined to separately log queries
+# that appear to be be taking a long time.
+# Specify the threshold in seconds at which queries will show up in the 
+# long query log.
+xdb.longQuerySeconds=300
+
+log4j.logger.longquery=INFO, LONGQUERY
+log4j.appender.LONGQUERY=org.apache.log4j.RollingFileAppender
+log4j.appender.LONGQUERY.File=../log/longqry.log
+log4j.appender.LONGQUERY.maxFileSize=500KB
+log4j.appender.LONGQUERY.maxBackupIndex=10
+log4j.appender.LONGQUERY.layout=org.apache.log4j.PatternLayout
+log4j.appender.LONGQUERY.layout.ConversionPattern=%d{ISO8601} - %m%n
+
+### User defined functions: subdate, adddate
+
+xdb.sqlfunction.subdate.template=DATE({arg1})-INTERVAL '{arg2} days'
+xdb.sqlfunction.subdate.returntype=DATE
+xdb.sqlfunction.subdate.paramcount=2
+xdb.sqlfunction.subdate.arg1=DATE
+xdb.sqlfunction.subdate.arg2=ANYNUMBER
+
+xdb.sqlfunction.adddate.template=DATE({arg1})+INTERVAL '{arg2} days'
+xdb.sqlfunction.adddate.returntype=DATE
+xdb.sqlfunction.adddate.paramcount=2
+xdb.sqlfunction.adddate.arg1=ANYDATE
+xdb.sqlfunction.adddate.arg2=ANYNUMBER
+
+
