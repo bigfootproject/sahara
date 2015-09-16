@@ -484,7 +484,7 @@ def generate_spark_defaults_conf(cluster):
 
 def generate_dinodb_master_config(slavenames):
     num = len(slavenames)
-    diconf = '\nxdb.nodecount=' + num + '\n'
+    diconf = '\nxdb.nodecount=' + str(num) + '\n'
     i = 1
     for slave in slavenames:
         diconf += 'xdb.node.' + str(i) + '.dbhost=' + slave + '\n'
