@@ -208,7 +208,7 @@ class SparkProvider(p.ProvisioningPluginBase):
 
         hdfs_url = c_helper.get_conf_hdfs_url(cluster)
         if nn is None and hdfs_url == '':
-            hdfs_url = 'CHANGEME'
+            hdfs_url = 'localhost'
         elif nn is not None and hdfs_url == '':
             hdfs_url = nn.hostname()
 
