@@ -73,6 +73,7 @@ def start_dinodb_node(din_remote, din_home, dimeta_home):
 
 def start_dinodb_master(dim_remote, din_home, dim_home):
     dim_remote.execute_command("cd " + din_home + "; bin/pg_ctl start -D datadir1 > /dev/null 2>&1 &")
+    dim_remote.execute_command("env > /home/ubuntu/tmp; source etc/profile; env > /home/ubuntu/tmp2")
     dim_remote.execute_command("cd " + os.path.join(dim_home, "bin") + "; ./gs-server.sh")
 
 
