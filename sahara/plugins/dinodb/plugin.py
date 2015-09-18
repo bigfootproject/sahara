@@ -415,7 +415,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             r.write_files_to(files_init)
             r.write_files_to(files_dinodb)
             r.execute_command(
-                "sudo bash -c 'echo PATH=\$PATH:" + dinodb_node_home + "/bin >> /etc/profile'")
+                "sudo bash -c 'echo PATH=\$PATH:" + dinodb_node_home + "/bin >> /etc/profile'; source /etc/profile")
             r.execute_command(
                 'sudo chmod 0500 /tmp/sahara-hadoop-init.sh'
             )
