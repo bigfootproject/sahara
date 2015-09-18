@@ -72,4 +72,6 @@ def start_dinodb_node(din_remote, din_home, dimeta_home):
 
 def start_dinodb_master(dim_remote, din_home, dim_home):
     dim_remote.execute_command("cd " + din_home + "; bin/pg_ctl -D datadir")
-    dim_remote.execute_command("cd " + os.path.join(dim_home, "bin") + ";./gs-createmddb.sh -u admin -p secret; ./gs-server.sh")
+    dim_remote.execute_command("cd " + os.path.join(dim_home, "bin") + "; ./gs-server.sh")
+
+

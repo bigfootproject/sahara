@@ -204,7 +204,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         self._start_notebook(cluster)
 
         # start dinodb
-        # self.start_dinodb(cluster)
+        self.start_dinodb(cluster)
 
         LOG.info(_LI('Cluster {cluster} has been started successfully').format(
             cluster=cluster.name))
@@ -405,6 +405,10 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             r.execute_command(
                 'sudo chown -R $USER:$USER %s' % sp_home
             )
+            # tmp use, should be deleted after image is updated
+            r.execute_command('cd /opt; rm -rf dinodb; rm -rf dinodb.tar.gz; wget https://googledrive.com/host/0B2TbBvh6BGVcfkVIaWhZRXZ4dVRYUjBCWkV0WTAxWENxeUMteVowd1JSXzNDb3gza0U5MXM/dinodb.tar.gz')
+            r.execute_command('cd /opt; tar zxvf dinodb.tar.gz')
+
             r.write_files_to(files_hadoop)
             r.write_files_to(files_spark)
             r.write_files_to(files_init)
