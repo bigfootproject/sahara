@@ -67,11 +67,11 @@ def start_spark_notebook(nb_remote):
     nb_remote.execute_command("bash /tmp/sahara_notebook_start.sh")
 
 def start_dinodb_node(din_remote, din_home, dimeta_home):
-    din_remote.execute_command("cd " + din_home + "; bin/pg_ctl start -D datadir > /dev/null 2>&1 &")
+    din_remote.execute_command("cd " + din_home + "; bin/pg_ctl start -D datadir1 > /dev/null 2>&1 &")
     din_remote.execute_command("cd " + dimeta_home + "; nohup python dinodbnode.py > dinodbnode.log 2>&1 &")
 
 def start_dinodb_master(dim_remote, din_home, dim_home):
-    dim_remote.execute_command("cd " + din_home + "; bin/pg_ctl start -D datadir > /dev/null 2>&1 &")
+    dim_remote.execute_command("cd " + din_home + "; bin/pg_ctl start -D datadir1 > /dev/null 2>&1 &")
     dim_remote.execute_command("cd " + os.path.join(dim_home, "bin") + "; ./gs-server.sh")
 
 
