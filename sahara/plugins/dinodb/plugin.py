@@ -406,8 +406,8 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
                 'sudo chown -R $USER:$USER %s' % sp_home
             )
             # tmp use, should be deleted after image is updated
-            r.execute_command('cd /opt; rm -rf dinodb; rm -rf dinodb.tar.gz; wget https://googledrive.com/host/0B2TbBvh6BGVcfkVIaWhZRXZ4dVRYUjBCWkV0WTAxWENxeUMteVowd1JSXzNDb3gza0U5MXM/dinodb.tar.gz')
-            r.execute_command('cd /opt; tar zxvf dinodb.tar.gz')
+            r.execute_command('cd /opt; sudo rm -rf dinodb; sudo rm -rf dinodb.tar.gz; sudo wget https://googledrive.com/host/0B2TbBvh6BGVcfkVIaWhZRXZ4dVRYUjBCWkV0WTAxWENxeUMteVowd1JSXzNDb3gza0U5MXM/dinodb.tar.gz')
+            r.execute_command('cd /opt; sudo tar zxvf dinodb.tar.gz; sudo chown -R ubuntu:ubuntu dinodb')
 
             r.write_files_to(files_hadoop)
             r.write_files_to(files_spark)
