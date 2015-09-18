@@ -390,6 +390,7 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
         # needed for dinodb:
         dinodb_master_home = self._dinodb_master_home(cluster)
         dinodb_metastore_home = self._dinodb_metastore_home(cluster)
+        dinodb_node_home = self._dinodb_node_home(cluster)
         LOG.info(_LI("dinodb_master_home:{dmh}").format(dmh=dinodb_master_home))
         LOG.info(_LI("dinodb_metastore_home:{dmeh}").format(dmeh=dinodb_metastore_home))
         files_dinodb = {
@@ -408,6 +409,8 @@ class DiNoDBProvider(p.ProvisioningPluginBase):
             r.write_files_to(files_spark)
             r.write_files_to(files_init)
             r.write_files_to(files_dinodb)
+            r.execute_command(
+                "sudo bash -c 'echo PATH=\$PATH:" + dinodb_node_home + "/bin >> /etc/profile'")
             r.execute_command(
                 'sudo chmod 0500 /tmp/sahara-hadoop-init.sh'
             )
