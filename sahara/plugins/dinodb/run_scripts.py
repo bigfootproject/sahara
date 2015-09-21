@@ -72,7 +72,8 @@ def start_dinodb_node(din_remote, din_home, dimeta_home):
 
 def start_dinodb_master(dim_remote, din_home, dim_home):
     dim_remote.execute_command("cd " + din_home + "; bin/pg_ctl start -D datadir1 > /dev/null 2>&1 &")
-    dim_remote.execute_command("cd " + os.path.join(dim_home, "bin") +
+    # sleep 5 seconds, to make sure dinodb node is started.
+    dim_remote.execute_command("sleep 5; cd " + os.path.join(dim_home, "bin") +
                                ";export PATH=$PATH:/opt/dinodb/dinodbnode/bin; ./gs-server.sh")
 
 
