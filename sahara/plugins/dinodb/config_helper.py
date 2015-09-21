@@ -366,7 +366,8 @@ def generate_xml_configs(configs, storage_path, nn_hostname, hadoop_port):
         'hadoop.tmp.dir': extract_hadoop_path(storage_path,
                                               '/dfs'),
         'dfs.hosts': '/etc/hadoop/dn.incl',
-        'dfs.hosts.exclude': '/etc/hadoop/dn.excl'
+        'dfs.hosts.exclude': '/etc/hadoop/dn.excl',
+        'dfs.datanode.data.dir.perm': '755'
     }
 
     # inserting user-defined configs
