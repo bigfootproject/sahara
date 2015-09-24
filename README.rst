@@ -20,8 +20,8 @@ This repository is periodically merged with the upstream Sahara master branch.
 Virtual Machine image
 ---------------------
 
-An image ready to be used with this version of Sahara is available here:
-https://drive.google.com/open?id=0B2TbBvh6BGVcZVZCbEFjOWdvNjQ
+Images ready to be used with this version of Sahara can be found here:
+https://drive.google.com/folderview?id=0B2TbBvh6BGVcfkVIaWhZRXZ4dVRYUjBCWkV0WTAxWENxeUMteVowd1JSXzNDb3gza0U5MXM&usp=sharing
 
 Contact us
 ----------
