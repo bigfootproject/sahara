@@ -168,6 +168,13 @@ SPARK_CONFS = {
     "Spark Notebook": {
         "OPTIONS": [
             {
+                'name': 'Executor memory',
+                'description': 'Amount of memory used by executors for this notebook'
+                ' (default: 512MB)',
+                'default': '512m',
+                'priority': 1,
+            },
+            {
                 'name': 'Notebook home',
                 'description': 'The location of the spark notebook installation'
                 ' (default: /opt/spark-notebook)',
@@ -610,11 +617,13 @@ def get_notebook_startup_script(cluster):
     sp_master_port = get_config_value("Spark", "Master port", cluster)
     sp_master_url = "spark://%s:%s" % (sp_master_name, sp_master_port)
     nb_path = get_config_value("Spark Notebook", "Notebook home", cluster)
+    sp_exec_ram = get_config_value("Spark Notebook", "Executor RAM", cluster)
 
     script = '''#!/bin/sh
 cd %s
 export MASTER="%s"
+export SPARK_EXECUTOR_MEMORY="%s"
 ./bin/spark-notebook >/tmp/notebook.log 2>&1 &
-''' % (nb_path, sp_master_url)
+''' % (nb_path, sp_master_url, sp_exec_ram)
 
     return script
